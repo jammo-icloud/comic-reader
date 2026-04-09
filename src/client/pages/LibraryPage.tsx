@@ -307,6 +307,9 @@ export default function LibraryPage() {
                   )}
                   <div className="p-3">
                     <h3 className="text-sm font-medium truncate">{s.name}</h3>
+                    {s.year && (
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{s.year}</p>
+                    )}
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-gray-500 dark:text-gray-400">
                         {s.count} ch.

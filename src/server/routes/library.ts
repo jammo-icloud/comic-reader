@@ -5,6 +5,7 @@ import { scanLibrary } from '../scanner.js';
 import { getThumbnailPath, generateThumbnail } from '../thumbnails.js';
 import { enrichSeries, enrichSingle, getSeriesCoverPath, loadSeriesMetadata, saveOverride } from '../enrich.js';
 import { loadShelves, addShelf, removeShelf } from '../shelves.js';
+import { loadTracked } from '../downloader.js';
 
 const router = Router();
 
@@ -109,16 +110,33 @@ router.get('/series', (_req, res) => {
   }
 
   const metadata = loadSeriesMetadata();
+  const tracked = loadTracked();
+
+  // Build a lookup: series title → tracked manga data
+  const trackedByTitle = new Map<string, (typeof tracked)[string]>();
+  for (const t of Object.values(tracked)) {
+    trackedByTitle.set(t.title, t);
+  }
 
   const series = Array.from(seriesMap.entries())
-    .map(([name, data]) => ({
-      name,
-      ...data,
-      malTitle: metadata[name]?.malTitle || null,
-      score: metadata[name]?.score || null,
-      synopsis: metadata[name]?.synopsis || null,
-      hasCover: !!metadata[name]?.coverPath,
-    }))
+    .map(([name, data]) => {
+      const mal = metadata[name];
+      const mdx = trackedByTitle.get(name);
+      return {
+        name,
+        ...data,
+        malTitle: mal?.malTitle || null,
+        score: mal?.score || null,
+        synopsis: mal?.synopsis || mdx?.description || null,
+        hasCover: !!mal?.coverPath,
+        // MangaDex metadata (from downloads)
+        year: mdx?.year || null,
+        tags: mdx?.tags || null,
+        status: mdx?.status || null,
+        mangaDexId: mdx?.mangaDexId || null,
+        source: mdx ? 'mangadex' : mal ? 'mal' : null,
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
 
   res.json(series);

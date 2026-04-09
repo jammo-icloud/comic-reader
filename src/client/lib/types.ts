@@ -50,4 +50,10 @@ export interface Series {
   score: number | null;
   synopsis: string | null;
   hasCover: boolean;
+  // MangaDex metadata
+  year: number | null;
+  tags: string[] | null;
+  status: string | null;
+  mangaDexId: string | null;
+  source: 'mangadex' | 'mal' | null;
 }

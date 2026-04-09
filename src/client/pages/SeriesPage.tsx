@@ -175,6 +175,21 @@ export default function SeriesPage() {
                   {chapterRange}
                 </span>
               )}
+              {seriesInfo?.year && (
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {seriesInfo.year}
+                </span>
+              )}
+              {seriesInfo?.status && (
+                <span className={`text-xs px-1.5 py-0.5 rounded capitalize ${
+                  seriesInfo.status === 'completed' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                  seriesInfo.status === 'ongoing' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                  seriesInfo.status === 'hiatus' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
+                  'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                }`}>
+                  {seriesInfo.status}
+                </span>
+              )}
               {readCount > 0 && (
                 <span className="text-sm text-green-600 dark:text-green-400">
                   {readCount} read
@@ -188,11 +203,34 @@ export default function SeriesPage() {
               <OfflineButton comics={comics} label={`Save all ${comics.length} offline`} />
             </div>
 
+            {/* Tags */}
+            {seriesInfo?.tags && seriesInfo.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {seriesInfo.tags.map((tag) => (
+                  <span key={tag} className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* Synopsis */}
             {seriesInfo?.synopsis && (
-              <p className="mt-4 text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-5">
+              <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-5">
                 {seriesInfo.synopsis}
               </p>
+            )}
+
+            {/* Source link */}
+            {seriesInfo?.mangaDexId && (
+              <a
+                href={`https://mangadex.org/title/${seriesInfo.mangaDexId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-2 text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+              >
+                Source: MangaDex &rarr;
+              </a>
             )}
           </div>
         </section>
