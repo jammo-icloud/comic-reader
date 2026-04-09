@@ -4,7 +4,7 @@ import { getAllComics, getComic } from '../library.js';
 import { scanLibrary } from '../scanner.js';
 import { getThumbnailPath, generateThumbnail } from '../thumbnails.js';
 import { enrichSeries, enrichSingle, getSeriesCoverPath, loadSeriesMetadata, saveOverride } from '../enrich.js';
-import { loadShelves, addShelf, removeShelf } from '../shelves.js';
+import { loadShelves, addShelf, removeShelf, updateShelf, listPlaceholders } from '../shelves.js';
 import { loadTracked } from '../downloader.js';
 
 const router = Router();
@@ -17,16 +17,34 @@ router.get('/shelves', (_req, res) => {
 
 router.post('/shelves', (req, res) => {
   try {
-    const { name, path } = req.body;
+    const { name, path, placeholder } = req.body;
     if (!name || !path) {
       res.status(400).json({ error: 'name and path required' });
       return;
     }
-    const shelf = addShelf(name, path);
+    const shelf = addShelf(name, path, placeholder || 'manga.png');
     res.json(shelf);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
+});
+
+router.patch('/shelves/:id', (req, res) => {
+  const { name, placeholder } = req.body;
+  const shelf = updateShelf(req.params.id, { name, placeholder });
+  if (shelf) res.json(shelf);
+  else res.status(404).json({ error: 'Shelf not found' });
+});
+
+// List available placeholder images
+router.get('/placeholders', (_req, res) => {
+  const clientDir = pathMod.join(pathMod.dirname(new URL(import.meta.url).pathname), '../../client');
+  // In dev, public dir is at project root; in prod, it's copied into dist/client
+  const publicDir = process.env.NODE_ENV === 'production' ? clientDir : pathMod.resolve('public');
+  // Try both paths
+  let placeholders = listPlaceholders(clientDir);
+  if (placeholders.length === 0) placeholders = listPlaceholders(pathMod.resolve('public'));
+  res.json(placeholders);
 });
 
 router.delete('/shelves/:id', (req, res) => {
@@ -90,7 +108,9 @@ router.get('/comics', (req, res) => {
 // List series
 router.get('/series', (_req, res) => {
   const comics = getAllComics();
-  const seriesMap = new Map<string, { count: number; readCount: number; latestReadAt: string | null }>();
+  const shelves = loadShelves();
+  const shelfMap = new Map(shelves.map((s) => [s.id, s]));
+  const seriesMap = new Map<string, { count: number; readCount: number; latestReadAt: string | null; shelfId: string }>();
 
   for (const c of comics) {
     const existing = seriesMap.get(c.series);
@@ -99,6 +119,7 @@ router.get('/series', (_req, res) => {
         count: 1,
         readCount: c.isRead ? 1 : 0,
         latestReadAt: c.lastReadAt,
+        shelfId: c.shelfId,
       });
     } else {
       existing.count++;
@@ -135,6 +156,7 @@ router.get('/series', (_req, res) => {
         status: mdx?.status || null,
         mangaDexId: mdx?.mangaDexId || null,
         source: mdx ? 'mangadex' : mal ? 'mal' : null,
+        placeholder: shelfMap.get(data.shelfId)?.placeholder || 'manga.png',
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));

@@ -16,6 +16,7 @@ export interface Shelf {
   id: string;
   name: string;
   path: string;
+  placeholder: string;
 }
 
 // MangaDex types
@@ -56,4 +57,5 @@ export interface Series {
   status: string | null;
   mangaDexId: string | null;
   source: 'mangadex' | 'mal' | null;
+  placeholder: string;
 }

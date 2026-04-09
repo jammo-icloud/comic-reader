@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, LayoutGrid, List, Star, Pencil } from 'lucide-react';
 import type { Comic, Series } from '../lib/types';
-import { getComics, getSeries, getSeriesCoverUrl, overrideMalId } from '../lib/api';
+import { getComics, getSeries, getSeriesCoverUrl, getPlaceholderUrl, overrideMalId } from '../lib/api';
 import ComicCard from '../components/ComicCard';
 import ComicListItem from '../components/ComicListItem';
 import ThemeToggle from '../components/ThemeToggle';
@@ -107,7 +107,7 @@ export default function SeriesPage() {
           {/* Cover art */}
           <div className="w-36 sm:w-44 shrink-0 rounded-lg overflow-hidden shadow-lg">
             <img
-              src={seriesInfo?.hasCover ? getSeriesCoverUrl(seriesName) : '/unmatched-cover.png'}
+              src={seriesInfo?.hasCover ? getSeriesCoverUrl(seriesName) : getPlaceholderUrl(seriesInfo?.placeholder || 'manga.png')}
               alt={seriesName}
               className={`w-full aspect-[2/3] object-cover ${seriesInfo?.hasCover ? '' : 'opacity-60'}`}
             />

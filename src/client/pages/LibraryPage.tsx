@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, X, BookOpen, Search, RefreshCw, Image, LayoutGrid, List, ChevronDown, ChevronRight, Library, Compass } from 'lucide-react';
 import type { Comic, Series, Shelf } from '../lib/types';
-import { getComics, getSeries, getContinueReading, triggerScan, triggerEnrich, getSeriesCoverUrl, getShelves, addShelf as addShelfApi, removeShelf as removeShelfApi } from '../lib/api';
+import { getComics, getSeries, getContinueReading, triggerScan, triggerEnrich, getSeriesCoverUrl, getPlaceholderUrl, getShelves, addShelf as addShelfApi, removeShelf as removeShelfApi } from '../lib/api';
 import ComicCard from '../components/ComicCard';
 import ThemeToggle from '../components/ThemeToggle';
 import AddShelfModal from '../components/AddShelfModal';
@@ -54,8 +54,8 @@ export default function LibraryPage() {
     try { await triggerEnrich(); await loadData(); } finally { setEnriching(false); }
   };
 
-  const handleAddShelf = async (name: string, path: string) => {
-    await addShelfApi(name, path);
+  const handleAddShelf = async (name: string, path: string, placeholder?: string) => {
+    await addShelfApi(name, path, placeholder);
     setShowAddShelf(false);
     setShowShelfMenu(false);
     await triggerScan();
@@ -299,7 +299,7 @@ export default function LibraryPage() {
                   ) : (
                     <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 overflow-hidden">
                       <img
-                        src="/unmatched-cover.png"
+                        src={getPlaceholderUrl(s.placeholder)}
                         alt="Unmatched series"
                         className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-200"
                       />

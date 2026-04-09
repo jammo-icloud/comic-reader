@@ -8,6 +8,7 @@ export interface Shelf {
   id: string;
   name: string;
   path: string;
+  placeholder: string; // filename in public/placeholders/ e.g. "manga.png"
 }
 
 function ensureDataDir() {
@@ -28,25 +29,32 @@ function saveShelves(shelves: Shelf[]) {
   fs.writeFileSync(SHELVES_PATH, JSON.stringify(shelves, null, 2));
 }
 
-export function addShelf(name: string, folderPath: string): Shelf {
+export function addShelf(name: string, folderPath: string, placeholder = 'manga.png'): Shelf {
   const shelves = loadShelves();
 
-  // Validate folder exists
   const resolvedPath = path.resolve(folderPath);
   if (!fs.existsSync(resolvedPath)) {
     throw new Error(`Folder does not exist: ${resolvedPath}`);
   }
 
-  // Generate ID from name
   const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-  // Check for duplicate
   if (shelves.some((s) => s.id === id)) {
     throw new Error(`Shelf "${name}" already exists`);
   }
 
-  const shelf: Shelf = { id, name, path: resolvedPath };
+  const shelf: Shelf = { id, name, path: resolvedPath, placeholder };
   shelves.push(shelf);
+  saveShelves(shelves);
+  return shelf;
+}
+
+export function updateShelf(id: string, updates: Partial<Pick<Shelf, 'name' | 'placeholder'>>): Shelf | null {
+  const shelves = loadShelves();
+  const shelf = shelves.find((s) => s.id === id);
+  if (!shelf) return null;
+  if (updates.name) shelf.name = updates.name;
+  if (updates.placeholder) shelf.placeholder = updates.placeholder;
   saveShelves(shelves);
   return shelf;
 }
@@ -62,4 +70,13 @@ export function removeShelf(id: string): boolean {
 
 export function getShelf(id: string): Shelf | undefined {
   return loadShelves().find((s) => s.id === id);
+}
+
+// Scan public/placeholders/ directory for available images
+export function listPlaceholders(publicDir: string): string[] {
+  const dir = path.join(publicDir, 'placeholders');
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter((f) => /\.(png|jpg|jpeg|webp)$/i.test(f))
+    .sort();
 }

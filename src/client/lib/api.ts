@@ -31,16 +31,24 @@ export function getShelves(): Promise<Shelf[]> {
   return fetchJson('/shelves');
 }
 
-export function addShelf(name: string, path: string): Promise<Shelf> {
+export function addShelf(name: string, path: string, placeholder?: string): Promise<Shelf> {
   return fetchJson('/shelves', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, path }),
+    body: JSON.stringify({ name, path, placeholder }),
   });
 }
 
 export function removeShelf(id: string): Promise<void> {
   return fetchJson(`/shelves/${id}`, { method: 'DELETE' });
+}
+
+export function getPlaceholders(): Promise<string[]> {
+  return fetchJson('/placeholders');
+}
+
+export function getPlaceholderUrl(filename: string): string {
+  return `/placeholders/${filename}`;
 }
 
 export function getSeries(): Promise<Series[]> {
