@@ -1,4 +1,4 @@
-import type { Comic, Series, Shelf } from './types';
+import type { Comic, Series, Shelf, MangaDexManga, MangaDexChapter } from './types';
 
 const BASE = '/api';
 
@@ -93,4 +93,35 @@ export function overrideMalId(seriesName: string, malId: number): Promise<any> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ seriesName, malId }),
   });
+}
+
+// Discover / MangaDex
+export function discoverSearch(query: string, offset = 0): Promise<{ results: MangaDexManga[]; total: number }> {
+  return fetchJson(`/discover/search?q=${encodeURIComponent(query)}&offset=${offset}`);
+}
+
+export function discoverMangaDetail(id: string): Promise<MangaDexManga> {
+  return fetchJson(`/discover/manga/${id}`);
+}
+
+export function discoverChapters(mangaId: string): Promise<MangaDexChapter[]> {
+  return fetchJson(`/discover/manga/${mangaId}/chapters`);
+}
+
+export function startDownload(
+  mangaDexId: string,
+  mangaTitle: string,
+  shelfId: string,
+  chapters: { id: string; chapter: string | null; pages: number }[],
+  metadata?: Record<string, any>,
+): Promise<any> {
+  return fetchJson('/discover/download', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mangaDexId, mangaTitle, shelfId, chapters, metadata }),
+  });
+}
+
+export function getDownloadQueue(): Promise<any[]> {
+  return fetchJson('/discover/queue');
 }

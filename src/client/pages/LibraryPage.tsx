@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, X, BookOpen, Search, RefreshCw, Image, LayoutGrid, List, ChevronDown, ChevronRight, Library } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, X, BookOpen, Search, RefreshCw, Image, LayoutGrid, List, ChevronDown, ChevronRight, Library, Compass } from 'lucide-react';
 import type { Comic, Series, Shelf } from '../lib/types';
 import { getComics, getSeries, getContinueReading, triggerScan, triggerEnrich, getSeriesCoverUrl, getShelves, addShelf as addShelfApi, removeShelf as removeShelfApi } from '../lib/api';
 import ComicCard from '../components/ComicCard';
@@ -11,6 +11,7 @@ const btnClass = 'p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transi
 const btnActiveClass = 'p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors';
 
 export default function LibraryPage() {
+  const navigate = useNavigate();
   const [comics, setComics] = useState<Comic[]>([]);
   const [series, setSeries] = useState<Series[]>([]);
   const [continueReading, setContinueReading] = useState<Comic[]>([]);
@@ -210,6 +211,15 @@ export default function LibraryPage() {
               <Image size={18} />
             </button>
           )}
+
+          {/* Discover */}
+          <button
+            onClick={() => navigate('/discover')}
+            className={btnClass}
+            title="Discover manga on MangaDex"
+          >
+            <Compass size={18} />
+          </button>
 
           {/* Theme */}
           <ThemeToggle />

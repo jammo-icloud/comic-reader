@@ -18,6 +18,29 @@ export interface Shelf {
   path: string;
 }
 
+// MangaDex types
+export interface MangaDexManga {
+  id: string;
+  title: string;
+  altTitles: string[];
+  description: string;
+  status: string;
+  year: number | null;
+  coverUrl: string | null;
+  tags: string[];
+  contentRating: string;
+}
+
+export interface MangaDexChapter {
+  id: string;
+  chapter: string | null;
+  volume: string | null;
+  title: string | null;
+  pages: number;
+  scanlationGroup: string | null;
+  publishedAt: string;
+}
+
 export interface Series {
   name: string;
   count: number;
