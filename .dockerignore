@@ -1,0 +1,8 @@
+node_modules
+dist
+data
+comics
+.git
+.claude
+*.md
+scripts

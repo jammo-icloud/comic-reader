@@ -1,0 +1,56 @@
+import { Link } from 'react-router-dom';
+import { Check } from 'lucide-react';
+import type { Comic } from '../lib/types';
+import { getThumbnailUrl } from '../lib/api';
+
+export default function ComicCard({ comic, hideSeries }: { comic: Comic; hideSeries?: boolean }) {
+  const progress =
+    comic.pageCount > 0 ? Math.round((comic.currentPage / comic.pageCount) * 100) : 0;
+
+  return (
+    <Link
+      to={`/read/${comic.path}`}
+      className="group block bg-white dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
+    >
+      <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
+        <img
+          src={getThumbnailUrl(comic.path)}
+          alt={comic.title}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+          loading="lazy"
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = 'none';
+          }}
+        />
+        {comic.isRead && (
+          <div className="absolute top-2 right-2 bg-green-600/90 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
+            <Check size={12} strokeWidth={3} />
+            Read
+          </div>
+        )}
+        {!comic.isRead && comic.currentPage > 0 && (
+          <div className="absolute top-2 right-2 bg-blue-600/90 text-white text-xs px-1.5 py-0.5 rounded">
+            p.{comic.currentPage + 1}/{comic.pageCount}
+          </div>
+        )}
+        {!comic.isRead && comic.currentPage > 0 && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/30">
+            <div className="h-full bg-blue-500" style={{ width: `${progress}%` }} />
+          </div>
+        )}
+        {comic.isRead && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-green-500" />
+        )}
+      </div>
+      <div className="p-3">
+        <h3 className="text-sm font-medium truncate">{comic.title}</h3>
+        {!hideSeries && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{comic.series}</p>
+        )}
+        {hideSeries && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{comic.pageCount} pages</p>
+        )}
+      </div>
+    </Link>
+  );
+}

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+data/
+comics/
+.DS_Store
+.claude/
+scripts/

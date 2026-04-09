@@ -1,0 +1,30 @@
+version: "3.8"
+services:
+  comic-reader:
+    build: .
+    container_name: comic-reader
+    ports:
+      - "8580:3000"
+    volumes:
+      # Data volume — persists library.json, shelves.json, thumbnails, covers
+      - comic-reader-data:/app/data
+
+      # Mount your comic folders here.
+      # Each folder you want as a shelf needs to be mounted into the container.
+      # Then add it as a shelf in the UI using the container path.
+      #
+      # Example: mount NAS shared folders
+      - /volume1/comics/Manga:/mnt/manga:ro
+      - /volume1/comics/Magazines:/mnt/magazines:ro
+      # - /volume1/comics/Adult:/mnt/adult:ro
+      #
+      # In the app UI, add shelves pointing to:
+      #   Name: "Manga"      Path: /mnt/manga
+      #   Name: "Magazines"   Path: /mnt/magazines
+    environment:
+      - DATA_DIR=/app/data
+      - SERVER_PORT=3000
+    restart: unless-stopped
+
+volumes:
+  comic-reader-data:
