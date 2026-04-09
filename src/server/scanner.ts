@@ -9,6 +9,31 @@ function extractSeriesOrder(filename: string): number {
   return parseFloat(numbers[numbers.length - 1]);
 }
 
+// For nested paths like "Series/1977/file.pdf", combine year + filename order
+// Returns a sortable number: year * 10000 + issue number within year
+function extractNestedOrder(relativePath: string): number {
+  const parts = relativePath.split(path.sep);
+  // parts: ["Series", "1977", "file.pdf"] or ["Series", "file.pdf"]
+  if (parts.length <= 2) {
+    // Simple: Series/file.pdf
+    return extractSeriesOrder(parts[parts.length - 1]);
+  }
+
+  // Nested: look for a year-like folder (4-digit number)
+  let yearMultiplier = 0;
+  for (let i = 1; i < parts.length - 1; i++) {
+    const yearMatch = parts[i].match(/^(\d{4})$/);
+    if (yearMatch) {
+      yearMultiplier = parseInt(yearMatch[1], 10) * 10000;
+    }
+  }
+
+  const filename = parts[parts.length - 1];
+  const filenameOrder = extractSeriesOrder(filename);
+
+  return yearMultiplier + filenameOrder;
+}
+
 function walkDir(dir: string): string[] {
   const results: string[] = [];
   if (!fs.existsSync(dir)) return results;
@@ -62,10 +87,15 @@ function scanShelf(shelf: Shelf, lib: ReturnType<typeof loadLibrary>) {
       const parentDir = path.dirname(rel);
       const series = parentDir === '.' ? 'Unsorted' : parentDir.split(path.sep)[0];
 
+      // For nested paths (Series/1977/file.pdf), prefix title with subfolder
+      const pathParts = rel.split(path.sep);
+      const subfolders = pathParts.slice(1, -1); // everything between series and filename
+      const title = subfolders.length > 0 ? `${subfolders.join(' - ')} - ${basename}` : basename;
+
       const entry: ComicEntry = {
-        title: basename,
+        title,
         series,
-        seriesOrder: extractSeriesOrder(basename),
+        seriesOrder: extractNestedOrder(rel),
         pageCount: 0,
         fileSize: stat.size,
         currentPage: 0,
@@ -79,8 +109,7 @@ function scanShelf(shelf: Shelf, lib: ReturnType<typeof loadLibrary>) {
       added++;
     } else {
       // Update sort order + ensure shelfId is set
-      const basename = path.basename(rel, '.pdf');
-      lib.comics[key].seriesOrder = extractSeriesOrder(basename);
+      lib.comics[key].seriesOrder = extractNestedOrder(rel);
       lib.comics[key].shelfId = shelf.id;
     }
   }
