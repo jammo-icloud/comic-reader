@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { searchManga, getMangaDetail, getChapterList } from '../mangadex.js';
-import { queueDownload, getQueue, removeFromQueue, onProgress, getTrackedList } from '../downloader.js';
+import { queueDownload, getQueue, removeFromQueue, cancelDownload, onProgress, getTrackedList } from '../downloader.js';
 
 const router = Router();
 
@@ -58,7 +58,17 @@ router.get('/discover/queue', (_req, res) => {
   res.json(getQueue());
 });
 
-// Remove from queue
+// Cancel an active or queued download
+router.post('/discover/queue/:id/cancel', (req, res) => {
+  const cancelled = cancelDownload(req.params.id);
+  if (cancelled) {
+    res.json({ ok: true });
+  } else {
+    res.status(404).json({ error: 'Job not found or already complete' });
+  }
+});
+
+// Remove a completed/errored job from queue
 router.delete('/discover/queue/:id', (req, res) => {
   removeFromQueue(req.params.id);
   res.json({ ok: true });

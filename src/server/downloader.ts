@@ -75,9 +75,35 @@ export function getQueue(): DownloadJob[] {
   return loadQueue();
 }
 
+const cancelledJobs = new Set<string>();
+
 export function removeFromQueue(id: string) {
   const queue = loadQueue().filter((j) => j.id !== id);
   saveQueue(queue);
+}
+
+export function cancelDownload(id: string): boolean {
+  const queue = loadQueue();
+  const job = queue.find((j) => j.id === id);
+  if (!job) return false;
+
+  if (job.status === 'queued') {
+    // Not started yet — just remove it
+    saveQueue(queue.filter((j) => j.id !== id));
+    return true;
+  }
+
+  if (job.status === 'downloading') {
+    // Signal the download loop to stop
+    cancelledJobs.add(id);
+    job.status = 'error';
+    job.error = 'Cancelled by user';
+    saveQueue(queue);
+    emitProgress(job);
+    return true;
+  }
+
+  return false;
 }
 
 // --- Tracked manga ---
@@ -195,6 +221,13 @@ async function processQueue() {
 
       try {
         for (let i = 0; i < job.chapters.length; i++) {
+          // Check for cancellation between chapters
+          if (cancelledJobs.has(job.id)) {
+            cancelledJobs.delete(job.id);
+            console.log(`  Download cancelled: ${job.mangaTitle}`);
+            break;
+          }
+
           const ch = job.chapters[i];
           const chapterNum = ch.chapter || 'oneshot';
           const filename = `Chapter ${String(chapterNum).padStart(3, '0')}.pdf`;

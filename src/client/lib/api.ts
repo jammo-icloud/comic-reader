@@ -125,3 +125,11 @@ export function startDownload(
 export function getDownloadQueue(): Promise<any[]> {
   return fetchJson('/discover/queue');
 }
+
+export function cancelDownload(jobId: string): Promise<void> {
+  return fetchJson(`/discover/queue/${jobId}/cancel`, { method: 'POST' });
+}
+
+export function removeDownloadJob(jobId: string): Promise<void> {
+  return fetchJson(`/discover/queue/${jobId}`, { method: 'DELETE' });
+}
