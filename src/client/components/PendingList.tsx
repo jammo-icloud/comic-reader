@@ -14,6 +14,8 @@ export default function PendingList({ onClose, onUpdate }: { onClose: () => void
   const [editType, setEditType] = useState<'comic' | 'magazine'>('comic');
   const [editMalId, setEditMalId] = useState('');
   const [showMalEdit, setShowMalEdit] = useState(false);
+  const [brandImageFile, setBrandImageFile] = useState<File | null>(null);
+  const [brandImagePreview, setBrandImagePreview] = useState<string | null>(null);
 
   const loadPending = async () => {
     setLoading(true);
@@ -31,6 +33,8 @@ export default function PendingList({ onClose, onUpdate }: { onClose: () => void
     setEditType(item.suggestedType);
     setEditMalId(item.malMatch?.malId?.toString() || '');
     setShowMalEdit(false);
+    setBrandImageFile(null);
+    setBrandImagePreview(null);
   };
 
   const current = pending[0];
@@ -43,8 +47,16 @@ export default function PendingList({ onClose, onUpdate }: { onClose: () => void
         current.sourceFolder,
         editType,
         editName,
-        editMalId ? parseInt(editMalId, 10) : null,
+        editType === 'comic' && editMalId ? parseInt(editMalId, 10) : null,
       );
+
+      // Upload brand image if provided (magazines)
+      if (brandImageFile && editType === 'magazine') {
+        const formData = new FormData();
+        formData.append('image', brandImageFile);
+        const slugName = editName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
+        await fetch(`/api/series/${slugName}/cover`, { method: 'POST', body: formData });
+      }
       const remaining = pending.slice(1);
       setPending(remaining);
       if (remaining.length > 0) prefill(remaining[0]);
@@ -202,6 +214,40 @@ export default function PendingList({ onClose, onUpdate }: { onClose: () => void
               {!mal && (
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">No MAL match found. You can enter a MAL ID manually.</p>
               )}
+            </div>
+          )}
+
+          {/* Magazine brand image */}
+          {editType === 'magazine' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Brand Image</label>
+              <div className="flex items-center gap-3">
+                {brandImagePreview ? (
+                  <img src={brandImagePreview} alt="" className="w-16 h-24 object-cover rounded border border-gray-300 dark:border-gray-600" />
+                ) : (
+                  <div className="w-16 h-24 bg-gray-100 dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-600 flex items-center justify-center">
+                    <Newspaper size={20} className="text-gray-400" />
+                  </div>
+                )}
+                <div>
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setBrandImageFile(file);
+                          setBrandImagePreview(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                    Upload image
+                  </label>
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">Optional cover art for this brand</p>
+                </div>
+              </div>
             </div>
           )}
 

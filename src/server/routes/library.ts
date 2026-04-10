@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pathMod from 'path';
+import fs from 'fs';
 import { loadAllSeries, loadComics, getSeriesStats, saveSeries, type SeriesRecord } from '../data.js';
 import { shortHash } from '../hash.js';
 import { getThumbnailPath, generateThumbnail } from '../thumbnails.js';
@@ -91,6 +92,57 @@ router.post('/series-override', async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Override failed' });
+  }
+});
+
+// --- Series cover upload (for magazines/manual) ---
+
+router.post('/series/:id/cover', async (req, res) => {
+  const series = loadAllSeries().find((s) => s.id === req.params.id);
+  if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
+
+  const DATA_DIR = process.env.DATA_DIR || './data';
+  const coversDir = pathMod.join(DATA_DIR, 'series-covers');
+  if (!fs.existsSync(coversDir)) fs.mkdirSync(coversDir, { recursive: true });
+
+  // Read raw body as image data
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const body = Buffer.concat(chunks);
+
+  // Check if it's multipart form data or raw image
+  const contentType = req.headers['content-type'] || '';
+  let imageBuffer: Buffer;
+
+  if (contentType.includes('multipart')) {
+    // Simple multipart parse — find the image data after the headers
+    const boundary = contentType.split('boundary=')[1];
+    if (!boundary) { res.status(400).json({ error: 'Missing boundary' }); return; }
+    const parts = body.toString('binary').split(`--${boundary}`);
+    const imagePart = parts.find((p) => p.includes('Content-Type: image'));
+    if (!imagePart) { res.status(400).json({ error: 'No image found in upload' }); return; }
+    const dataStart = imagePart.indexOf('\r\n\r\n') + 4;
+    const dataEnd = imagePart.lastIndexOf('\r\n');
+    imageBuffer = Buffer.from(imagePart.slice(dataStart, dataEnd), 'binary');
+  } else {
+    imageBuffer = body;
+  }
+
+  try {
+    const sharp = (await import('sharp')).default;
+    const filename = `${shortHash(series.id)}.jpg`;
+    await sharp(imageBuffer)
+      .resize(300, 450, { fit: 'cover' })
+      .jpeg({ quality: 85 })
+      .toFile(pathMod.join(coversDir, filename));
+
+    series.coverFile = filename;
+    saveSeries(series);
+    res.json({ ok: true, coverFile: filename });
+  } catch (err) {
+    res.status(500).json({ error: `Image processing failed: ${(err as Error).message}` });
   }
 });
 
