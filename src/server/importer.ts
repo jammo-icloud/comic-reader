@@ -4,6 +4,17 @@ import { slugify, loadAllSeries, loadComics, saveSeries, writeComics, type Serie
 import { shortHash } from './hash.js';
 import { convertToPdf, isImageFolder } from './converter.js';
 
+function getPageCount(filePath: string): number {
+  try {
+    const mupdf = require('mupdf');
+    const data = fs.readFileSync(filePath);
+    const doc = mupdf.Document.openDocument(data, 'application/pdf');
+    return doc.countPages();
+  } catch {
+    return 0;
+  }
+}
+
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
 const DATA_DIR = process.env.DATA_DIR || path.join(LIBRARY_DIR, '.comic-reader');
 
@@ -194,10 +205,11 @@ export async function importSeries(config: ImportConfig): Promise<SeriesRecord> 
     if (ext === '.cbr' || ext === '.cbz') {
       const converted = await convertToPdf(sourcePath);
       if (converted) {
-        fs.copyFileSync(converted, path.join(destDir, finalFilename));
+        const destFile = path.join(destDir, finalFilename);
+        fs.copyFileSync(converted, destFile);
         comics.push({
           file: finalFilename,
-          pages: 0,
+          pages: getPageCount(destFile),
           currentPage: 0,
           isRead: false,
           order: extractChapterOrder(sourceFile),
@@ -211,7 +223,7 @@ export async function importSeries(config: ImportConfig): Promise<SeriesRecord> 
       }
       comics.push({
         file: newFilename,
-        pages: 0,
+        pages: getPageCount(destPath),
         currentPage: 0,
         isRead: false,
         order: extractChapterOrder(sourceFile),
