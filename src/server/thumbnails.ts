@@ -3,7 +3,8 @@ import path from 'path';
 import sharp from 'sharp';
 import * as mupdf from 'mupdf';
 import { getAllComics } from './library.js';
-import { getComicFullPath } from './scanner.js';
+import { resolveComicPath } from './scanner.js';
+import { shortHash } from './hash.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const THUMB_DIR = path.join(DATA_DIR, 'thumbnails');
@@ -16,8 +17,7 @@ function ensureThumbDir() {
 }
 
 function thumbPath(comicKey: string): string {
-  const hash = Buffer.from(comicKey).toString('base64url');
-  return path.join(THUMB_DIR, `${hash}.jpg`);
+  return path.join(THUMB_DIR, `${shortHash(comicKey)}.jpg`);
 }
 
 export function getThumbnailPath(comicKey: string): string | null {
@@ -31,7 +31,11 @@ export async function generateThumbnail(comicKey: string): Promise<string | null
 
   if (fs.existsSync(tp)) return tp;
 
-  const fullPath = getComicFullPath(comicKey);
+  // comicKey is now "seriesId/filename" — split and resolve
+  const slashIdx = comicKey.indexOf('/');
+  const seriesId = comicKey.substring(0, slashIdx);
+  const file = comicKey.substring(slashIdx + 1);
+  const fullPath = resolveComicPath(seriesId, file);
   if (!fullPath || !fs.existsSync(fullPath)) return null;
 
   try {

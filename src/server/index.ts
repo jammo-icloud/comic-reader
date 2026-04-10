@@ -6,7 +6,6 @@ import readerRoutes from './routes/reader.js';
 import discoverRoutes from './routes/discover.js';
 import ocrProxyRoutes from './routes/ocr-proxy.js';
 import { scanLibrary } from './scanner.js';
-import { flushLibrary } from './library.js';
 import { resumeIncompleteDownloads } from './downloader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -20,6 +19,22 @@ app.use('/api', libraryRoutes);
 app.use('/api', readerRoutes);
 app.use('/api', discoverRoutes);
 app.use('/api', ocrProxyRoutes);
+
+// Serve data directory assets (covers, thumbnails) as static files
+// This bypasses Express route handling — much faster for images
+const DATA_DIR = process.env.DATA_DIR || './data';
+app.use('/static/covers', express.static(path.join(DATA_DIR, 'series-covers'), {
+  maxAge: '7d',
+  immutable: true,
+}));
+app.use('/static/thumbnails', express.static(path.join(DATA_DIR, 'thumbnails'), {
+  maxAge: '7d',
+  immutable: true,
+}));
+app.use('/static/placeholders', express.static(
+  path.join(__dirname, '../client/placeholders'),
+  { maxAge: '30d', immutable: true }
+));
 
 // Serve frontend in production
 const clientDir = path.join(__dirname, '../client');
@@ -43,15 +58,8 @@ app.get('{*path}', (req, res) => {
   res.sendFile(path.join(clientDir, 'index.html'));
 });
 
-// Flush library data on shutdown
-process.on('SIGINT', () => {
-  flushLibrary();
-  process.exit(0);
-});
-process.on('SIGTERM', () => {
-  flushLibrary();
-  process.exit(0);
-});
+process.on('SIGINT', () => process.exit(0));
+process.on('SIGTERM', () => process.exit(0));
 
 app.listen(PORT, () => {
   console.log(`Comic Reader running on http://localhost:${PORT}`);

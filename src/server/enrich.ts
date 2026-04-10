@@ -1,125 +1,74 @@
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
-import { loadLibrary, saveLibrary, getAllComics } from './library.js';
+import { loadAllSeries, saveSeries, type SeriesRecord } from './data.js';
+import { shortHash } from './hash.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const COVERS_DIR = path.join(DATA_DIR, 'series-covers');
-const OVERRIDES_PATH = path.join(DATA_DIR, 'series-overrides.json');
 const JIKAN_BASE = 'https://api.jikan.moe/v4';
-
-// Jikan has a rate limit of ~3 requests/second
 const RATE_LIMIT_MS = 400;
 
 function ensureCoversDir() {
-  if (!fs.existsSync(COVERS_DIR)) {
-    fs.mkdirSync(COVERS_DIR, { recursive: true });
-  }
+  if (!fs.existsSync(COVERS_DIR)) fs.mkdirSync(COVERS_DIR, { recursive: true });
 }
 
-function coverPath(seriesName: string): string {
-  const hash = Buffer.from(seriesName).toString('base64url');
-  return path.join(COVERS_DIR, `${hash}.jpg`);
-}
-
-export function getSeriesCoverPath(seriesName: string): string | null {
-  const cp = coverPath(seriesName);
-  return fs.existsSync(cp) ? cp : null;
+function coverFilename(seriesId: string): string {
+  return `${shortHash(seriesId)}.jpg`;
 }
 
 async function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((r) => setTimeout(r, ms));
 }
 
-interface MangaResult {
+interface MalResult {
   title: string;
   imageUrl: string;
   score: number;
   synopsis: string;
 }
 
-function loadOverrides(): Record<string, { malId: number }> {
-  if (fs.existsSync(OVERRIDES_PATH)) {
-    return JSON.parse(fs.readFileSync(OVERRIDES_PATH, 'utf-8'));
-  }
-  return {};
-}
-
-async function fetchByMalId(malId: number): Promise<MangaResult | null> {
+async function fetchByMalId(malId: number): Promise<MalResult | null> {
   try {
-    const url = `${JIKAN_BASE}/manga/${malId}`;
-    const res = await fetch(url);
-
-    if (res.status === 429) {
-      console.log('  Rate limited, waiting 2s...');
-      await sleep(2000);
-      return fetchByMalId(malId);
-    }
-
-    if (!res.ok) {
-      console.error(`  Jikan returned ${res.status} for MAL ID ${malId}`);
-      return null;
-    }
-
+    const res = await fetch(`${JIKAN_BASE}/manga/${malId}`);
+    if (res.status === 429) { await sleep(2000); return fetchByMalId(malId); }
+    if (!res.ok) { console.error(`  Jikan returned ${res.status} for MAL ID ${malId}`); return null; }
     const json = await res.json();
     const match = json.data;
     if (!match) return null;
 
-    const imageUrl =
-      match.images?.jpg?.large_image_url ||
-      match.images?.jpg?.image_url ||
-      match.images?.webp?.large_image_url;
-
-    if (!imageUrl) return null;
-
     return {
-      title: match.titles?.[0]?.title || match.title || `MAL #${malId}`,
-      imageUrl,
+      title: match.titles?.[0]?.title || `MAL #${malId}`,
+      imageUrl: match.images?.jpg?.large_image_url || match.images?.jpg?.image_url || '',
       score: match.score || 0,
       synopsis: match.synopsis || '',
     };
   } catch (err) {
-    console.error(`  Fetch by MAL ID ${malId} failed:`, (err as Error).message);
+    console.error(`  Fetch MAL ID ${malId} failed:`, (err as Error).message);
     return null;
   }
 }
 
-async function searchManga(query: string): Promise<MangaResult | null> {
+async function searchManga(query: string): Promise<MalResult | null> {
   try {
-    const url = `${JIKAN_BASE}/manga?q=${encodeURIComponent(query)}&limit=5&sfw=true`;
-    const res = await fetch(url);
-
-    if (res.status === 429) {
-      console.log('  Rate limited, waiting 2s...');
-      await sleep(2000);
-      return searchManga(query);
-    }
-
+    const res = await fetch(`${JIKAN_BASE}/manga?q=${encodeURIComponent(query)}&limit=5&sfw=true`);
+    if (res.status === 429) { await sleep(2000); return searchManga(query); }
     if (!res.ok) return null;
 
     const json = await res.json();
     const results = json.data;
-    if (!results || results.length === 0) return null;
+    if (!results?.length) return null;
 
-    // Try to find best match — prefer exact-ish title match
     const queryLower = query.toLowerCase();
     const match = results.find((r: any) =>
       r.titles?.some((t: any) =>
-        t.title.toLowerCase().includes(queryLower) ||
-        queryLower.includes(t.title.toLowerCase())
+        t.title.toLowerCase().includes(queryLower) || queryLower.includes(t.title.toLowerCase())
       )
     ) || results[0];
 
-    const imageUrl =
-      match.images?.jpg?.large_image_url ||
-      match.images?.jpg?.image_url ||
-      match.images?.webp?.large_image_url;
-
-    if (!imageUrl) return null;
-
     return {
-      title: match.titles?.[0]?.title || match.title || query,
-      imageUrl,
+      title: match.titles?.[0]?.title || query,
+      imageUrl: match.images?.jpg?.large_image_url || match.images?.jpg?.image_url || '',
       score: match.score || 0,
       synopsis: match.synopsis || '',
     };
@@ -129,156 +78,102 @@ async function searchManga(query: string): Promise<MangaResult | null> {
   }
 }
 
-async function downloadImage(url: string, destPath: string): Promise<boolean> {
+async function downloadCover(imageUrl: string, filename: string): Promise<boolean> {
   try {
-    const res = await fetch(url);
+    const res = await fetch(imageUrl);
     if (!res.ok) return false;
-
     const buffer = Buffer.from(await res.arrayBuffer());
-    await sharp(buffer)
-      .resize(300, 450, { fit: 'cover' })
-      .jpeg({ quality: 85 })
-      .toFile(destPath);
-
+    await sharp(buffer).resize(300, 450, { fit: 'cover' }).jpeg({ quality: 85 }).toFile(path.join(COVERS_DIR, filename));
     return true;
   } catch (err) {
-    console.error(`  Download failed:`, (err as Error).message);
+    console.error(`  Cover download failed:`, (err as Error).message);
     return false;
   }
 }
 
-export interface SeriesMetadata {
-  coverPath: string | null;
-  malTitle: string | null;
-  score: number | null;
-  synopsis: string | null;
+// Kept for backward compat with library routes
+export function getSeriesCoverPath(seriesId: string): string | null {
+  const filename = coverFilename(seriesId);
+  const p = path.join(COVERS_DIR, filename);
+  return fs.existsSync(p) ? p : null;
 }
 
-// Load/save series metadata
-const METADATA_PATH = path.join(DATA_DIR, 'series-metadata.json');
+// Legacy stubs
+export function loadSeriesMetadata() { return {}; }
+export function saveOverride() {}
 
-export function loadSeriesMetadata(): Record<string, SeriesMetadata> {
-  if (fs.existsSync(METADATA_PATH)) {
-    return JSON.parse(fs.readFileSync(METADATA_PATH, 'utf-8'));
-  }
-  return {};
-}
-
-function saveSeriesMetadata(data: Record<string, SeriesMetadata>) {
-  fs.writeFileSync(METADATA_PATH, JSON.stringify(data, null, 2));
-}
-
+/**
+ * Enrich all series from MAL/Jikan — updates series records directly
+ */
 export async function enrichSeries(force = false): Promise<{ found: number; skipped: number; failed: number }> {
   ensureCoversDir();
+  const allSeries = loadAllSeries();
+  let found = 0, skipped = 0, failed = 0;
 
-  const comics = getAllComics();
-  const seriesNames = [...new Set(comics.map((c) => c.series))];
-  const metadata = loadSeriesMetadata();
-  const overrides = loadOverrides();
+  console.log(`Enriching ${allSeries.length} series from MyAnimeList...`);
 
-  let found = 0;
-  let skipped = 0;
-  let failed = 0;
-
-  console.log(`Enriching ${seriesNames.length} series from MyAnimeList...`);
-  if (Object.keys(overrides).length > 0) {
-    console.log(`  ${Object.keys(overrides).length} manual override(s) loaded`);
-  }
-
-  for (const series of seriesNames) {
-    // Check overrides with normalized key matching (handle curly vs straight quotes etc.)
-    const normalize = (s: string) => s.normalize('NFKC').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
-    const override = overrides[series] || Object.entries(overrides).find(
-      ([k]) => normalize(k) === normalize(series)
-    )?.[1];
-
-    // Skip if already enriched (unless force or has a new override)
-    if (!force && !override && metadata[series]?.coverPath && fs.existsSync(metadata[series].coverPath!)) {
-      skipped++;
-      continue;
-    }
-    // Skip if override already applied (unless force)
-    if (!force && override && metadata[series]?.coverPath && fs.existsSync(metadata[series].coverPath!)) {
-      // Check if the override was already used by comparing malTitle
-      // If metadata exists and has a cover, skip unless force
+  for (const series of allSeries) {
+    // Skip if already has cover (unless force)
+    if (!force && series.coverFile && fs.existsSync(path.join(COVERS_DIR, series.coverFile))) {
       skipped++;
       continue;
     }
 
     await sleep(RATE_LIMIT_MS);
 
-    let result: MangaResult | null;
-    if (override) {
-      console.log(`  Override: "${series}" → MAL ID ${override.malId}`);
-      result = await fetchByMalId(override.malId);
+    let result: MalResult | null;
+    if (series.malId) {
+      console.log(`  MAL ID ${series.malId}: "${series.name}"`);
+      result = await fetchByMalId(series.malId);
     } else {
-      console.log(`  Searching: "${series}"...`);
-      result = await searchManga(series);
+      console.log(`  Searching: "${series.name}"`);
+      result = await searchManga(series.name);
     }
+
     if (!result) {
-      console.log(`  Not found: "${series}"`);
-      metadata[series] = { coverPath: null, malTitle: null, score: null, synopsis: null };
+      console.log(`  Not found: "${series.name}"`);
       failed++;
       continue;
     }
 
-    console.log(`  Found: "${result.title}" (score: ${result.score})`);
+    const filename = coverFilename(series.id);
+    const downloaded = await downloadCover(result.imageUrl, filename);
 
-    const cp = coverPath(series);
-    const downloaded = await downloadImage(result.imageUrl, cp);
+    // Update series record directly — one source of truth
+    series.coverFile = downloaded ? filename : null;
+    series.score = result.score;
+    series.synopsis = result.synopsis;
+    saveSeries(series);
 
-    metadata[series] = {
-      coverPath: downloaded ? cp : null,
-      malTitle: result.title,
-      score: result.score,
-      synopsis: result.synopsis,
-    };
-
-    if (downloaded) {
-      found++;
-      console.log(`  Cover saved for "${series}"`);
-    } else {
-      failed++;
-    }
+    found++;
+    console.log(`  → "${result.title}" (${result.score})`);
   }
 
-  saveSeriesMetadata(metadata);
-  console.log(`\nEnrichment complete: ${found} found, ${skipped} skipped, ${failed} failed`);
+  console.log(`Enrichment: ${found} found, ${skipped} skipped, ${failed} failed`);
   return { found, skipped, failed };
 }
 
-export function saveOverride(seriesName: string, malId: number) {
-  const overrides = loadOverrides();
-  overrides[seriesName] = { malId };
-  fs.writeFileSync(OVERRIDES_PATH, JSON.stringify(overrides, null, 2));
-}
-
-export async function enrichSingle(seriesName: string, malId: number): Promise<SeriesMetadata> {
+/**
+ * Enrich a single series by MAL ID — called from the override UI
+ */
+export async function enrichSingle(seriesId: string, malId: number): Promise<SeriesRecord | null> {
   ensureCoversDir();
-  const metadata = loadSeriesMetadata();
+  const allSeries = loadAllSeries();
+  const series = allSeries.find((s) => s.id === seriesId);
+  if (!series) return null;
 
-  console.log(`  Fetching MAL ID ${malId} for "${seriesName}"...`);
   const result = await fetchByMalId(malId);
+  if (!result) return series;
 
-  if (!result) {
-    const entry: SeriesMetadata = { coverPath: null, malTitle: null, score: null, synopsis: null };
-    metadata[seriesName] = entry;
-    saveSeriesMetadata(metadata);
-    return entry;
-  }
+  const filename = coverFilename(series.id);
+  const downloaded = await downloadCover(result.imageUrl, filename);
 
-  const cp = coverPath(seriesName);
-  const downloaded = await downloadImage(result.imageUrl, cp);
+  series.malId = malId;
+  series.coverFile = downloaded ? filename : null;
+  series.score = result.score;
+  series.synopsis = result.synopsis;
+  saveSeries(series);
 
-  const entry: SeriesMetadata = {
-    coverPath: downloaded ? cp : null,
-    malTitle: result.title,
-    score: result.score,
-    synopsis: result.synopsis,
-  };
-
-  metadata[seriesName] = entry;
-  saveSeriesMetadata(metadata);
-  console.log(`  Updated "${seriesName}" → "${result.title}" (${result.score})`);
-  return entry;
+  console.log(`  Updated "${series.name}" → "${result.title}" (${result.score})`);
+  return series;
 }

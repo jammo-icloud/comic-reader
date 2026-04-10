@@ -10,6 +10,7 @@ export interface Comic {
   lastReadAt: string | null;
   addedAt: string;
   shelfId: string;
+  thumbHash: string;
 }
 
 export interface Shelf {

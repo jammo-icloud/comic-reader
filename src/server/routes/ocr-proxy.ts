@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import { getComicFullPath } from '../scanner.js';
-import { getComic } from '../library.js';
-import { getShelf } from '../shelves.js';
+import { resolveComicPath } from '../scanner.js';
+import { getComic } from '../data.js';
 
 const OCR_SERVICE_URL = process.env.OCR_SERVICE_URL || 'http://localhost:3001';
 
@@ -9,20 +8,19 @@ const router = Router();
 
 // Proxy: start OCR processing for a comic
 router.post('/ocr/process', async (req, res) => {
-  const { comicKey, genre } = req.body;
-  if (!comicKey) {
-    res.status(400).json({ error: 'comicKey required' });
+  const { seriesId, file, genre } = req.body;
+  if (!seriesId || !file) {
+    res.status(400).json({ error: 'seriesId and file required' });
     return;
   }
 
-  const filePath = getComicFullPath(comicKey);
+  const filePath = resolveComicPath(seriesId, file);
   if (!filePath) {
     res.status(404).json({ error: 'Comic file not found' });
     return;
   }
 
-  const comic = getComic(comicKey);
-  const shelf = comic ? getShelf(comic.shelfId) : null;
+  const comic = getComic(seriesId, file);
 
   try {
     const ocrRes = await fetch(`${OCR_SERVICE_URL}/process`, {
@@ -30,8 +28,8 @@ router.post('/ocr/process', async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         filePath,
-        comicKey,
-        title: comic?.title || comicKey,
+        comicKey: `${seriesId}/${file}`,
+        title: file,
         genre: genre || 'general',
       }),
     });

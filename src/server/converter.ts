@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { shortHash } from './hash.js';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 
@@ -153,7 +154,7 @@ function ensureTaskDir() {
 }
 
 function taskPath(sourcePath: string): string {
-  const hash = Buffer.from(sourcePath).toString('base64url');
+  const hash = shortHash(sourcePath);
   return path.join(TASK_DIR, `${hash}.json`);
 }
 
@@ -178,7 +179,7 @@ function ensureConvertedDir() {
 }
 
 export function getConvertedPath(sourcePath: string): string {
-  const hash = Buffer.from(sourcePath).toString('base64url');
+  const hash = shortHash(sourcePath);
   return path.join(CONVERTED_DIR, `${hash}.pdf`);
 }
 

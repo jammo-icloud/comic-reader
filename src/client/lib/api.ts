@@ -83,12 +83,34 @@ export function getPdfUrl(comicPath: string): string {
   return `${BASE}/comics/read/${encodePath(comicPath)}`;
 }
 
+// Must match server's shortHash (first 12 chars of SHA-256 hex)
+async function shortHash(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
+}
+
+// Cache resolved hashes to avoid repeated async calls
+const hashCache = new Map<string, string>();
+
 export function getThumbnailUrl(comicPath: string): string {
+  // Sync fallback: use API route. Component can upgrade to static after hash resolves.
   return `${BASE}/thumbnails/${encodePath(comicPath)}`;
 }
 
+export function getStaticThumbnailUrl(hash: string): string {
+  return `/static/thumbnails/${hash}.jpg`;
+}
+
 export function getSeriesCoverUrl(seriesName: string): string {
+  // Kept as API route for backward compat — covers use series name hash
   return `${BASE}/series-cover/${encodeURIComponent(seriesName)}`;
+}
+
+// Direct static URL for cover when we have the filename from the API
+export function getSeriesCoverStaticUrl(coverFile: string): string {
+  return `/static/covers/${coverFile}`;
 }
 
 export function triggerEnrich(force = false): Promise<{ found: number; skipped: number; failed: number }> {
