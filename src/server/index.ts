@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import libraryRoutes from './routes/library.js';
 import readerRoutes from './routes/reader.js';
 import discoverRoutes from './routes/discover.js';
+import ocrProxyRoutes from './routes/ocr-proxy.js';
 import { scanLibrary } from './scanner.js';
 import { flushLibrary } from './library.js';
 import { resumeIncompleteDownloads } from './downloader.js';
@@ -18,6 +19,7 @@ app.use(express.json());
 app.use('/api', libraryRoutes);
 app.use('/api', readerRoutes);
 app.use('/api', discoverRoutes);
+app.use('/api', ocrProxyRoutes);
 
 // Serve frontend in production
 const clientDir = path.join(__dirname, '../client');

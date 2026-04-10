@@ -6,15 +6,45 @@ services:
     ports:
       - "8580:3000"
     volumes:
-      - comic-reader-data:/app/data
-      - /volume1/Manga:/mnt/manga:ro
-      # Add more shelves here:
+      - library:/app/data
+      # Mount your comic folders below (uncomment and edit):
+      # - /volume1/Manga:/mnt/manga:ro
       # - /volume1/Magazines:/mnt/magazines:ro
-      # - /volume1/Adult:/mnt/adult:ro
     environment:
       - DATA_DIR=/app/data
       - SERVER_PORT=3000
+      - OCR_SERVICE_URL=http://ocr-service:3001
+    depends_on:
+      - ocr-service
     restart: unless-stopped
 
+  ocr-service:
+    build: ./ocr-service
+    container_name: ocr-service
+    volumes:
+      - library:/app/data
+      # Same comic folder mounts as comic-reader (OCR needs PDF access):
+      # - /volume1/Manga:/mnt/manga:ro
+      # - /volume1/Magazines:/mnt/magazines:ro
+    environment:
+      - DATA_DIR=/app/data
+      - SERVER_PORT=3001
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2:3b
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    # First run: docker exec ollama ollama pull llama3.2:3b
+
 volumes:
-  comic-reader-data:
+  library:
+  ollama-data:
