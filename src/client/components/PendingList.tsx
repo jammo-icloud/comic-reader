@@ -3,7 +3,7 @@ import { X, Check, SkipForward, BookOpen, Newspaper, Star, Loader, Pencil } from
 import type { PendingImport } from '../lib/types';
 import { getImportReady, confirmImport, skipImport } from '../lib/api';
 
-export default function PendingList({ onClose }: { onClose: () => void }) {
+export default function PendingList({ onClose, onUpdate }: { onClose: () => void; onUpdate?: () => void }) {
   const [pending, setPending] = useState<PendingImport[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState<string | null>(null);
@@ -47,6 +47,7 @@ export default function PendingList({ onClose }: { onClose: () => void }) {
       const remaining = pending.slice(1);
       setPending(remaining);
       if (remaining.length > 0) prefill(remaining[0]);
+      onUpdate?.();
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -60,6 +61,7 @@ export default function PendingList({ onClose }: { onClose: () => void }) {
     const remaining = pending.slice(1);
     setPending(remaining);
     if (remaining.length > 0) prefill(remaining[0]);
+    onUpdate?.();
   };
 
   if (loading) {

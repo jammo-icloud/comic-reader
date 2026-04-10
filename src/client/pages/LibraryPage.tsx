@@ -273,6 +273,11 @@ export default function LibraryPage() {
       {showPending && (
         <PendingList
           onClose={() => { setShowPending(false); loadData(); }}
+          onUpdate={async () => {
+            const { count } = await getImportCount().catch(() => ({ count: 0 }));
+            setPendingCount(count);
+            loadData();
+          }}
         />
       )}
     </div>
