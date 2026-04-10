@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { getChapterPages, pageImageUrl, getMangaDetail, type MangaDexChapter } from './mangadex.js';
 import { getShelf } from './shelves.js';
-import { scanLibrary } from './scanner.js';
+import { rescanLibrary } from './scanner.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const QUEUE_PATH = path.join(DATA_DIR, 'download-queue.json');
@@ -284,7 +284,7 @@ async function processQueue() {
 
         // Re-scan library to pick up new files
         console.log(`  Download complete: ${job.mangaTitle}. Rescanning...`);
-        await scanLibrary();
+        await rescanLibrary();
 
       } catch (err) {
         job.status = 'error';

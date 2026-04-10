@@ -5,7 +5,7 @@ import libraryRoutes from './routes/library.js';
 import readerRoutes from './routes/reader.js';
 import discoverRoutes from './routes/discover.js';
 import ocrProxyRoutes from './routes/ocr-proxy.js';
-import { scanLibrary } from './scanner.js';
+import importRoutes from './routes/import.js';
 import { resumeIncompleteDownloads } from './downloader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -19,6 +19,7 @@ app.use('/api', libraryRoutes);
 app.use('/api', readerRoutes);
 app.use('/api', discoverRoutes);
 app.use('/api', ocrProxyRoutes);
+app.use('/api', importRoutes);
 
 // Serve data directory assets (covers, thumbnails) as static files
 // This bypasses Express route handling — much faster for images
@@ -64,8 +65,6 @@ process.on('SIGTERM', () => process.exit(0));
 app.listen(PORT, () => {
   console.log(`Comic Reader running on http://localhost:${PORT}`);
 
-  // Scan shelves on startup (thumbnails generate lazily on first access)
-  scanLibrary()
-    .then(() => resumeIncompleteDownloads())
-    .catch((err) => console.error('Startup scan failed:', err));
+  // Resume any incomplete downloads from previous session
+  resumeIncompleteDownloads();
 });

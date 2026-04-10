@@ -26,8 +26,8 @@ export function slugify(name: string): string {
 
 export interface SeriesRecord {
   id: string;           // slugified folder name
+  type: 'comic' | 'magazine';
   name: string;         // original folder name
-  shelfId: string;
   // Metadata (from MAL, MangaDex, or manual)
   coverFile: string | null;    // filename in data/series-covers/
   score: number | null;
@@ -37,7 +37,7 @@ export interface SeriesRecord {
   year: number | null;
   malId: number | null;
   mangaDexId: string | null;
-  placeholder: string;         // shelf default placeholder
+  placeholder: string;         // default placeholder image
 }
 
 // JSONL read/write for series
@@ -136,16 +136,15 @@ export function getSeriesStats(seriesId: string): { count: number; readCount: nu
 
 /**
  * Resolve a comic to its full filesystem path.
- * seriesId + file → shelf.path / series.name / file
+ * Uses canonical structure: /library/{type}s/{series-id}/{file}
  */
+const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
+
 export function resolveComicPath(seriesId: string, file: string): string | null {
-  const { loadShelves } = require('./shelves.js');
   const series = getSeries(seriesId);
   if (!series) return null;
-  const shelves = loadShelves();
-  const shelf = shelves.find((s: any) => s.id === series.shelfId);
-  if (!shelf) return null;
-  return path.join(shelf.path, series.name, file);
+  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
+  return path.join(LIBRARY_DIR, typeDir, series.id, file);
 }
 
 /**
