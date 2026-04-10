@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   comic-reader:
-    build: .
+    image: comic-reader:latest
     container_name: comic-reader
     ports:
       - "8580:3000"
@@ -9,7 +9,7 @@ services:
       # App data — stored alongside your comics on the NAS
       # This folder will contain: library.json, shelves.json, thumbnails,
       # series covers, OCR results, download queue, etc.
-      - /volume1/Mangas:/library
+      - /volume1/Manga:/library
 
       # Mount additional comic folders as needed:
       # - /volume1/Magazines:/mnt/magazines:ro
@@ -23,10 +23,10 @@ services:
     restart: unless-stopped
 
   ocr-service:
-    build: ./ocr-service
+    image: ocr-service:latest
     container_name: ocr-service
     volumes:
-      - /volume1/Mangas:/library
+      - /volume1/Manga:/library
       # Same additional mounts as comic-reader:
       # - /volume1/Magazines:/mnt/magazines:ro
       # - /volume1/Adult:/mnt/adult:ro
