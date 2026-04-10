@@ -1,38 +1,52 @@
 import { Router } from 'express';
-import { scanSourceFolder, getPendingImports, getNextPending, skipImport, skipAllImports, importSeries, clearPending } from '../importer.js';
+import { importSeries } from '../importer.js';
 import { enrichSingle } from '../enrich.js';
+
+const OCR_SERVICE_URL = process.env.OCR_SERVICE_URL || 'http://localhost:3001';
 
 const router = Router();
 
-// Scan a source folder for subfolders to import
-router.post('/import/scan', (req, res) => {
-  const { path } = req.body;
-  if (!path) { res.status(400).json({ error: 'path required' }); return; }
+// --- Proxy to OCR service for scanning ---
 
+// Start scanning a source folder (proxied to orchestrator)
+router.post('/import/scan', async (req, res) => {
   try {
-    const result = scanSourceFolder(path);
-    res.json(result);
+    const ocrRes = await fetch(`${OCR_SERVICE_URL}/import/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.status(ocrRes.status).json(await ocrRes.json());
   } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
+    res.status(502).json({ error: 'OCR service unreachable' });
   }
 });
 
-// Get all pending imports
-router.get('/import/pending', (_req, res) => {
-  res.json(getPendingImports());
+// Get scan status
+router.get('/import/scan-status', async (_req, res) => {
+  try {
+    const ocrRes = await fetch(`${OCR_SERVICE_URL}/import/scan-status`);
+    res.json(await ocrRes.json());
+  } catch { res.status(502).json({ error: 'OCR service unreachable' }); }
 });
 
-// Get next pending import (for wizard)
-router.get('/import/next', (_req, res) => {
-  const next = getNextPending();
-  if (next) {
-    res.json(next);
-  } else {
-    res.json(null);
-  }
+// Get ready imports (proxied)
+router.get('/import/ready', async (_req, res) => {
+  try {
+    const ocrRes = await fetch(`${OCR_SERVICE_URL}/import/ready`);
+    res.json(await ocrRes.json());
+  } catch { res.status(502).json({ error: 'OCR service unreachable' }); }
 });
 
-// Confirm import — move files, create metadata
+// Get pending count
+router.get('/import/count', async (_req, res) => {
+  try {
+    const ocrRes = await fetch(`${OCR_SERVICE_URL}/import/count`);
+    res.json(await ocrRes.json());
+  } catch { res.json({ count: 0 }); }
+});
+
+// Confirm import — this happens on the main app (moves files, creates metadata)
 router.post('/import/confirm', async (req, res) => {
   const { sourceFolder, type, name, malId } = req.body;
   if (!sourceFolder || !type || !name) {
@@ -41,12 +55,20 @@ router.post('/import/confirm', async (req, res) => {
   }
 
   try {
+    // Execute the import (rename + move files, create metadata)
     const series = await importSeries({ sourceFolder, type, name, malId });
 
-    // If MAL ID provided, enrich immediately
+    // Enrich with MAL if provided
     if (malId) {
       await enrichSingle(series.id, malId);
     }
+
+    // Tell orchestrator this one is confirmed
+    await fetch(`${OCR_SERVICE_URL}/import/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceFolder }),
+    }).catch(() => {});
 
     res.json(series);
   } catch (err) {
@@ -54,23 +76,24 @@ router.post('/import/confirm', async (req, res) => {
   }
 });
 
-// Skip current import
-router.post('/import/skip', (req, res) => {
-  const { sourceFolder } = req.body;
-  if (sourceFolder) skipImport(sourceFolder);
-  res.json({ ok: true });
+// Skip import (proxied)
+router.post('/import/skip', async (req, res) => {
+  try {
+    const ocrRes = await fetch(`${OCR_SERVICE_URL}/import/skip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    res.json(await ocrRes.json());
+  } catch { res.status(502).json({ error: 'OCR service unreachable' }); }
 });
 
-// Skip all remaining
-router.post('/import/skip-all', (_req, res) => {
-  skipAllImports();
-  res.json({ ok: true });
-});
-
-// Clear pending queue
-router.post('/import/clear', (_req, res) => {
-  clearPending();
-  res.json({ ok: true });
+// Clear all pending (proxied)
+router.post('/import/clear', async (_req, res) => {
+  try {
+    const ocrRes = await fetch(`${OCR_SERVICE_URL}/import/clear`, { method: 'POST' });
+    res.json(await ocrRes.json());
+  } catch { res.status(502).json({ error: 'OCR service unreachable' }); }
 });
 
 export default router;

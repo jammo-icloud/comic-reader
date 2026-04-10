@@ -3,72 +3,122 @@ import { queueOcr, getQueue, getCachedResult, cancelJob, removeJob, onProgress }
 import { healthCheck } from './ocr.js';
 import { ollamaHealth } from './summarizer.js';
 import { getGenres } from './prompts.js';
+import {
+  startScan, getCurrentScanJob, getReadyImports, getPendingCount,
+  confirmImport, skipPendingImport, clearAllPending, onImportProgress,
+  loadPending, type PendingImport,
+} from './import-scanner.js';
 
 const router = Router();
 
-// Health check
+// ==================== Health ====================
+
 router.get('/health', async (_req, res) => {
   const [ocr, ollama] = await Promise.all([healthCheck(), ollamaHealth()]);
-  res.json({
-    ocr,
-    ollama,
-    genres: getGenres(),
-  });
+  res.json({ ocr, ollama, genres: getGenres(), pendingImports: getPendingCount() });
 });
 
-// Queue an OCR + summarization job
+// ==================== OCR ====================
+
 router.post('/process', (req, res) => {
   const { filePath, comicKey, title, genre } = req.body;
-  if (!filePath || !comicKey) {
-    res.status(400).json({ error: 'filePath and comicKey required' });
-    return;
-  }
-
-  const job = queueOcr(filePath, comicKey, title || comicKey, genre);
-  res.json(job);
+  if (!filePath || !comicKey) { res.status(400).json({ error: 'filePath and comicKey required' }); return; }
+  res.json(queueOcr(filePath, comicKey, title || comicKey, genre));
 });
 
-// Get cached result
 router.get('/results/:key', (req, res) => {
   const comicKey = Buffer.from(req.params.key, 'base64url').toString();
   const result = getCachedResult(comicKey);
-  if (result) {
-    res.json(result);
-  } else {
-    res.status(404).json({ error: 'No result found' });
-  }
+  if (result) res.json(result);
+  else res.status(404).json({ error: 'No result found' });
 });
 
-// Get queue
-router.get('/queue', (_req, res) => {
-  res.json(getQueue());
-});
+router.get('/queue', (_req, res) => { res.json(getQueue()); });
 
-// Cancel a job
 router.post('/cancel/:id', (req, res) => {
   const ok = cancelJob(req.params.id);
   if (ok) res.json({ ok: true });
-  else res.status(404).json({ error: 'Job not found or already complete' });
+  else res.status(404).json({ error: 'Job not found' });
 });
 
-// Remove a completed/errored job
-router.delete('/queue/:id', (req, res) => {
-  removeJob(req.params.id);
+router.delete('/queue/:id', (req, res) => { removeJob(req.params.id); res.json({ ok: true }); });
+
+// ==================== Import Scanning ====================
+
+// Start scanning a source folder (async — returns immediately)
+router.post('/import/scan', async (req, res) => {
+  const { path } = req.body;
+  if (!path) { res.status(400).json({ error: 'path required' }); return; }
+  try {
+    const job = await startScan(path);
+    res.json(job);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// Get current scan job status
+router.get('/import/scan-status', (_req, res) => {
+  const job = getCurrentScanJob();
+  res.json(job || { status: 'idle' });
+});
+
+// Get all pending imports (ready for confirmation)
+router.get('/import/ready', (_req, res) => {
+  res.json(getReadyImports());
+});
+
+// Get pending count
+router.get('/import/count', (_req, res) => {
+  res.json({ count: getPendingCount() });
+});
+
+// Get all pending (any status)
+router.get('/import/all', (_req, res) => {
+  res.json(loadPending());
+});
+
+// Confirm an import
+router.post('/import/confirm', (req, res) => {
+  const { sourceFolder } = req.body;
+  if (!sourceFolder) { res.status(400).json({ error: 'sourceFolder required' }); return; }
+  confirmImport(sourceFolder);
   res.json({ ok: true });
 });
 
-// SSE progress stream
+// Skip an import
+router.post('/import/skip', (req, res) => {
+  const { sourceFolder } = req.body;
+  if (!sourceFolder) { res.status(400).json({ error: 'sourceFolder required' }); return; }
+  skipPendingImport(sourceFolder);
+  res.json({ ok: true });
+});
+
+// Clear all pending
+router.post('/import/clear', (_req, res) => {
+  clearAllPending();
+  res.json({ ok: true });
+});
+
+// ==================== SSE — unified progress stream ====================
+
 router.get('/progress', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  const cleanup = onProgress((job) => {
-    res.write(`data: ${JSON.stringify(job)}\n\n`);
+  // OCR progress
+  const cleanupOcr = onProgress((job) => {
+    res.write(`data: ${JSON.stringify({ type: 'ocr', payload: job })}\n\n`);
   });
 
-  req.on('close', cleanup);
+  // Import scanning progress
+  const cleanupImport = onImportProgress((data) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  });
+
+  req.on('close', () => { cleanupOcr(); cleanupImport(); });
 });
 
 export default router;
