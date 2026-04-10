@@ -4,16 +4,24 @@ import { slugify, loadAllSeries, loadComics, saveSeries, writeComics, type Serie
 import { shortHash } from './hash.js';
 import { convertToPdf, isImageFolder } from './converter.js';
 
-let mupdfModule: any = null;
-
-async function getPageCount(filePath: string): Promise<number> {
+/**
+ * Read page count directly from PDF metadata — no rendering library needed.
+ * The /Count entry in the /Pages dictionary is near the end of the file.
+ */
+function getPageCount(filePath: string): number {
   try {
-    if (!mupdfModule) {
-      mupdfModule = await import('mupdf');
-    }
-    const data = fs.readFileSync(filePath);
-    const doc = mupdfModule.Document.openDocument(data, 'application/pdf');
-    return doc.countPages();
+    const fd = fs.openSync(filePath, 'r');
+    const stat = fs.fstatSync(fd);
+    // Read last 10KB — /Count is always near the end
+    const readSize = Math.min(10240, stat.size);
+    const buffer = Buffer.alloc(readSize);
+    fs.readSync(fd, buffer, 0, readSize, stat.size - readSize);
+    fs.closeSync(fd);
+
+    const text = buffer.toString('ascii');
+    // Match /Count followed by a number (the root Pages object)
+    const match = text.match(/\/Count\s+(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
   } catch {
     return 0;
   }
@@ -213,7 +221,7 @@ export async function importSeries(config: ImportConfig): Promise<SeriesRecord> 
         fs.copyFileSync(converted, destFile);
         comics.push({
           file: finalFilename,
-          pages: await getPageCount(destFile),
+          pages: getPageCount(destFile),
           currentPage: 0,
           isRead: false,
           order: extractChapterOrder(sourceFile),
@@ -227,7 +235,7 @@ export async function importSeries(config: ImportConfig): Promise<SeriesRecord> 
       }
       comics.push({
         file: newFilename,
-        pages: await getPageCount(destPath),
+        pages: getPageCount(destPath),
         currentPage: 0,
         isRead: false,
         order: extractChapterOrder(sourceFile),
