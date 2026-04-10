@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { slugify, loadAllSeries, saveSeries, writeComics, type SeriesRecord, type ComicRecord } from './data.js';
+import { slugify, loadAllSeries, loadComics, saveSeries, writeComics, type SeriesRecord, type ComicRecord } from './data.js';
 import { shortHash } from './hash.js';
 import { convertToPdf, isImageFolder } from './converter.js';
 
@@ -168,24 +168,35 @@ export async function importSeries(config: ImportConfig): Promise<SeriesRecord> 
   // Create destination
   if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
 
+  // Check if this is a merge (series already exists)
+  const existingSeries = loadAllSeries().find((s) => s.id === seriesId);
+  const existingComics = existingSeries ? loadComics(seriesId) : [];
+  const existingFiles = new Set(existingComics.map((c) => c.file));
+
   // Find source files
   const sourceFiles = findFiles(sourceFolder);
-  const comics: ComicRecord[] = [];
+  const comics: ComicRecord[] = [...existingComics]; // Start with existing
 
   for (const sourceFile of sourceFiles) {
     const sourcePath = path.join(sourceFolder, sourceFile);
     const newFilename = canonicalFilename(sourceFile, type);
     const destPath = path.join(destDir, newFilename);
 
-    // Convert CBR/CBZ to PDF if needed
+    // Skip if this file is already in the series (dedup for merge)
     const ext = path.extname(sourceFile).toLowerCase();
+    const finalFilename = (ext === '.cbr' || ext === '.cbz')
+      ? newFilename.replace(/\.(cbr|cbz)$/i, '.pdf')
+      : newFilename;
+
+    if (existingFiles.has(finalFilename)) continue;
+
+    // Convert CBR/CBZ to PDF if needed
     if (ext === '.cbr' || ext === '.cbz') {
       const converted = await convertToPdf(sourcePath);
       if (converted) {
-        const pdfFilename = newFilename.replace(/\.(cbr|cbz)$/i, '.pdf');
-        fs.copyFileSync(converted, path.join(destDir, pdfFilename));
+        fs.copyFileSync(converted, path.join(destDir, finalFilename));
         comics.push({
-          file: pdfFilename,
+          file: finalFilename,
           pages: 0,
           currentPage: 0,
           isRead: false,
@@ -212,8 +223,11 @@ export async function importSeries(config: ImportConfig): Promise<SeriesRecord> 
   // Sort comics by order
   comics.sort((a, b) => a.order - b.order);
 
-  // Create series record
-  const series: SeriesRecord = {
+  // Create or update series record (preserve existing metadata on merge)
+  const series: SeriesRecord = existingSeries ? {
+    ...existingSeries,
+    malId: malId || existingSeries.malId,
+  } : {
     id: seriesId,
     type,
     name,

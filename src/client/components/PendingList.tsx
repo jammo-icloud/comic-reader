@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { X, Check, SkipForward, BookOpen, Newspaper, Star, Loader, Pencil } from 'lucide-react';
-import type { PendingImport } from '../lib/types';
-import { getImportReady, confirmImport, skipImport } from '../lib/api';
+import { X, Check, SkipForward, BookOpen, Newspaper, Star, Loader, Pencil, AlertTriangle, Merge } from 'lucide-react';
+import type { PendingImport, Series } from '../lib/types';
+import { getImportReady, confirmImport, skipImport, getSeries } from '../lib/api';
 
 export default function PendingList({ onClose, onUpdate }: { onClose: () => void; onUpdate?: () => void }) {
   const [pending, setPending] = useState<PendingImport[]>([]);
+  const [existingSeries, setExistingSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState<string | null>(null);
 
@@ -16,10 +17,10 @@ export default function PendingList({ onClose, onUpdate }: { onClose: () => void
 
   const loadPending = async () => {
     setLoading(true);
-    const data = await getImportReady();
+    const [data, series] = await Promise.all([getImportReady(), getSeries()]);
     setPending(data);
+    setExistingSeries(series);
     setLoading(false);
-    // Pre-fill edit state from first item
     if (data.length > 0) prefill(data[0]);
   };
 
@@ -90,6 +91,13 @@ export default function PendingList({ onClose, onUpdate }: { onClose: () => void
   }
 
   const mal = current.malMatch;
+
+  // Check for duplicate: same MAL ID or similar name already imported
+  const malIdNum = editMalId ? parseInt(editMalId, 10) : (mal?.malId || null);
+  const duplicate = existingSeries.find((s) =>
+    (malIdNum && s.malId === malIdNum) ||
+    s.name.toLowerCase() === editName.toLowerCase()
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -194,6 +202,42 @@ export default function PendingList({ onClose, onUpdate }: { onClose: () => void
               {!mal && (
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">No MAL match found. You can enter a MAL ID manually.</p>
               )}
+            </div>
+          )}
+
+          {/* Duplicate warning */}
+          {duplicate && (
+            <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+              <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <p className="font-medium text-amber-700 dark:text-amber-300">
+                  Possible duplicate of "{duplicate.name}"
+                </p>
+                <p className="text-amber-600 dark:text-amber-400 mt-0.5">
+                  {duplicate.malId === malIdNum ? 'Same MAL ID.' : 'Similar name.'} {duplicate.count} chapters already imported.
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => {
+                      // Merge: use the existing series name and MAL ID
+                      setEditName(duplicate.name);
+                      if (duplicate.malId) setEditMalId(String(duplicate.malId));
+                    }}
+                    className="px-2 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700"
+                  >
+                    Merge into existing
+                  </button>
+                  <button
+                    onClick={() => {
+                      // Import as separate: clear the MAL ID to avoid conflict
+                      setEditMalId('');
+                    }}
+                    className="px-2 py-1 text-xs text-amber-600 dark:text-amber-400 hover:underline"
+                  >
+                    Import as separate
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
