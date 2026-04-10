@@ -2,9 +2,7 @@ import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { resolveComicPath } from '../scanner.js';
-import { getComic, updateComic } from '../data.js';
-import { loadShelves } from '../shelves.js';
-import { loadAllSeries } from '../data.js';
+import { getComic, updateComic, loadAllSeries } from '../data.js';
 
 const router = Router();
 
@@ -25,11 +23,10 @@ router.get('/comics/read/:seriesId/{*file}', (req, res) => {
     return;
   }
 
-  // Security: ensure path is within a known shelf
+  // Security: ensure path is within the library directory
   const resolved = path.resolve(fullPath);
-  const shelves = loadShelves();
-  const inShelf = shelves.some((s) => resolved.startsWith(path.resolve(s.path)));
-  if (!inShelf) {
+  const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
+  if (!resolved.startsWith(path.resolve(LIBRARY_DIR))) {
     res.status(403).json({ error: 'Access denied' });
     return;
   }

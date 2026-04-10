@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import * as mupdf from 'mupdf';
-import { getAllComics } from './library.js';
+import { loadAllSeries, loadComics } from './data.js';
 import { resolveComicPath } from './scanner.js';
 import { shortHash } from './hash.js';
 
@@ -68,20 +68,25 @@ export async function generateThumbnail(comicKey: string): Promise<string | null
 }
 
 export async function generateAllThumbnails() {
-  const comics = getAllComics();
-  console.log(`Generating thumbnails for ${comics.length} comics...`);
+  const allSeries = loadAllSeries();
+  let totalComics = 0;
   let count = 0;
   let errors = 0;
-  for (const comic of comics) {
-    const existing = getThumbnailPath(comic.path);
-    if (!existing) {
-      try {
-        const result = await generateThumbnail(comic.path);
-        if (result) count++;
-        else errors++;
-      } catch (err) {
-        console.error(`Thumbnail crash for ${comic.path}:`, (err as Error).message);
-        errors++;
+  for (const series of allSeries) {
+    const comics = loadComics(series.id);
+    for (const comic of comics) {
+      totalComics++;
+      const key = `${series.id}/${comic.file}`;
+      const existing = getThumbnailPath(key);
+      if (!existing) {
+        try {
+          const result = await generateThumbnail(key);
+          if (result) count++;
+          else errors++;
+        } catch (err) {
+          console.error(`Thumbnail crash for ${key}:`, (err as Error).message);
+          errors++;
+        }
       }
     }
   }

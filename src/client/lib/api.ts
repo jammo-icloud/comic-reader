@@ -1,4 +1,4 @@
-import type { Comic, Series, Shelf, MangaDexManga, MangaDexChapter } from './types';
+import type { Series, Comic, ContinueReadingItem, PendingImport, MangaDexManga, MangaDexChapter } from './types';
 
 const BASE = '/api';
 
@@ -11,127 +11,130 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export function getComics(params?: {
-  search?: string;
-  series?: string;
-  sort?: string;
-  shelf?: string;
-}): Promise<Comic[]> {
-  const query = new URLSearchParams();
-  if (params?.search) query.set('search', params.search);
-  if (params?.series) query.set('series', params.series);
-  if (params?.sort) query.set('sort', params.sort);
-  if (params?.shelf) query.set('shelf', params.shelf);
-  const qs = query.toString();
-  return fetchJson(`/comics${qs ? `?${qs}` : ''}`);
+function encodePath(p: string): string {
+  return p.split('/').map(encodeURIComponent).join('/');
 }
 
-// Shelf API
-export function getShelves(): Promise<Shelf[]> {
-  return fetchJson('/shelves');
+// ==================== Series ====================
+
+export function getSeries(type?: 'comic' | 'magazine'): Promise<Series[]> {
+  const qs = type ? `?type=${type}` : '';
+  return fetchJson(`/series${qs}`);
 }
 
-export function addShelf(name: string, path: string, placeholder?: string): Promise<Shelf> {
-  return fetchJson('/shelves', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, path, placeholder }),
-  });
+export function getSeriesDetail(id: string): Promise<Series> {
+  return fetchJson(`/series/${id}`);
 }
 
-export function removeShelf(id: string): Promise<void> {
-  return fetchJson(`/shelves/${id}`, { method: 'DELETE' });
+// ==================== Comics (within a series) ====================
+
+export function getComics(seriesId: string): Promise<Comic[]> {
+  return fetchJson(`/series/${seriesId}/comics`);
 }
 
-export function getPlaceholders(): Promise<string[]> {
-  return fetchJson('/placeholders');
-}
+// ==================== Continue Reading ====================
 
-export function getPlaceholderUrl(filename: string): string {
-  return `/placeholders/${filename}`;
-}
-
-export function getSeries(): Promise<Series[]> {
-  return fetchJson('/series');
-}
-
-export function getContinueReading(): Promise<Comic[]> {
+export function getContinueReading(): Promise<ContinueReadingItem[]> {
   return fetchJson('/continue-reading');
 }
 
-export function triggerScan(): Promise<{ added: number; removed: number; total: number }> {
-  return fetchJson('/scan', { method: 'POST' });
-}
-
-// Encode each path segment individually so slashes are preserved
-function encodePath(comicPath: string): string {
-  return comicPath.split('/').map(encodeURIComponent).join('/');
-}
+// ==================== Reading Progress ====================
 
 export function updateProgress(
-  comicPath: string,
-  data: { currentPage?: number; isRead?: boolean; pageCount?: number }
+  seriesId: string,
+  file: string,
+  data: { currentPage?: number; isRead?: boolean; pageCount?: number },
 ): Promise<void> {
-  return fetchJson(`/comics/progress/${encodePath(comicPath)}`, {
+  return fetchJson(`/comics/progress/${seriesId}/${encodePath(file)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
 }
 
-export function getPdfUrl(comicPath: string): string {
-  return `${BASE}/comics/read/${encodePath(comicPath)}`;
+// ==================== URLs ====================
+
+export function getPdfUrl(seriesId: string, file: string): string {
+  return `${BASE}/comics/read/${seriesId}/${encodePath(file)}`;
 }
 
-// Must match server's shortHash (first 12 chars of SHA-256 hex)
-async function shortHash(input: string): Promise<string> {
-  const data = new TextEncoder().encode(input);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
+export function getThumbnailUrl(seriesId: string, file: string): string {
+  return `${BASE}/thumbnails/${seriesId}/${encodePath(file)}`;
 }
 
-// Cache resolved hashes to avoid repeated async calls
-const hashCache = new Map<string, string>();
-
-export function getThumbnailUrl(comicPath: string): string {
-  // Sync fallback: use API route. Component can upgrade to static after hash resolves.
-  return `${BASE}/thumbnails/${encodePath(comicPath)}`;
+export function getSeriesCoverUrl(seriesId: string): string {
+  return `${BASE}/series-cover/${seriesId}`;
 }
 
-export function getStaticThumbnailUrl(hash: string): string {
-  return `/static/thumbnails/${hash}.jpg`;
+export function getPlaceholderUrl(filename: string): string {
+  return `/placeholders/${filename}`;
 }
 
-export function getSeriesCoverUrl(seriesName: string): string {
-  // Kept as API route for backward compat — covers use series name hash
-  return `${BASE}/series-cover/${encodeURIComponent(seriesName)}`;
-}
+// ==================== Enrichment ====================
 
-// Direct static URL for cover when we have the filename from the API
-export function getSeriesCoverStaticUrl(coverFile: string): string {
-  return `/static/covers/${coverFile}`;
-}
-
-export function triggerEnrich(force = false): Promise<{ found: number; skipped: number; failed: number }> {
+export function enrichAll(force = false): Promise<{ found: number; skipped: number; failed: number }> {
   return fetchJson(`/enrich${force ? '?force=true' : ''}`, { method: 'POST' });
 }
 
-export function overrideMalId(seriesName: string, malId: number): Promise<any> {
+export function overrideMalId(seriesId: string, malId: number): Promise<any> {
   return fetchJson('/series-override', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ seriesName, malId }),
+    body: JSON.stringify({ seriesId, malId }),
   });
 }
 
-// Discover / MangaDex
-export function discoverSearch(query: string, offset = 0): Promise<{ results: MangaDexManga[]; total: number }> {
-  return fetchJson(`/discover/search?q=${encodeURIComponent(query)}&offset=${offset}`);
+// ==================== Import ====================
+
+export function importScan(path: string): Promise<{ id: string; status: string; progress: any }> {
+  return fetchJson('/import/scan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
 }
 
-export function discoverMangaDetail(id: string): Promise<MangaDexManga> {
-  return fetchJson(`/discover/manga/${id}`);
+export function getImportScanStatus(): Promise<{ status: string; progress?: any }> {
+  return fetchJson('/import/scan-status');
+}
+
+export function getImportReady(): Promise<PendingImport[]> {
+  return fetchJson('/import/ready');
+}
+
+export function getImportCount(): Promise<{ count: number }> {
+  return fetchJson('/import/count');
+}
+
+export function confirmImport(
+  sourceFolder: string,
+  type: 'comic' | 'magazine',
+  name: string,
+  malId?: number | null,
+): Promise<any> {
+  return fetchJson('/import/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sourceFolder, type, name, malId }),
+  });
+}
+
+export function skipImport(sourceFolder: string): Promise<void> {
+  return fetchJson('/import/skip', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sourceFolder }),
+  });
+}
+
+export function clearImports(): Promise<void> {
+  return fetchJson('/import/clear', { method: 'POST' });
+}
+
+// ==================== Discover (MangaDex) ====================
+
+export function discoverSearch(query: string, offset = 0): Promise<{ results: MangaDexManga[]; total: number }> {
+  return fetchJson(`/discover/search?q=${encodeURIComponent(query)}&offset=${offset}`);
 }
 
 export function discoverChapters(mangaId: string): Promise<MangaDexChapter[]> {

@@ -3,7 +3,7 @@ import path from 'path';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { getChapterPages, pageImageUrl, getMangaDetail, type MangaDexChapter } from './mangadex.js';
-import { getShelf } from './shelves.js';
+import { getSeries } from './data.js';
 import { rescanLibrary } from './scanner.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -206,17 +206,9 @@ async function processQueue() {
       saveQueue(queue);
       emitProgress(job);
 
-      const shelf = getShelf(job.shelfId);
-      if (!shelf) {
-        job.status = 'error';
-        job.error = `Shelf "${job.shelfId}" not found`;
-        saveQueue(queue);
-        emitProgress(job);
-        continue;
-      }
-
-      // Create series folder
-      const seriesDir = path.join(shelf.path, job.mangaTitle.replace(/[<>:"/\\|?*]/g, '_'));
+      const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
+      const slugName = job.mangaTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
+      const seriesDir = path.join(LIBRARY_DIR, 'comics', slugName);
       if (!fs.existsSync(seriesDir)) fs.mkdirSync(seriesDir, { recursive: true });
 
       try {

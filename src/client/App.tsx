@@ -11,8 +11,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LibraryPage />} />
         <Route path="/discover" element={<DiscoverPage />} />
-        <Route path="/series/:name" element={<SeriesPage />} />
-        <Route path="/read/*" element={<ReaderPage />} />
+        <Route path="/series/:id" element={<SeriesPage />} />
+        <Route path="/read/:id/*" element={<ReaderPage />} />
       </Routes>
       <OfflineIndicator />
     </>

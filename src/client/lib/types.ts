@@ -1,26 +1,72 @@
+// --- Series ---
+
+export interface Series {
+  id: string;
+  type: 'comic' | 'magazine';
+  name: string;
+  coverFile: string | null;
+  score: number | null;
+  synopsis: string | null;
+  tags: string[];
+  status: string | null;
+  year: number | null;
+  malId: number | null;
+  mangaDexId: string | null;
+  placeholder: string;
+  // Stats (from API)
+  count: number;
+  readCount: number;
+  inProgress: number;
+}
+
+// --- Comic (within a series) ---
+
 export interface Comic {
-  path: string;
-  title: string;
-  series: string;
-  seriesOrder: number;
-  pageCount: number;
-  fileSize: number;
+  file: string;
+  pages: number;
   currentPage: number;
   isRead: boolean;
+  order: number;
   lastReadAt: string | null;
-  addedAt: string;
-  shelfId: string;
   thumbHash: string;
 }
 
-export interface Shelf {
-  id: string;
-  name: string;
-  path: string;
-  placeholder: string;
+// --- Continue Reading ---
+
+export interface ContinueReadingItem {
+  seriesId: string;
+  seriesName: string;
+  file: string;
+  currentPage: number;
+  pages: number;
+  lastReadAt: string;
+  thumbHash: string;
 }
 
-// MangaDex types
+// --- Pending Import ---
+
+export interface MalMatch {
+  malId: number;
+  title: string;
+  score: number;
+  synopsis: string;
+  imageUrl: string;
+  year: number | null;
+  status: string;
+}
+
+export interface PendingImport {
+  sourceFolder: string;
+  folderName: string;
+  suggestedType: 'comic' | 'magazine';
+  fileCount: number;
+  files: string[];
+  malMatch: MalMatch | null;
+  status: 'queued' | 'scanning' | 'ready' | 'confirmed' | 'skipped' | 'error';
+}
+
+// --- MangaDex ---
+
 export interface MangaDexManga {
   id: string;
   title: string;
@@ -41,22 +87,4 @@ export interface MangaDexChapter {
   pages: number;
   scanlationGroup: string | null;
   publishedAt: string;
-}
-
-export interface Series {
-  name: string;
-  count: number;
-  readCount: number;
-  latestReadAt: string | null;
-  malTitle: string | null;
-  score: number | null;
-  synopsis: string | null;
-  hasCover: boolean;
-  // MangaDex metadata
-  year: number | null;
-  tags: string[] | null;
-  status: string | null;
-  mangaDexId: string | null;
-  source: 'mangadex' | 'mal' | null;
-  placeholder: string;
 }
