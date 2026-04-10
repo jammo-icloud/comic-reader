@@ -7,7 +7,6 @@ import ComicCard from '../components/ComicCard';
 import ComicListItem from '../components/ComicListItem';
 import ThemeToggle from '../components/ThemeToggle';
 import OfflineButton from '../components/OfflineButton';
-import SummarizeButton from '../components/SummarizeButton';
 
 type ViewMode = 'grid' | 'list';
 
@@ -24,7 +23,6 @@ export default function SeriesPage() {
   const [showOverride, setShowOverride] = useState(false);
   const [malIdInput, setMalIdInput] = useState('');
   const [overriding, setOverriding] = useState(false);
-  const [aiSynopsis, setAiSynopsis] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -146,13 +144,8 @@ export default function SeriesPage() {
               </div>
             )}
 
-            {(series.synopsis || aiSynopsis) ? (
-              <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-5">{series.synopsis || aiSynopsis}</p>
-            ) : comics.length > 0 && (
-              <div className="mt-3 flex items-center gap-2">
-                <SummarizeButton comicKey={`${id}/${comics[0].file}`} genre={series.type === 'magazine' ? 'magazine' : 'manga'} onSummary={(s) => setAiSynopsis(s)} size={16} />
-                <span className="text-xs text-gray-400 dark:text-gray-500">Generate AI summary</span>
-              </div>
+            {series.synopsis && (
+              <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-5">{series.synopsis}</p>
             )}
 
             {series.mangaDexId && (

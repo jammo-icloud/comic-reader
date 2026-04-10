@@ -6,16 +6,10 @@ services:
     ports:
       - "8580:3000"
     volumes:
-      # App data — stored alongside your comics on the NAS
-      # This folder will contain: library.json, shelves.json, thumbnails,
-      # series covers, OCR results, download queue, etc.
       - /volume1/Manga:/library
-
-      # Mount additional comic folders as needed:
-      # - /volume1/Magazines:/mnt/magazines:ro
-      # - /volume1/Adult:/mnt/adult:ro
     environment:
       - DATA_DIR=/library/.comic-reader
+      - LIBRARY_DIR=/library
       - SERVER_PORT=3000
       - OCR_SERVICE_URL=http://ocr-service:3001
     depends_on:
@@ -27,27 +21,7 @@ services:
     container_name: ocr-service
     volumes:
       - /volume1/Manga:/library
-      # Same additional mounts as comic-reader:
-      # - /volume1/Magazines:/mnt/magazines:ro
-      # - /volume1/Adult:/mnt/adult:ro
     environment:
       - DATA_DIR=/library/.comic-reader
       - SERVER_PORT=3001
-      - OLLAMA_URL=http://ollama:11434
-      - OLLAMA_MODEL=llama3.2:3b
-    depends_on:
-      - ollama
     restart: unless-stopped
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    volumes:
-      - ollama-data:/root/.ollama
-    ports:
-      - "11434:11434"
-    restart: unless-stopped
-    # First run: docker exec ollama ollama pull llama3.2:3b
-
-volumes:
-  ollama-data:
