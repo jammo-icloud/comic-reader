@@ -41,6 +41,21 @@ router.get('/discover/manga/:id/chapters', async (req, res) => {
   }
 });
 
+// Proxy MangaDex cover images (avoids CORS)
+router.get('/discover/cover/:mangaId/:filename', async (req, res) => {
+  try {
+    const url = `https://uploads.mangadex.org/covers/${req.params.mangaId}/${req.params.filename}`;
+    const response = await fetch(url);
+    if (!response.ok) { res.status(response.status).end(); return; }
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.send(buffer);
+  } catch {
+    res.status(502).end();
+  }
+});
+
 // Start download
 router.post('/discover/download', (req, res) => {
   const { mangaDexId, mangaTitle, shelfId, chapters, metadata } = req.body;

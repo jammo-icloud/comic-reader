@@ -1,5 +1,5 @@
 const BASE = 'https://api.mangadex.org';
-const COVER_BASE = 'https://uploads.mangadex.org/covers';
+const COVER_CDN = 'https://uploads.mangadex.org/covers';
 const RATE_LIMIT_MS = 400;
 
 let lastRequest = 0;
@@ -78,7 +78,7 @@ export async function searchManga(query: string, offset = 0, limit = 20): Promis
     // Extract cover
     const coverRel = manga.relationships?.find((r: any) => r.type === 'cover_art');
     const coverFilename = coverRel?.attributes?.fileName;
-    const coverUrl = coverFilename ? `${COVER_BASE}/${manga.id}/${coverFilename}.512.jpg` : null;
+    const coverUrl = coverFilename ? `/api/discover/cover/${manga.id}/${coverFilename}.512.jpg` : null;
 
     // Extract tags
     const tags = (manga.attributes.tags || [])
@@ -115,7 +115,7 @@ export async function getMangaDetail(id: string): Promise<MangaDexManga | null> 
 
   const coverRel = manga.relationships?.find((r: any) => r.type === 'cover_art');
   const coverFilename = coverRel?.attributes?.fileName;
-  const coverUrl = coverFilename ? `${COVER_BASE}/${manga.id}/${coverFilename}.512.jpg` : null;
+  const coverUrl = coverFilename ? `/api/discover/cover/${manga.id}/${coverFilename}.512.jpg` : null;
 
   const altTitles = (manga.attributes.altTitles || [])
     .flatMap((t: any) => Object.values(t))
