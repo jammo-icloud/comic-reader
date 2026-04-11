@@ -1,27 +1,26 @@
 import type { MangaSource, SearchResult, ChapterResult } from './types.js';
 import { mangadexSource } from './mangadex-source.js';
-// import { malSource } from './mal-source.js'; // Metadata-only, used by import wizard not Discover
+import { malSource } from './mal-source.js';
 import { mangafoxSource } from './mangafox.js';
 // import { mangahubSource } from './mangahub.js'; // Disabled: Cloudflare protected
 
-// All registered sources
-const sources: MangaSource[] = [
+// Primary sources (have downloadable chapters)
+const primarySources: MangaSource[] = [
   mangadexSource,
   mangafoxSource,
-  // mangahubSource, // Re-enable when Cloudflare bypass is solved
 ];
 
+// All sources including metadata-only (MAL)
+const allSources: MangaSource[] = [...primarySources, malSource];
+
 export function getSource(id: string): MangaSource | undefined {
-  return sources.find((s) => s.id === id);
+  return allSources.find((s) => s.id === id);
 }
 
 export function getAllSources(): { id: string; name: string }[] {
-  return sources.map((s) => ({ id: s.id, name: s.name }));
+  return allSources.map((s) => ({ id: s.id, name: s.name }));
 }
 
-/**
- * Search all sources in parallel, return merged results
- */
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   return Promise.race([
     promise,
@@ -29,15 +28,19 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
   ]);
 }
 
+/**
+ * Search primary sources first. If zero results, fallback to MAL.
+ */
 export async function searchAllSources(query: string, limit = 20): Promise<SearchResult[]> {
+  // Search primary sources in parallel
   const results = await Promise.allSettled(
-    sources.map((s) =>
+    primarySources.map((s) =>
       withTimeout(
         s.search(query, limit).catch((err) => {
           console.error(`Search failed for ${s.name}: ${(err as Error).message}`);
           return [] as SearchResult[];
         }),
-        10000, // 10 second timeout per source
+        10000,
         [] as SearchResult[],
       )
     )
@@ -50,21 +53,28 @@ export async function searchAllSources(query: string, limit = 20): Promise<Searc
     }
   }
 
+  // If no results from primary sources, try MAL as fallback
+  if (allResults.length === 0) {
+    console.log(`  No results from primary sources, trying MAL...`);
+    try {
+      const malResults = await withTimeout(
+        malSource.search(query, limit),
+        10000,
+        [] as SearchResult[],
+      );
+      allResults.push(...malResults);
+    } catch {}
+  }
+
   return allResults;
 }
 
-/**
- * Get chapters from a specific source
- */
 export async function getChaptersFromSource(sourceId: string, mangaId: string): Promise<ChapterResult[]> {
   const source = getSource(sourceId);
   if (!source) throw new Error(`Unknown source: ${sourceId}`);
   return source.getChapters(mangaId);
 }
 
-/**
- * Get page URLs from a specific source
- */
 export async function getPageUrlsFromSource(sourceId: string, chapterId: string): Promise<string[]> {
   const source = getSource(sourceId);
   if (!source) throw new Error(`Unknown source: ${sourceId}`);
