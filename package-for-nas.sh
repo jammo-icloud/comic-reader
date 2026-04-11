@@ -1,7 +1,8 @@
 #!/bin/bash
 #
 # Package comic-reader for NAS deployment
-# Creates a zip with only the files needed for docker compose build
+# Creates a zip with everything needed for docker compose build
+# Includes both comic-reader and import-orchestrator source
 #
 
 set -e
@@ -28,14 +29,20 @@ zip -r "$OUTPUT" . \
   -x ".DS_Store" \
   -x "*/.DS_Store" \
   -x "*.log" \
+  -x "build-for-nas.sh" \
   -x "package-for-nas.sh"
 
 SIZE=$(du -h "$OUTPUT" | cut -f1)
 echo ""
 echo "✅ Created: $OUTPUT ($SIZE)"
 echo ""
-echo "Next steps:"
-echo "  1. Copy $OUTPUT to your NAS"
-echo "  2. Unzip into /volume1/docker/comic-reader/"
-echo "  3. Edit docker-compose.yml — set your library path"
-echo "  4. docker compose up -d --build"
+echo "Contents:"
+echo "  comic-reader/        — web app (Dockerfile + source)"
+echo "  ocr-service/         — import orchestrator (Dockerfile + source)"
+echo "  docker-compose.yml   — both services with build: directives"
+echo ""
+echo "Deploy:"
+echo "  1. Copy zip to NAS, unzip into /volume1/docker/comic-reader/"
+echo "  2. Edit docker-compose.yml — change /volume1/Manga to your library path"
+echo "  3. docker compose up -d --build"
+echo "  4. Open http://nas-ip:8580"

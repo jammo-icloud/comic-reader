@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   comic-reader:
-    image: comic-reader:latest
+    build: .
     container_name: comic-reader
     ports:
       - "8580:3000"
@@ -11,14 +11,14 @@ services:
       - DATA_DIR=/library/.comic-reader
       - LIBRARY_DIR=/library
       - SERVER_PORT=3000
-      - OCR_SERVICE_URL=http://ocr-service:3001
+      - OCR_SERVICE_URL=http://import-orchestrator:3001
     depends_on:
-      - ocr-service
+      - import-orchestrator
     restart: unless-stopped
 
-  ocr-service:
-    image: ocr-service:latest
-    container_name: ocr-service
+  import-orchestrator:
+    build: ./ocr-service
+    container_name: import-orchestrator
     volumes:
       - /volume1/Manga:/library
     environment:
