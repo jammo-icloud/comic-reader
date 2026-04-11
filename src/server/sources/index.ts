@@ -1,11 +1,11 @@
 import type { MangaSource, SearchResult, ChapterResult } from './types.js';
 import { mangadexSource } from './mangadex-source.js';
-import { mangahubSource } from './mangahub.js';
+// import { mangahubSource } from './mangahub.js'; // Disabled: Cloudflare protected
 
 // All registered sources
 const sources: MangaSource[] = [
   mangadexSource,
-  mangahubSource,
+  // mangahubSource, // Re-enable when Cloudflare bypass is solved
 ];
 
 export function getSource(id: string): MangaSource | undefined {
@@ -19,13 +19,24 @@ export function getAllSources(): { id: string; name: string }[] {
 /**
  * Search all sources in parallel, return merged results
  */
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 export async function searchAllSources(query: string, limit = 20): Promise<SearchResult[]> {
   const results = await Promise.allSettled(
     sources.map((s) =>
-      s.search(query, limit).catch((err) => {
-        console.error(`Search failed for ${s.name}: ${(err as Error).message}`);
-        return [] as SearchResult[];
-      })
+      withTimeout(
+        s.search(query, limit).catch((err) => {
+          console.error(`Search failed for ${s.name}: ${(err as Error).message}`);
+          return [] as SearchResult[];
+        }),
+        10000, // 10 second timeout per source
+        [] as SearchResult[],
+      )
     )
   );
 
