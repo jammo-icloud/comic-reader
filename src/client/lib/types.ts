@@ -65,26 +65,29 @@ export interface PendingImport {
   status: 'queued' | 'scanning' | 'ready' | 'confirmed' | 'skipped' | 'error';
 }
 
-// --- MangaDex ---
+// --- Discover (unified across sources) ---
 
-export interface MangaDexManga {
-  id: string;
+export interface SearchResult {
+  sourceId: string;
+  sourceName: string;
+  mangaId: string;
   title: string;
-  altTitles: string[];
+  coverUrl: string | null;
   description: string;
   status: string;
   year: number | null;
-  coverUrl: string | null;
   tags: string[];
-  contentRating: string;
 }
 
-export interface MangaDexChapter {
-  id: string;
+export interface ChapterResult {
+  sourceId: string;
+  chapterId: string;
   chapter: string | null;
-  volume: string | null;
   title: string | null;
   pages: number;
   scanlationGroup: string | null;
-  publishedAt: string;
 }
+
+// Legacy alias for components that still use the old name
+export type MangaDexManga = SearchResult;
+export type MangaDexChapter = ChapterResult;

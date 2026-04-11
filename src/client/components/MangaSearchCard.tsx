@@ -1,5 +1,5 @@
 import { BookOpen } from 'lucide-react';
-import type { MangaDexManga } from '../lib/types';
+import type { SearchResult } from '../lib/types';
 
 const statusColors: Record<string, string> = {
   ongoing: 'bg-green-600',
@@ -8,11 +8,16 @@ const statusColors: Record<string, string> = {
   cancelled: 'bg-red-600',
 };
 
+const sourceColors: Record<string, string> = {
+  mangadex: 'bg-orange-600',
+  mangahub: 'bg-indigo-600',
+};
+
 export default function MangaSearchCard({
   manga,
   onClick,
 }: {
-  manga: MangaDexManga;
+  manga: SearchResult;
   onClick: () => void;
 }) {
   return (
@@ -20,7 +25,6 @@ export default function MangaSearchCard({
       onClick={onClick}
       className="group text-left bg-white dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
     >
-      {/* Cover */}
       <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 overflow-hidden relative">
         {manga.coverUrl ? (
           <img
@@ -34,19 +38,16 @@ export default function MangaSearchCard({
             <BookOpen size={32} className="text-gray-300 dark:text-gray-600" />
           </div>
         )}
+        {/* Source badge */}
+        <div className={`absolute top-2 left-2 ${sourceColors[manga.sourceId] || 'bg-gray-600'} text-white text-[9px] px-1.5 py-0.5 rounded font-medium`}>
+          {manga.sourceName}
+        </div>
         {/* Status badge */}
         <div className={`absolute top-2 right-2 ${statusColors[manga.status] || 'bg-gray-600'} text-white text-[10px] px-1.5 py-0.5 rounded capitalize`}>
           {manga.status}
         </div>
-        {/* Content rating */}
-        {manga.contentRating !== 'safe' && (
-          <div className="absolute top-2 left-2 bg-red-600/80 text-white text-[10px] px-1.5 py-0.5 rounded uppercase">
-            {manga.contentRating}
-          </div>
-        )}
       </div>
 
-      {/* Info */}
       <div className="p-3">
         <h3 className="text-sm font-medium truncate">{manga.title}</h3>
         {manga.year && (

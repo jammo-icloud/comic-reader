@@ -19,7 +19,7 @@ export default function ChapterPicker({ manga, chapters, loading, onClose, onDow
   const toggleChapter = (id: string) => {
     setSelected((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   };
-  const selectAll = () => setSelected(new Set(chapters.map((c) => c.id)));
+  const selectAll = () => setSelected(new Set(chapters.map((c) => c.chapterId)));
   const selectNone = () => setSelected(new Set());
 
   const handleDownload = async () => {
@@ -28,16 +28,16 @@ export default function ChapterPicker({ manga, chapters, loading, onClose, onDow
     setError('');
     try {
       const chaptersToDownload = chapters
-        .filter((c) => selected.has(c.id))
-        .map((c) => ({ id: c.id, chapter: c.chapter, pages: c.pages }));
+        .filter((c) => selected.has(c.chapterId))
+        .map((c) => ({ id: c.chapterId, chapter: c.chapter, pages: c.pages }));
 
       // No shelf — downloads go to /library/comics/ automatically
-      await startDownload(manga.id, manga.title, 'default', chaptersToDownload, {
+      await startDownload(manga.mangaId, manga.title, 'default', chaptersToDownload, {
         description: manga.description,
         status: manga.status,
         year: manga.year,
         tags: manga.tags,
-        contentRating: manga.contentRating,
+        contentRating: manga.status,
         coverUrl: manga.coverUrl,
       });
       onDownloadStarted?.();
@@ -82,9 +82,9 @@ export default function ChapterPicker({ manga, chapters, loading, onClose, onDow
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {chapters.map((ch) => (
-                <button key={ch.id} onClick={() => toggleChapter(ch.id)} className="w-full flex items-center gap-3 px-6 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors">
-                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${selected.has(ch.id) ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
-                    {selected.has(ch.id) && <Check size={12} strokeWidth={3} />}
+                <button key={ch.chapterId} onClick={() => toggleChapter(ch.chapterId)} className="w-full flex items-center gap-3 px-6 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 text-left transition-colors">
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${selected.has(ch.chapterId) ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 dark:border-gray-600'}`}>
+                    {selected.has(ch.chapterId) && <Check size={12} strokeWidth={3} />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-medium">Ch. {ch.chapter || '?'}{ch.title && <span className="font-normal text-gray-500 dark:text-gray-400"> — {ch.title}</span>}</span>

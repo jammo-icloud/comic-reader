@@ -137,8 +137,8 @@ export function discoverSearch(query: string, offset = 0): Promise<{ results: Ma
   return fetchJson(`/discover/search?q=${encodeURIComponent(query)}&offset=${offset}`);
 }
 
-export function discoverChapters(mangaId: string): Promise<MangaDexChapter[]> {
-  return fetchJson(`/discover/manga/${mangaId}/chapters`);
+export function discoverChapters(sourceId: string, mangaId: string): Promise<MangaDexChapter[]> {
+  return fetchJson(`/discover/chapters/${sourceId}/${encodeURIComponent(mangaId)}`);
 }
 
 export function startDownload(
