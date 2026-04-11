@@ -1,33 +1,22 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Loader, Zap, Globe, ShieldAlert, ExternalLink, Check } from 'lucide-react';
+import { ArrowLeft, Search, Loader, Check, ExternalLink, Eye, FolderOpen, X } from 'lucide-react';
 import type { SearchResult, ChapterResult } from '../lib/types';
 import { discoverSearch, discoverChapters } from '../lib/api';
-import { ALL_SOURCES, getSourcesByTier, searchBrowserSources, getBrowserChapters } from '../lib/browser-sources/registry';
-import type { SourceConfig, SourceTier } from '../lib/browser-sources/types';
+import { ALL_SOURCES, HAKUNEKO_SITES, HAKUNEKO_URL, getSourceConfig } from '../lib/browser-sources/registry';
+import type { SourceConfig } from '../lib/browser-sources/types';
 import MangaSearchCard from '../components/MangaSearchCard';
 import ChapterPicker from '../components/ChapterPicker';
 import DownloadProgress from '../components/DownloadProgress';
 import ThemeToggle from '../components/ThemeToggle';
 
-const tierIcons = { fast: Zap, slow: Globe, nsfw: ShieldAlert };
-const tierLabels = { fast: 'Fast', slow: 'Browser-powered (slower)', nsfw: 'NSFW' };
-
-// Map Tailwind bg classes to hex for dynamic styling
 const colorHex: Record<string, string> = {
   'bg-orange-600': '#ea580c',
   'bg-emerald-600': '#059669',
-  'bg-indigo-600': '#4f46e5',
-  'bg-violet-600': '#7c3aed',
-  'bg-purple-600': '#9333ea',
-  'bg-sky-600': '#0284c7',
-  'bg-rose-600': '#e11d48',
-  'bg-blue-700': '#1d4ed8',
 };
 
 function SourceCard({ source, selected, onClick }: { source: SourceConfig; selected: boolean; onClick: () => void }) {
   const hex = colorHex[source.color] || '#6b7280';
-
   return (
     <button
       onClick={onClick}
@@ -75,11 +64,10 @@ export default function DiscoverPage() {
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Source selection
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [sourcesLocked, setSourcesLocked] = useState(false);
+  const [showMoreSites, setShowMoreSites] = useState(false);
 
-  // Chapter picker
   const [selectedManga, setSelectedManga] = useState<SearchResult | null>(null);
   const [chapters, setChapters] = useState<ChapterResult[]>([]);
   const [loadingChapters, setLoadingChapters] = useState(false);
@@ -98,31 +86,13 @@ export default function DiscoverPage() {
   const handleSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!query.trim() || !hasSelection) return;
-
     setSearching(true);
     setHasSearched(true);
     setSourcesLocked(true);
-
     try {
-      const serverIds = [...selectedSources].filter((id) => {
-        const config = ALL_SOURCES.find((s) => s.id === id);
-        return config?.type === 'server';
-      });
-      const browserIds = [...selectedSources].filter((id) => {
-        const config = ALL_SOURCES.find((s) => s.id === id);
-        return config?.type === 'browser';
-      });
-
-      const [serverData, browserData] = await Promise.all([
-        serverIds.length > 0
-          ? discoverSearch(query.trim()).then((d) => d.results.filter((r) => serverIds.includes(r.sourceId)))
-          : Promise.resolve([]),
-        browserIds.length > 0
-          ? searchBrowserSources(query.trim(), browserIds)
-          : Promise.resolve([]),
-      ]);
-
-      setResults([...serverData, ...browserData]);
+      const data = await discoverSearch(query.trim());
+      const serverIds = [...selectedSources];
+      setResults(data.results.filter((r) => serverIds.includes(r.sourceId)));
     } catch (err) {
       console.error('Search failed:', err);
     } finally {
@@ -141,13 +111,9 @@ export default function DiscoverPage() {
     setSelectedManga(manga);
     setLoadingChapters(true);
     try {
-      const config = ALL_SOURCES.find((s) => s.id === manga.sourceId);
-      const ch = config?.type === 'browser'
-        ? await getBrowserChapters(manga.sourceId, manga.mangaId)
-        : await discoverChapters(manga.sourceId, manga.mangaId);
+      const ch = await discoverChapters(manga.sourceId, manga.mangaId);
       setChapters(ch);
     } catch (err) {
-      console.error('Failed to load chapters:', err);
       setChapters([]);
     } finally {
       setLoadingChapters(false);
@@ -175,26 +141,20 @@ export default function DiscoverPage() {
               />
             </div>
             {hasSearched ? (
-              <button type="button" onClick={handleClearSearch} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                Clear
-              </button>
+              <button type="button" onClick={handleClearSearch} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">Clear</button>
             ) : (
-              <button
-                type="submit"
-                disabled={searching || !query.trim() || !hasSelection}
-                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
-              >
+              <button type="submit" disabled={searching || !query.trim() || !hasSelection} className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50">
                 {searching ? <Loader size={16} className="animate-spin" /> : 'Search'}
               </button>
             )}
           </form>
-          {/* Active source badges when searching */}
           {sourcesLocked && (
             <div className="hidden sm:flex items-center gap-1">
               {[...selectedSources].map((id) => {
-                const config = ALL_SOURCES.find((s) => s.id === id);
+                const config = getSourceConfig(id);
+                const hex = colorHex[config?.color || ''] || '#6b7280';
                 return config ? (
-                  <span key={id} className={`${config.color} text-white text-[9px] px-1.5 py-0.5 rounded font-medium`}>{config.name}</span>
+                  <span key={id} className="text-white text-[9px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: hex }}>{config.name}</span>
                 ) : null;
               })}
             </div>
@@ -203,34 +163,45 @@ export default function DiscoverPage() {
         </div>
       </header>
 
-      {/* Main area */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full">
-        {/* Source picker — shown when NOT searching */}
+        {/* Source picker — before search */}
         {!hasSearched && !searching && (
           <div className="space-y-6">
-            {(['fast', 'slow', 'nsfw'] as const).map((tier) => {
-              const sources = getSourcesByTier(tier);
-              if (sources.length === 0) return null;
-              const Icon = tierIcons[tier];
-              return (
-                <section key={tier}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Icon size={16} className="text-gray-500 dark:text-gray-400" />
-                    <h2 className="text-sm font-semibold text-gray-600 dark:text-gray-400">{tierLabels[tier]}</h2>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {sources.map((source) => (
-                      <SourceCard
-                        key={source.id}
-                        source={source}
-                        selected={selectedSources.has(source.id)}
-                        onClick={() => toggleSource(source.id)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              );
-            })}
+            {/* Source cards */}
+            <section>
+              <h2 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3">Search Sources</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {ALL_SOURCES.map((source) => (
+                  <SourceCard key={source.id} source={source} selected={selectedSources.has(source.id)} onClick={() => toggleSource(source.id)} />
+                ))}
+              </div>
+            </section>
+
+            {/* Import from local folder */}
+            <section>
+              <button
+                onClick={() => navigate('/')}
+                className="flex items-center gap-3 w-full text-left p-4 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
+              >
+                <FolderOpen size={20} className="text-gray-400 dark:text-gray-500 shrink-0" />
+                <div>
+                  <h3 className="text-sm font-medium">Import from local folder</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Already have manga downloaded? Use the +Folder button on the library page to import.
+                  </p>
+                </div>
+              </button>
+            </section>
+
+            {/* Looking for more */}
+            <section>
+              <button
+                onClick={() => setShowMoreSites(true)}
+                className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+              >
+                <Eye size={16} /> Looking for more sites?
+              </button>
+            </section>
           </div>
         )}
 
@@ -254,18 +225,70 @@ export default function DiscoverPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-12">No results found. Try different sources or search terms.</p>
+              <div className="text-center py-12">
+                <p className="text-gray-500 mb-4">No results found.</p>
+                <button onClick={() => setShowMoreSites(true)} className="inline-flex items-center gap-2 text-sm text-blue-500 hover:text-blue-400">
+                  <Eye size={16} /> Try more sites with HakuNeko
+                </button>
+              </div>
             )}
           </>
         )}
       </main>
+
+      {/* "Looking for more" modal */}
+      {showMoreSites && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowMoreSites(false)} />
+          <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-lg mx-4 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800">
+              <h2 className="text-lg font-semibold">More Manga Sites</h2>
+              <button onClick={() => setShowMoreSites(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                These sites require a desktop app to download from. Use <a href={HAKUNEKO_URL} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline font-medium">HakuNeko</a> to download chapters, then import the folder into Comic Reader.
+              </p>
+              <div className="space-y-2">
+                {HAKUNEKO_SITES.map((site) => (
+                  <a
+                    key={site.name}
+                    href={site.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div>
+                      <span className="text-sm font-medium">{site.name}</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{site.description}</p>
+                    </div>
+                    <ExternalLink size={14} className="text-gray-400 shrink-0" />
+                  </a>
+                ))}
+              </div>
+              <div className="pt-2 border-t border-gray-200 dark:border-gray-800">
+                <a
+                  href={HAKUNEKO_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+                >
+                  Download HakuNeko <ExternalLink size={14} />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Download progress */}
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <DownloadProgress />
       </div>
 
-      {/* Chapter Picker Modal */}
+      {/* Chapter Picker */}
       {selectedManga && (
         <ChapterPicker
           manga={selectedManga}
