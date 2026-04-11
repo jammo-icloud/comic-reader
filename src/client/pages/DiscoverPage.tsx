@@ -13,19 +13,34 @@ import ThemeToggle from '../components/ThemeToggle';
 const tierIcons = { fast: Zap, slow: Globe, nsfw: ShieldAlert };
 const tierLabels = { fast: 'Fast', slow: 'Browser-powered (slower)', nsfw: 'NSFW' };
 
+// Map Tailwind bg classes to hex for dynamic styling
+const colorHex: Record<string, string> = {
+  'bg-orange-600': '#ea580c',
+  'bg-emerald-600': '#059669',
+  'bg-indigo-600': '#4f46e5',
+  'bg-violet-600': '#7c3aed',
+  'bg-purple-600': '#9333ea',
+  'bg-sky-600': '#0284c7',
+  'bg-rose-600': '#e11d48',
+  'bg-blue-700': '#1d4ed8',
+};
+
 function SourceCard({ source, selected, onClick }: { source: SourceConfig; selected: boolean; onClick: () => void }) {
+  const hex = colorHex[source.color] || '#6b7280';
+
   return (
     <button
       onClick={onClick}
-      className={`relative text-left p-3 rounded-xl border-2 transition-all w-full ${
-        selected
-          ? `border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-500/30`
-          : `border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-900`
-      }`}
+      className="relative text-left p-4 rounded-xl transition-all duration-200 w-full border-l-4"
+      style={{
+        borderLeftColor: hex,
+        backgroundColor: selected ? `${hex}15` : undefined,
+        boxShadow: selected ? `0 4px 20px ${hex}35, inset 0 0 0 1px ${hex}40` : `inset 0 0 0 1px ${hex}20`,
+      }}
     >
       {selected && (
-        <div className="absolute top-2 right-2">
-          <Check size={16} className="text-blue-600 dark:text-blue-400" />
+        <div className="absolute top-2.5 right-2.5">
+          <Check size={16} style={{ color: hex }} />
         </div>
       )}
       <a
@@ -41,14 +56,11 @@ function SourceCard({ source, selected, onClick }: { source: SourceConfig; selec
         <img
           src={`/api/discover/proxy-image?url=${encodeURIComponent(source.favicon)}`}
           alt=""
-          className="w-6 h-6 rounded shrink-0 mt-0.5"
+          className="w-7 h-7 rounded shrink-0"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${source.color}`} />
-            <h3 className="text-sm font-medium">{source.name}</h3>
-          </div>
+          <h3 className="text-sm font-semibold">{source.name}</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{source.description}</p>
         </div>
       </div>
