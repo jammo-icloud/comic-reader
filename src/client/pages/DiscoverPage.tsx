@@ -1,16 +1,60 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Loader, Zap, Globe, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Search, Loader, Zap, Globe, ShieldAlert, ExternalLink, Check } from 'lucide-react';
 import type { SearchResult, ChapterResult } from '../lib/types';
 import { discoverSearch, discoverChapters } from '../lib/api';
 import { ALL_SOURCES, getSourcesByTier, searchBrowserSources, getBrowserChapters } from '../lib/browser-sources/registry';
+import type { SourceConfig, SourceTier } from '../lib/browser-sources/types';
 import MangaSearchCard from '../components/MangaSearchCard';
 import ChapterPicker from '../components/ChapterPicker';
 import DownloadProgress from '../components/DownloadProgress';
 import ThemeToggle from '../components/ThemeToggle';
 
 const tierIcons = { fast: Zap, slow: Globe, nsfw: ShieldAlert };
-const tierLabels = { fast: 'Fast', slow: 'Slow (browser-powered)', nsfw: 'NSFW' };
+const tierLabels = { fast: 'Fast', slow: 'Browser-powered (slower)', nsfw: 'NSFW' };
+
+function SourceCard({ source, selected, onClick }: { source: SourceConfig; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative text-left p-3 rounded-xl border-2 transition-all w-full ${
+        selected
+          ? `border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-500/30`
+          : `border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-900`
+      }`}
+    >
+      {selected && (
+        <div className="absolute top-2 right-2">
+          <Check size={16} className="text-blue-600 dark:text-blue-400" />
+        </div>
+      )}
+      <div className="flex items-start gap-3">
+        <img
+          src={`/api/discover/proxy-image?url=${encodeURIComponent(source.favicon)}`}
+          alt=""
+          className="w-6 h-6 rounded shrink-0 mt-0.5"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${source.color}`} />
+            <h3 className="text-sm font-medium">{source.name}</h3>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{source.description}</p>
+          <a
+            href={source.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500 hover:text-blue-500 mt-1"
+          >
+            Visit site <ExternalLink size={9} />
+          </a>
+        </div>
+      </div>
+    </button>
+  );
+}
 
 export default function DiscoverPage() {
   const navigate = useNavigate();
@@ -20,9 +64,7 @@ export default function DiscoverPage() {
   const [hasSearched, setHasSearched] = useState(false);
 
   // Source selection
-  const [selectedSources, setSelectedSources] = useState<Set<string>>(
-    new Set(getSourcesByTier('fast').map((s) => s.id))
-  );
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [sourcesLocked, setSourcesLocked] = useState(false);
 
   // Chapter picker
@@ -30,26 +72,26 @@ export default function DiscoverPage() {
   const [chapters, setChapters] = useState<ChapterResult[]>([]);
   const [loadingChapters, setLoadingChapters] = useState(false);
 
+  const hasSelection = selectedSources.size > 0;
+
   const toggleSource = (id: string) => {
     if (sourcesLocked) return;
     setSelectedSources((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
 
   const handleSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!query.trim() || selectedSources.size === 0) return;
+    if (!query.trim() || !hasSelection) return;
 
     setSearching(true);
     setHasSearched(true);
     setSourcesLocked(true);
 
     try {
-      // Split selected sources into server vs browser
       const serverIds = [...selectedSources].filter((id) => {
         const config = ALL_SOURCES.find((s) => s.id === id);
         return config?.type === 'server';
@@ -59,12 +101,9 @@ export default function DiscoverPage() {
         return config?.type === 'browser';
       });
 
-      // Search in parallel
       const [serverData, browserData] = await Promise.all([
         serverIds.length > 0
-          ? discoverSearch(query.trim()).then((d) =>
-              d.results.filter((r) => serverIds.includes(r.sourceId))
-            )
+          ? discoverSearch(query.trim()).then((d) => d.results.filter((r) => serverIds.includes(r.sourceId)))
           : Promise.resolve([]),
         browserIds.length > 0
           ? searchBrowserSources(query.trim(), browserIds)
@@ -91,12 +130,9 @@ export default function DiscoverPage() {
     setLoadingChapters(true);
     try {
       const config = ALL_SOURCES.find((s) => s.id === manga.sourceId);
-      let ch: ChapterResult[];
-      if (config?.type === 'browser') {
-        ch = await getBrowserChapters(manga.sourceId, manga.mangaId);
-      } else {
-        ch = await discoverChapters(manga.sourceId, manga.mangaId);
-      }
+      const ch = config?.type === 'browser'
+        ? await getBrowserChapters(manga.sourceId, manga.mangaId)
+        : await discoverChapters(manga.sourceId, manga.mangaId);
       setChapters(ch);
     } catch (err) {
       console.error('Failed to load chapters:', err);
@@ -111,7 +147,7 @@ export default function DiscoverPage() {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white/95 dark:bg-gray-950/95 backdrop-blur border-b border-gray-200 dark:border-gray-800">
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400" title="Back">
+          <button onClick={() => navigate('/')} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400">
             <ArrowLeft size={18} />
           </button>
           <form onSubmit={handleSearch} className="flex-1 flex items-center gap-2">
@@ -121,8 +157,9 @@ export default function DiscoverPage() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search manga..."
-                className="w-full pl-9 pr-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-gray-500"
+                placeholder={hasSelection ? 'Search manga...' : 'Select sources first...'}
+                disabled={!hasSelection}
+                className="w-full pl-9 pr-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-40 disabled:cursor-not-allowed"
               />
             </div>
             {hasSearched ? (
@@ -132,19 +169,59 @@ export default function DiscoverPage() {
             ) : (
               <button
                 type="submit"
-                disabled={searching || !query.trim() || selectedSources.size === 0}
+                disabled={searching || !query.trim() || !hasSelection}
                 className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
               >
                 {searching ? <Loader size={16} className="animate-spin" /> : 'Search'}
               </button>
             )}
           </form>
+          {/* Active source badges when searching */}
+          {sourcesLocked && (
+            <div className="hidden sm:flex items-center gap-1">
+              {[...selectedSources].map((id) => {
+                const config = ALL_SOURCES.find((s) => s.id === id);
+                return config ? (
+                  <span key={id} className={`${config.color} text-white text-[9px] px-1.5 py-0.5 rounded font-medium`}>{config.name}</span>
+                ) : null;
+              })}
+            </div>
+          )}
           <ThemeToggle />
         </div>
       </header>
 
-      {/* Main content */}
+      {/* Main area */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full">
+        {/* Source picker — shown when NOT searching */}
+        {!hasSearched && !searching && (
+          <div className="space-y-6">
+            {(['fast', 'slow', 'nsfw'] as const).map((tier) => {
+              const sources = getSourcesByTier(tier);
+              if (sources.length === 0) return null;
+              const Icon = tierIcons[tier];
+              return (
+                <section key={tier}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Icon size={16} className="text-gray-500 dark:text-gray-400" />
+                    <h2 className="text-sm font-semibold text-gray-600 dark:text-gray-400">{tierLabels[tier]}</h2>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {sources.map((source) => (
+                      <SourceCard
+                        key={source.id}
+                        source={source}
+                        selected={selectedSources.has(source.id)}
+                        onClick={() => toggleSource(source.id)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        )}
+
         {/* Loading */}
         {searching && (
           <div className="flex items-center justify-center py-24">
@@ -165,56 +242,11 @@ export default function DiscoverPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-12">No results found.</p>
+              <p className="text-gray-500 text-center py-12">No results found. Try different sources or search terms.</p>
             )}
           </>
         )}
-
-        {/* Empty state — when no search */}
-        {!hasSearched && !searching && (
-          <div className="flex items-center justify-center py-12">
-            <p className="text-gray-400 dark:text-gray-500">Select sources below, then search above</p>
-          </div>
-        )}
       </main>
-
-      {/* Source picker — always at bottom */}
-      <div className="border-t border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur px-4 sm:px-6 py-4">
-        <div className="max-w-7xl mx-auto space-y-3">
-          {(['fast', 'slow', 'nsfw'] as const).map((tier) => {
-            const sources = getSourcesByTier(tier);
-            if (sources.length === 0) return null;
-            const Icon = tierIcons[tier];
-            return (
-              <div key={tier}>
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Icon size={13} className="text-gray-400 dark:text-gray-500" />
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{tierLabels[tier]}</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {sources.map((source) => {
-                    const isSelected = selectedSources.has(source.id);
-                    return (
-                      <button
-                        key={source.id}
-                        onClick={() => toggleSource(source.id)}
-                        disabled={sourcesLocked}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-lg border-2 transition-all ${
-                          isSelected
-                            ? `${source.color} text-white border-transparent`
-                            : `bg-transparent border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 ${sourcesLocked ? 'opacity-30' : 'hover:border-gray-400 dark:hover:border-gray-500'}`
-                        } ${sourcesLocked ? 'cursor-default' : 'cursor-pointer'}`}
-                      >
-                        {source.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
       {/* Download progress */}
       <div className="fixed bottom-0 left-0 right-0 z-40">

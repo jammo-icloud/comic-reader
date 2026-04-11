@@ -4,15 +4,29 @@ import type { BrowserSource, SourceConfig, SourceTier } from './types';
 // All source configs (both server and browser)
 export const ALL_SOURCES: SourceConfig[] = [
   // Fast (server-side)
-  { id: 'mangadex', name: 'MangaDex', color: 'bg-orange-600', tier: 'fast', type: 'server' },
-  { id: 'mangafox', name: 'MangaFox', color: 'bg-emerald-600', tier: 'fast', type: 'server' },
+  { id: 'mangadex', name: 'MangaDex', color: 'bg-orange-600', tier: 'fast', type: 'server',
+    url: 'https://mangadex.org', favicon: 'https://mangadex.org/favicon.ico',
+    description: 'Community-driven scanlations. Largest free manga library.' },
+  { id: 'mangafox', name: 'MangaFox', color: 'bg-emerald-600', tier: 'fast', type: 'server',
+    url: 'https://fanfox.net', favicon: 'https://fanfox.net/favicon.ico',
+    description: 'Long-running manga site. Fast chapter updates.' },
   // Slow (browser-side) — stubs for now, connectors added later
-  { id: 'mangahub', name: 'MangaHub', color: 'bg-indigo-600', tier: 'slow', type: 'browser' },
-  { id: 'mangafreak', name: 'MangaFreak', color: 'bg-violet-600', tier: 'slow', type: 'browser' },
-  { id: 'mangafire', name: 'MangaFire', color: 'bg-purple-600', tier: 'slow', type: 'browser' },
-  { id: 'mangadna', name: 'MangaDNA', color: 'bg-sky-600', tier: 'slow', type: 'browser' },
+  { id: 'mangahub', name: 'MangaHub', color: 'bg-indigo-600', tier: 'slow', type: 'browser',
+    url: 'https://mangahub.io', favicon: 'https://mangahub.io/favicon.ico',
+    description: 'Large manga collection with GraphQL API.' },
+  { id: 'mangafreak', name: 'MangaFreak', color: 'bg-violet-600', tier: 'slow', type: 'browser',
+    url: 'https://mangafreak.me', favicon: 'https://mangafreak.me/favicon.ico',
+    description: 'Popular manga reader and downloader.' },
+  { id: 'mangafire', name: 'MangaFire', color: 'bg-purple-600', tier: 'slow', type: 'browser',
+    url: 'https://mangafire.to', favicon: 'https://mangafire.to/favicon.ico',
+    description: 'Modern manga reader with multiple formats.' },
+  { id: 'mangadna', name: 'MangaDNA', color: 'bg-sky-600', tier: 'slow', type: 'browser',
+    url: 'https://mangadna.com', favicon: 'https://mangadna.com/favicon.ico',
+    description: 'WordPress-based manga library.' },
   // NSFW
-  { id: 'hentainexus', name: 'HentaiNexus', color: 'bg-rose-600', tier: 'nsfw', type: 'browser' },
+  { id: 'hentainexus', name: 'HentaiNexus', color: 'bg-rose-600', tier: 'nsfw', type: 'browser',
+    url: 'https://hentainexus.com', favicon: 'https://hentainexus.com/favicon.ico',
+    description: 'Curated adult manga and doujinshi.' },
 ];
 
 // Browser connector registry

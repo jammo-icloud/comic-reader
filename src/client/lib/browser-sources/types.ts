@@ -19,4 +19,7 @@ export interface SourceConfig {
   color: string;
   tier: SourceTier;
   type: 'server' | 'browser';
+  url: string;
+  favicon: string;
+  description: string;
 }
