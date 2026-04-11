@@ -28,6 +28,15 @@ function SourceCard({ source, selected, onClick }: { source: SourceConfig; selec
           <Check size={16} className="text-blue-600 dark:text-blue-400" />
         </div>
       )}
+      <a
+        href={source.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="absolute bottom-2 right-3 inline-flex items-center gap-1 text-[10px] text-gray-300 dark:text-gray-600 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+      >
+        Visit site <ExternalLink size={9} />
+      </a>
       <div className="flex items-start gap-3">
         <img
           src={`/api/discover/proxy-image?url=${encodeURIComponent(source.favicon)}`}
@@ -41,15 +50,6 @@ function SourceCard({ source, selected, onClick }: { source: SourceConfig; selec
             <h3 className="text-sm font-medium">{source.name}</h3>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{source.description}</p>
-          <a
-            href={source.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500 hover:text-blue-500 mt-1"
-          >
-            Visit site <ExternalLink size={9} />
-          </a>
         </div>
       </div>
     </button>
