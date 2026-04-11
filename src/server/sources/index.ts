@@ -1,13 +1,12 @@
 import type { MangaSource, SearchResult, ChapterResult } from './types.js';
 import { mangadexSource } from './mangadex-source.js';
-import { malSource } from './mal-source.js';
+// import { malSource } from './mal-source.js'; // Metadata-only, used by import wizard not Discover
 import { mangafoxSource } from './mangafox.js';
 // import { mangahubSource } from './mangahub.js'; // Disabled: Cloudflare protected
 
 // All registered sources
 const sources: MangaSource[] = [
   mangadexSource,
-  malSource,
   mangafoxSource,
   // mangahubSource, // Re-enable when Cloudflare bypass is solved
 ];

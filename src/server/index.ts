@@ -5,6 +5,7 @@ import libraryRoutes from './routes/library.js';
 import readerRoutes from './routes/reader.js';
 import discoverRoutes from './routes/discover.js';
 import importRoutes from './routes/import.js';
+import chapterUploadRoutes from './routes/chapter-upload.js';
 import { resumeIncompleteDownloads } from './downloader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,6 +19,7 @@ app.use('/api', libraryRoutes);
 app.use('/api', readerRoutes);
 app.use('/api', discoverRoutes);
 app.use('/api', importRoutes);
+app.use('/api', chapterUploadRoutes);
 
 // Serve data directory assets (covers, thumbnails) as static files
 // This bypasses Express route handling — much faster for images
