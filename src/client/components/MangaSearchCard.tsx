@@ -10,6 +10,7 @@ const statusColors: Record<string, string> = {
 
 const sourceColors: Record<string, string> = {
   mangadex: 'bg-orange-600',
+  mal: 'bg-blue-700',
   mangahub: 'bg-indigo-600',
 };
 
