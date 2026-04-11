@@ -47,6 +47,25 @@ router.get('/discover/cover/:mangaId/:filename', async (req, res) => {
   }
 });
 
+// Known CDN → referer mappings
+const cdnReferers: Record<string, string> = {
+  'fmcdn.mfcdn.net': 'https://fanfox.net/',
+  'zjcdn.mangafox.me': 'https://fanfox.net/',
+  'mfcdn.net': 'https://fanfox.net/',
+};
+
+function getReferer(url: string): string {
+  try {
+    const hostname = new URL(url).hostname;
+    for (const [cdn, referer] of Object.entries(cdnReferers)) {
+      if (hostname.includes(cdn)) return referer;
+    }
+    return new URL(url).origin + '/';
+  } catch {
+    return '';
+  }
+}
+
 // Generic image proxy (for any source's cover/page images)
 router.get('/discover/proxy-image', async (req, res) => {
   const url = req.query.url as string;
@@ -56,7 +75,7 @@ router.get('/discover/proxy-image', async (req, res) => {
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': new URL(url).origin + '/',
+        'Referer': getReferer(url),
       },
     });
     if (!response.ok) { res.status(response.status).end(); return; }
