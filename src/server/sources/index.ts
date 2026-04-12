@@ -2,12 +2,14 @@ import type { MangaSource, SearchResult, ChapterResult } from './types.js';
 import { mangadexSource } from './mangadex-source.js';
 import { malSource } from './mal-source.js';
 import { mangafoxSource } from './mangafox.js';
+import { readallcomicsSource } from './readallcomics.js';
 // import { mangahubSource } from './mangahub.js'; // Disabled: Cloudflare protected
 
 // Primary sources (have downloadable chapters)
 const primarySources: MangaSource[] = [
   mangadexSource,
   mangafoxSource,
+  readallcomicsSource,
 ];
 
 // All sources including metadata-only (MAL)

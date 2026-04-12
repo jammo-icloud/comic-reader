@@ -18,6 +18,7 @@ export default function LibraryPage() {
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [continueCollapsed, setContinueCollapsed] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -48,12 +49,17 @@ export default function LibraryPage() {
     })();
   }, [seriesList]);
 
-  const filtered = search
-    ? seriesList.filter((s) => {
-        const q = search.toLowerCase();
-        return s.name.toLowerCase().includes(q) || (s.englishTitle?.toLowerCase().includes(q) ?? false) || (s.synopsis?.toLowerCase().includes(q) ?? false);
-      })
-    : seriesList;
+  // Collect all unique tags across series
+  const allTags = [...new Set(seriesList.flatMap((s) => s.tags || []))].sort();
+
+  const filtered = seriesList.filter((s) => {
+    if (search) {
+      const q = search.toLowerCase();
+      if (!s.name.toLowerCase().includes(q) && !(s.englishTitle?.toLowerCase().includes(q)) && !(s.synopsis?.toLowerCase().includes(q))) return false;
+    }
+    if (tagFilter && !(s.tags || []).includes(tagFilter)) return false;
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
@@ -144,9 +150,38 @@ export default function LibraryPage() {
         )}
       </header>
 
+      {/* Tag filter pills */}
+      {allTags.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setTagFilter(null)}
+            className={`text-[11px] px-2.5 py-1 rounded-full transition-colors ${
+              !tagFilter
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            All
+          </button>
+          {allTags.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
+              className={`text-[11px] px-2.5 py-1 rounded-full capitalize transition-colors ${
+                tagFilter === tag
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      )}
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Continue Reading */}
-        {continueReading.length > 0 && !search && (
+        {continueReading.length > 0 && !search && !tagFilter && (
           <section>
             <button
               onClick={() => setContinueCollapsed(!continueCollapsed)}

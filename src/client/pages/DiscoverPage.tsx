@@ -205,10 +205,18 @@ export default function DiscoverPage() {
               >
                 <Eye size={16} /> Looking for more sites?
               </button>
-              <p className="text-xs text-gray-500 dark:text-gray-600 pl-6">
-                Have the <span className="text-gray-400 dark:text-gray-500">Manga Finder</span> extension installed?
-                Click the extension icon in your browser toolbar to search more sources.
-              </p>
+              <div className="text-xs text-gray-500 dark:text-gray-600 pl-6 space-y-1">
+                <p>
+                  The <span className="text-gray-400 dark:text-gray-500 font-medium">Manga Finder</span> Chrome extension adds 10 sources including MangaHub, OmegaScans, HentaiNexus, and more.
+                </p>
+                <a
+                  href="/manga-finder-extension.zip"
+                  download
+                  className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-400 transition-colors"
+                >
+                  Download extension → unzip → load unpacked in chrome://extensions
+                </a>
+              </div>
             </section>
           </div>
         )}

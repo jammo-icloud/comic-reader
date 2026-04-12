@@ -5,6 +5,7 @@ import fs from 'fs';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { slugify, loadAllSeries, saveSeries, loadComics, writeComics, addToCollection, type SeriesRecord, type ComicRecord } from '../data.js';
+import { shortHash } from '../hash.js';
 
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
 const IMPORT_DIR = path.join(LIBRARY_DIR, 'import');
@@ -89,17 +90,31 @@ router.post('/import/chapter-images', upload.array('images', 500), async (req, r
     // Get page count from the raw PDF bytes
     const pageCount = pdf.getPageCount();
 
+    // Auto-tag based on source
+    const SOURCE_TAGS: Record<string, string[]> = {
+      mangadex: ['manga'],
+      mangafox: ['manga'],
+      mangahub: ['manga'],
+      mangadna: ['manga'],
+      manga18fx: ['manga', 'adult'],
+      omegascans: ['manhwa', 'adult'],
+      hentainexus: ['hentai', 'adult'],
+      weebcentral: ['manga'],
+      readallcomics: ['western', 'comics'],
+    };
+
     // Create/update series record
-    const existingSeries = loadAllSeries().find((s) => s.id === seriesId);
-    if (!existingSeries) {
-      const series: SeriesRecord = {
+    let series = loadAllSeries().find((s) => s.id === seriesId);
+    if (!series) {
+      const autoTags = SOURCE_TAGS[sourceId] || [];
+      series = {
         id: seriesId,
         type: 'comic',
         name: seriesName,
         coverFile: null,
         score: null,
         synopsis: null,
-        tags: [],
+        tags: autoTags,
         status: null,
         year: null,
         malId: null,
@@ -108,6 +123,35 @@ router.post('/import/chapter-images', upload.array('images', 500), async (req, r
         placeholder: 'manga.png',
       };
       saveSeries(series);
+    }
+
+    // Download cover art if provided and series doesn't have one yet
+    const coverUrl = req.body.coverUrl;
+    console.log(`  Cover URL received: ${coverUrl ? coverUrl.slice(0, 80) + '...' : 'none'}`);
+    if (coverUrl && !series.coverFile) {
+      try {
+        const DATA_DIR = process.env.DATA_DIR || './data';
+        const coversDir = path.join(DATA_DIR, 'series-covers');
+        if (!fs.existsSync(coversDir)) fs.mkdirSync(coversDir, { recursive: true });
+
+        const coverRes = await fetch(coverUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        });
+        if (coverRes.ok) {
+          const coverBuffer = Buffer.from(await coverRes.arrayBuffer());
+          const filename = `${shortHash(seriesId)}.jpg`;
+          await sharp(coverBuffer)
+            .resize(300, 450, { fit: 'cover' })
+            .jpeg({ quality: 85 })
+            .toFile(path.join(coversDir, filename));
+
+          series.coverFile = filename;
+          saveSeries(series);
+          console.log(`  Set cover for "${seriesName}" from ${coverUrl.slice(0, 60)}...`);
+        }
+      } catch (err) {
+        console.error(`  Cover download failed:`, (err as Error).message);
+      }
     }
 
     // Add comic to series JSONL

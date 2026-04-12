@@ -9,6 +9,9 @@ export const ALL_SOURCES: SourceConfig[] = [
   { id: 'mangafox', name: 'MangaFox', color: 'bg-emerald-600', tier: 'fast', type: 'server',
     url: 'https://fanfox.net', favicon: 'https://fanfox.net/favicon.ico',
     description: 'Long-running manga site. Fast chapter updates.' },
+  { id: 'readallcomics', name: 'ReadAllComics', color: 'bg-amber-500', tier: 'fast', type: 'server',
+    url: 'https://readallcomics.com', favicon: 'https://readallcomics.com/wp-content/uploads/cropped-logo-readallcomic-seo-2-32x32.jpg',
+    description: 'Western comics — DC, Marvel, and more.' },
 ];
 
 // Sites known to work in HakuNeko (for reference/linking)
