@@ -1,5 +1,14 @@
 # Comic Reader
 
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
+[![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)](https://expressjs.com)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![PDF.js](https://img.shields.io/badge/PDF.js-4-FF6600?logo=adobe&logoColor=white)](https://mozilla.github.io/pdf.js/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 A self-hosted manga/comic reader for Synology NAS. Browse your collection, discover new manga from MangaDex and MangaFox, download chapters, and read offline — all from your browser.
 
 ## Features
