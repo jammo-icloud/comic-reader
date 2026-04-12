@@ -198,13 +198,17 @@ export default function DiscoverPage() {
             </section>
 
             {/* Looking for more */}
-            <section>
+            <section className="space-y-2">
               <button
                 onClick={() => setShowMoreSites(true)}
                 className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
               >
                 <Eye size={16} /> Looking for more sites?
               </button>
+              <p className="text-xs text-gray-500 dark:text-gray-600 pl-6">
+                Have the <span className="text-gray-400 dark:text-gray-500">Manga Finder</span> extension installed?
+                Click the extension icon in your browser toolbar to search more sources.
+              </p>
             </section>
           </div>
         )}

@@ -43,6 +43,12 @@ export function authGuard(req: Request, res: Response, next: NextFunction) {
     return;
   }
 
+  // Allow extension uploads (chapter-images endpoint uses its own API key or is local-network only)
+  if (req.path.startsWith('/import/chapter-images')) {
+    next();
+    return;
+  }
+
   const token = req.cookies?.['comic-session'];
   const session = getSessionUser(token);
 

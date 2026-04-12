@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
-import { slugify, loadAllSeries, saveSeries, loadComics, writeComics, type SeriesRecord, type ComicRecord } from '../data.js';
+import { slugify, loadAllSeries, saveSeries, loadComics, writeComics, addToCollection, type SeriesRecord, type ComicRecord } from '../data.js';
 
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
 const IMPORT_DIR = path.join(LIBRARY_DIR, 'import');
@@ -126,7 +126,12 @@ router.post('/import/chapter-images', upload.array('images', 500), async (req, r
       writeComics(seriesId, comics);
     }
 
-    console.log(`  Imported chapter ${chapterNumber} of "${seriesName}": ${pageCount} pages → ${filename}`);
+    // Add to user's collection
+    // Extension can pass username in form data, otherwise use session or default
+    const username = req.body.username || req.username || process.env.DEFAULT_USER || 'local';
+    addToCollection(username, seriesId);
+
+    console.log(`  Imported chapter ${chapterNumber} of "${seriesName}": ${pageCount} pages → ${filename} [user: ${username}]`);
     res.json({ ok: true, file: filename, pages: pageCount, seriesId });
   } catch (err) {
     console.error(`Chapter upload failed: ${(err as Error).message}`);
