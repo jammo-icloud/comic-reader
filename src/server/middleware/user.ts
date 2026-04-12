@@ -37,8 +37,8 @@ export function userMiddleware(req: Request, _res: Response, next: NextFunction)
  * Applied to /api routes (except /api/auth/*).
  */
 export function authGuard(req: Request, res: Response, next: NextFunction) {
-  // Allow auth routes through
-  if (req.path.startsWith('/auth/')) {
+  // Allow auth routes and user info through
+  if (req.path.startsWith('/auth/') || req.path === '/me') {
     next();
     return;
   }
