@@ -39,7 +39,7 @@ setInterval(cleanExpiredSessions, 60 * 60 * 1000);
  * In local dev mode (DSM_URL not configured or unreachable), accepts any credentials.
  */
 router.post('/auth/login', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, otpCode } = req.body;
   if (!username || !password) {
     res.status(400).json({ error: 'Username and password required' });
     return;
@@ -47,13 +47,20 @@ router.post('/auth/login', async (req, res) => {
 
   try {
     // Try Synology DSM authentication
-    const dsmRes = await fetch(
-      `${DSM_URL}/webapi/entry.cgi?api=SYNO.API.Auth&version=6&method=login&account=${encodeURIComponent(username)}&passwd=${encodeURIComponent(password)}&enable_syno_token=yes`,
-      { signal: AbortSignal.timeout(5000) },
-    );
+    let loginUrl = `${DSM_URL}/webapi/entry.cgi?api=SYNO.API.Auth&version=6&method=login&account=${encodeURIComponent(username)}&passwd=${encodeURIComponent(password)}&enable_syno_token=yes`;
+    if (otpCode) {
+      loginUrl += `&otp_code=${encodeURIComponent(otpCode)}`;
+    }
+
+    const dsmRes = await fetch(loginUrl, { signal: AbortSignal.timeout(5000) });
     const dsmData = await dsmRes.json();
 
     if (!dsmData.success) {
+      // Error 403 = OTP required
+      if (dsmData.error?.code === 403) {
+        res.status(200).json({ ok: false, otpRequired: true });
+        return;
+      }
       res.status(401).json({ error: 'Invalid username or password' });
       return;
     }
