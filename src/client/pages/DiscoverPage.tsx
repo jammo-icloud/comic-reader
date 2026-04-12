@@ -198,6 +198,18 @@ export default function DiscoverPage() {
             </section>
 
             {/* Looking for more */}
+            {/* Browse MAL */}
+            <section>
+              <a
+                href="https://myanimelist.net/topmanga.php"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+              >
+                <ExternalLink size={16} /> Browse top manga on MyAnimeList
+              </a>
+            </section>
+
             <section className="space-y-2">
               <button
                 onClick={() => setShowMoreSites(true)}
