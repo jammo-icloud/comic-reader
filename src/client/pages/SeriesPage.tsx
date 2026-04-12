@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, LayoutGrid, List, Star, Pencil } from 'lucide-react';
 import type { Series, Comic } from '../lib/types';
-import { getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl, overrideMalId, getThumbnailUrl } from '../lib/api';
+import { getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl, overrideMalId, deleteSeries, getThumbnailUrl } from '../lib/api';
 import ComicCard from '../components/ComicCard';
 import ComicListItem from '../components/ComicListItem';
 import ThemeToggle from '../components/ThemeToggle';
@@ -34,6 +34,8 @@ export default function SeriesPage() {
     localStorage.setItem('comic-reader-series-view', viewMode);
   }, [viewMode]);
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   const handleOverrideSubmit = async () => {
     if (!id) return;
     const malId = parseInt(malIdInput.trim(), 10);
@@ -48,6 +50,12 @@ export default function SeriesPage() {
     } finally {
       setOverriding(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    await deleteSeries(id);
+    navigate('/');
   };
 
   const handleToggleRead = (file: string, isRead: boolean) => {
@@ -100,6 +108,9 @@ export default function SeriesPage() {
 
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold leading-tight">{series.name}</h1>
+            {series.englishTitle && series.englishTitle.toLowerCase() !== series.name.toLowerCase() && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{series.englishTitle}</p>
+            )}
 
             <div className="flex items-center gap-2 mt-1">
               {!showOverride ? (
@@ -116,7 +127,7 @@ export default function SeriesPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 mt-3">
-              {series.score && (
+              {series.score != null && series.score > 0 && (
                 <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-600 dark:text-amber-400">
                   <Star size={14} fill="currentColor" /> {series.score.toFixed(1)}
                 </span>
@@ -151,6 +162,23 @@ export default function SeriesPage() {
             {series.mangaDexId && (
               <a href={`https://mangadex.org/title/${series.mangaDexId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-2 text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500">Source: MangaDex &rarr;</a>
             )}
+
+            <div className="mt-3">
+              {!confirmDelete ? (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="text-[11px] text-gray-400 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                >
+                  Delete series
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-2 text-[11px]">
+                  <span className="text-red-500">Delete all {comics.length} chapters?</span>
+                  <button onClick={handleDelete} className="text-red-500 hover:text-red-400 font-medium">Yes, delete</button>
+                  <button onClick={() => setConfirmDelete(false)} className="text-gray-400 hover:text-gray-300">Cancel</button>
+                </span>
+              )}
+            </div>
           </div>
         </section>
 

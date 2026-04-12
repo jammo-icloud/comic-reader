@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { getMe, updatePreferences } from './api';
 
 type Theme = 'dark' | 'light';
 
-const ThemeContext = createContext<{ theme: Theme; toggle: () => void }>({
+const ThemeContext = createContext<{ theme: Theme; toggle: () => void; username: string }>({
   theme: 'dark',
   toggle: () => {},
+  username: '',
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -12,6 +14,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem('comic-reader-theme');
     return (saved === 'light' ? 'light' : 'dark') as Theme;
   });
+  const [username, setUsername] = useState('');
+
+  // Sync with server on mount
+  useEffect(() => {
+    getMe().then(({ username: user, preferences }) => {
+      setUsername(user);
+      if (preferences.theme !== theme) {
+        setTheme(preferences.theme);
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -23,10 +36,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('comic-reader-theme', theme);
   }, [theme]);
 
-  const toggle = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+  const toggle = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    updatePreferences({ theme: next }).catch(() => {});
+  };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggle }}>
+    <ThemeContext.Provider value={{ theme, toggle, username }}>
       {children}
     </ThemeContext.Provider>
   );

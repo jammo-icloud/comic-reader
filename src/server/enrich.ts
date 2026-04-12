@@ -23,9 +23,15 @@ async function sleep(ms: number) {
 
 interface MalResult {
   title: string;
+  englishTitle: string | null;
   imageUrl: string;
-  score: number;
-  synopsis: string;
+  score: number | null;
+  synopsis: string | null;
+}
+
+function extractEnglishTitle(titles: any[]): string | null {
+  const english = titles?.find((t: any) => t.type === 'English');
+  return english?.title || null;
 }
 
 async function fetchByMalId(malId: number): Promise<MalResult | null> {
@@ -39,12 +45,48 @@ async function fetchByMalId(malId: number): Promise<MalResult | null> {
 
     return {
       title: match.titles?.[0]?.title || `MAL #${malId}`,
+      englishTitle: extractEnglishTitle(match.titles),
       imageUrl: match.images?.jpg?.large_image_url || match.images?.jpg?.image_url || '',
-      score: match.score || 0,
-      synopsis: match.synopsis || '',
+      score: match.score || null,
+      synopsis: match.synopsis || null,
     };
   } catch (err) {
     console.error(`  Fetch MAL ID ${malId} failed:`, (err as Error).message);
+    return null;
+  }
+}
+
+/**
+ * Search MAL by name — returns basic match info for import UI
+ */
+export async function searchMalForName(query: string): Promise<{ malId: number; title: string; englishTitle: string | null; score: number | null; synopsis: string | null; imageUrl: string; year: number | null; status: string } | null> {
+  try {
+    const res = await fetch(`${JIKAN_BASE}/manga?q=${encodeURIComponent(query)}&limit=5&sfw=true`);
+    if (res.status === 429) { await sleep(2000); return searchMalForName(query); }
+    if (!res.ok) return null;
+
+    const json = await res.json();
+    const results = json.data;
+    if (!results?.length) return null;
+
+    const queryLower = query.toLowerCase();
+    const match = results.find((r: any) =>
+      r.titles?.some((t: any) =>
+        t.title.toLowerCase().includes(queryLower) || queryLower.includes(t.title.toLowerCase())
+      )
+    ) || results[0];
+
+    return {
+      malId: match.mal_id,
+      title: match.titles?.[0]?.title || query,
+      englishTitle: extractEnglishTitle(match.titles),
+      score: match.score || null,
+      synopsis: match.synopsis || null,
+      imageUrl: match.images?.jpg?.large_image_url || match.images?.jpg?.image_url || '',
+      year: match.published?.prop?.from?.year || null,
+      status: match.status || 'unknown',
+    };
+  } catch {
     return null;
   }
 }
@@ -68,9 +110,10 @@ async function searchManga(query: string): Promise<MalResult | null> {
 
     return {
       title: match.titles?.[0]?.title || query,
+      englishTitle: extractEnglishTitle(match.titles),
       imageUrl: match.images?.jpg?.large_image_url || match.images?.jpg?.image_url || '',
-      score: match.score || 0,
-      synopsis: match.synopsis || '',
+      score: match.score || null,
+      synopsis: match.synopsis || null,
     };
   } catch (err) {
     console.error(`  Search failed for "${query}":`, (err as Error).message);
@@ -140,9 +183,11 @@ export async function enrichSeries(force = false): Promise<{ found: number; skip
     const downloaded = await downloadCover(result.imageUrl, filename);
 
     // Update series record directly — one source of truth
+    series.name = result.title;
     series.coverFile = downloaded ? filename : null;
     series.score = result.score;
     series.synopsis = result.synopsis;
+    series.englishTitle = result.englishTitle;
     saveSeries(series);
 
     found++;
@@ -156,24 +201,32 @@ export async function enrichSeries(force = false): Promise<{ found: number; skip
 /**
  * Enrich a single series by MAL ID — called from the override UI
  */
-export async function enrichSingle(seriesId: string, malId: number): Promise<SeriesRecord | null> {
+export async function enrichSingle(seriesId: string, malId: number): Promise<{ series: SeriesRecord; error?: string } | null> {
   ensureCoversDir();
   const allSeries = loadAllSeries();
   const series = allSeries.find((s) => s.id === seriesId);
   if (!series) return null;
 
   const result = await fetchByMalId(malId);
-  if (!result) return series;
+  if (!result) {
+    // Still save the MAL ID even if lookup failed — user explicitly set it
+    series.malId = malId;
+    saveSeries(series);
+    return { series, error: `MAL ID ${malId} not found on MyAnimeList. The ID was saved but no metadata was fetched.` };
+  }
 
   const filename = coverFilename(series.id);
   const downloaded = await downloadCover(result.imageUrl, filename);
 
+  const oldName = series.name;
   series.malId = malId;
+  series.name = result.title;
   series.coverFile = downloaded ? filename : null;
   series.score = result.score;
   series.synopsis = result.synopsis;
+  series.englishTitle = result.englishTitle;
   saveSeries(series);
 
-  console.log(`  Updated "${series.name}" → "${result.title}" (${result.score})`);
-  return series;
+  console.log(`  Updated "${oldName}" → "${result.title}" (${result.score})`);
+  return { series };
 }

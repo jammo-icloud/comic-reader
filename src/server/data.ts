@@ -37,6 +37,7 @@ export interface SeriesRecord {
   year: number | null;
   malId: number | null;
   mangaDexId: string | null;
+  englishTitle: string | null;  // English title from MAL (when name is Japanese/romaji)
   placeholder: string;         // default placeholder image
 }
 
@@ -156,4 +157,167 @@ export function pruneEmptySeries() {
   if (pruned.length < all.length) {
     writeAllSeries(pruned);
   }
+}
+
+// ==================== Per-User Data ====================
+
+const USERS_DIR = path.join(DATA_DIR, 'users');
+
+export interface CollectionEntry {
+  seriesId: string;
+  addedAt: string;
+}
+
+export interface UserProgressRecord {
+  seriesId: string;
+  file: string;
+  currentPage: number;
+  isRead: boolean;
+  lastReadAt: string | null;
+}
+
+export interface UserPreferences {
+  theme: 'dark' | 'light';
+}
+
+export function userDir(username: string): string {
+  return path.join(USERS_DIR, username);
+}
+
+export function ensureUserDir(username: string) {
+  const dir = userDir(username);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+export function hasUserData(): boolean {
+  return fs.existsSync(USERS_DIR);
+}
+
+// --- Collection ---
+
+function collectionPath(username: string): string {
+  return path.join(userDir(username), 'collection.jsonl');
+}
+
+export function loadCollection(username: string): CollectionEntry[] {
+  const p = collectionPath(username);
+  if (!fs.existsSync(p)) return [];
+  return fs.readFileSync(p, 'utf-8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+}
+
+export function addToCollection(username: string, seriesId: string) {
+  ensureUserDir(username);
+  const entries = loadCollection(username);
+  if (entries.some((e) => e.seriesId === seriesId)) return; // already present
+  entries.push({ seriesId, addedAt: new Date().toISOString() });
+  fs.writeFileSync(collectionPath(username), entries.map((e) => JSON.stringify(e)).join('\n') + '\n');
+}
+
+export function removeFromCollection(username: string, seriesId: string) {
+  ensureUserDir(username);
+  const entries = loadCollection(username).filter((e) => e.seriesId !== seriesId);
+  fs.writeFileSync(collectionPath(username), entries.map((e) => JSON.stringify(e)).join('\n') + '\n');
+}
+
+export function isInCollection(username: string, seriesId: string): boolean {
+  return loadCollection(username).some((e) => e.seriesId === seriesId);
+}
+
+// --- User Progress ---
+
+function progressPath(username: string): string {
+  return path.join(userDir(username), 'progress.jsonl');
+}
+
+export function loadUserProgress(username: string): UserProgressRecord[] {
+  const p = progressPath(username);
+  if (!fs.existsSync(p)) return [];
+  return fs.readFileSync(p, 'utf-8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+}
+
+export function loadProgressForSeries(username: string, seriesId: string): Map<string, UserProgressRecord> {
+  const all = loadUserProgress(username);
+  const map = new Map<string, UserProgressRecord>();
+  for (const rec of all) {
+    if (rec.seriesId === seriesId) map.set(rec.file, rec);
+  }
+  return map;
+}
+
+export function updateUserProgress(username: string, seriesId: string, file: string, updates: Partial<UserProgressRecord>) {
+  ensureUserDir(username);
+  const all = loadUserProgress(username);
+  const idx = all.findIndex((r) => r.seriesId === seriesId && r.file === file);
+  if (idx >= 0) {
+    Object.assign(all[idx], updates);
+  } else {
+    all.push({
+      seriesId,
+      file,
+      currentPage: 0,
+      isRead: false,
+      lastReadAt: null,
+      ...updates,
+    });
+  }
+  fs.writeFileSync(progressPath(username), all.map((r) => JSON.stringify(r)).join('\n') + '\n');
+}
+
+// --- Preferences ---
+
+function prefsPath(username: string): string {
+  return path.join(userDir(username), 'preferences.json');
+}
+
+export function loadPreferences(username: string): UserPreferences {
+  const p = prefsPath(username);
+  if (!fs.existsSync(p)) return { theme: 'dark' };
+  return JSON.parse(fs.readFileSync(p, 'utf-8'));
+}
+
+export function savePreferences(username: string, prefs: UserPreferences) {
+  ensureUserDir(username);
+  fs.writeFileSync(prefsPath(username), JSON.stringify(prefs, null, 2));
+}
+
+// --- Merged queries (shared comics + user progress) ---
+
+/**
+ * Load comics for a series with user-specific progress overlaid.
+ * Returns the same ComicRecord shape the client expects.
+ */
+export function loadComicsForUser(seriesId: string, username: string): ComicRecord[] {
+  const shared = loadComics(seriesId);
+  const progress = loadProgressForSeries(username, seriesId);
+
+  return shared.map((comic) => {
+    const userProg = progress.get(comic.file);
+    if (userProg) {
+      return {
+        ...comic,
+        currentPage: userProg.currentPage,
+        isRead: userProg.isRead,
+        lastReadAt: userProg.lastReadAt,
+      };
+    }
+    // No user progress — return defaults
+    return {
+      ...comic,
+      currentPage: 0,
+      isRead: false,
+      lastReadAt: null,
+    };
+  });
+}
+
+/**
+ * Compute series stats using user-specific progress.
+ */
+export function getSeriesStatsForUser(seriesId: string, username: string): { count: number; readCount: number; inProgress: number } {
+  const comics = loadComicsForUser(seriesId, username);
+  return {
+    count: comics.length,
+    readCount: comics.filter((c) => c.isRead).length,
+    inProgress: comics.filter((c) => c.currentPage > 0 && !c.isRead).length,
+  };
 }

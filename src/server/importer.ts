@@ -34,6 +34,17 @@ const COMIC_EXTENSIONS = new Set(['.pdf', '.cbr', '.cbz']);
 
 // --- Types ---
 
+export interface MalMatch {
+  malId: number;
+  title: string;
+  englishTitle: string | null;
+  score: number | null;
+  synopsis: string | null;
+  imageUrl: string;
+  year: number | null;
+  status: string;
+}
+
 export interface PendingImport {
   sourceFolder: string;     // absolute path to source folder
   folderName: string;       // original folder name
@@ -41,6 +52,7 @@ export interface PendingImport {
   suggestedType: 'comic' | 'magazine';
   files: string[];          // filenames found
   fileCount: number;
+  malMatch: MalMatch | null;
 }
 
 export interface ImportConfig {
@@ -119,6 +131,9 @@ export function scanSourceFolder(sourcePath: string): { count: number } {
 
   const entries = fs.readdirSync(sourcePath, { withFileTypes: true });
   const folders = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.'));
+  const looseFiles = entries
+    .filter((e) => e.isFile() && !e.name.startsWith('.') && COMIC_EXTENSIONS.has(path.extname(e.name).toLowerCase()))
+    .map((e) => e.name);
 
   // Check for already-imported series
   const existingSeries = new Set(loadAllSeries().map((s) => s.name));
@@ -126,6 +141,25 @@ export function scanSourceFolder(sourcePath: string): { count: number } {
   pendingImports = [];
   skippedFolders.clear();
 
+  // If no subfolders but has comic files directly, treat path itself as a single series
+  if (folders.length === 0 && looseFiles.length > 0) {
+    const folderName = path.basename(sourcePath);
+    if (existingSeries.has(folderName)) {
+      skippedFolders.add(sourcePath);
+    }
+    pendingImports.push({
+      sourceFolder: sourcePath,
+      folderName,
+      suggestedName: folderName,
+      suggestedType: guessType(folderName, looseFiles),
+      files: looseFiles,
+      fileCount: looseFiles.length,
+      malMatch: null,
+    });
+    return { count: pendingImports.length };
+  }
+
+  // Handle subfolders (each folder = one series)
   for (const folder of folders) {
     const fullPath = path.join(sourcePath, folder.name);
     const files = findFiles(fullPath);
@@ -144,7 +178,32 @@ export function scanSourceFolder(sourcePath: string): { count: number } {
       suggestedType: guessType(folder.name, files),
       files,
       fileCount: files.length,
+      malMatch: null,
     });
+  }
+
+  // Handle loose files in the import drop folder (not a user's source folder)
+  // Only do this when there are also subfolders (mixed content in import dir)
+  if (looseFiles.length > 0) {
+    for (const file of looseFiles) {
+      const baseName = path.basename(file, path.extname(file));
+      // Move loose file into its own subfolder so importSeries can find it
+      const subDir = path.join(sourcePath, baseName);
+      if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
+      const src = path.join(sourcePath, file);
+      const dest = path.join(subDir, file);
+      if (!fs.existsSync(dest)) fs.renameSync(src, dest);
+
+      pendingImports.push({
+        sourceFolder: subDir,
+        folderName: baseName,
+        suggestedName: baseName,
+        suggestedType: 'comic',
+        files: [file],
+        fileCount: 1,
+        malMatch: null,
+      });
+    }
   }
 
   return { count: pendingImports.length };
@@ -263,6 +322,7 @@ export async function importSeries(config: ImportConfig): Promise<SeriesRecord> 
     year: null,
     malId: malId || null,
     mangaDexId: null,
+    englishTitle: null,
     placeholder: type === 'comic' ? 'manga.png' : 'magazine.png',
   };
 

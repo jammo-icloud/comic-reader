@@ -8,6 +8,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      devOptions: {
+        enabled: true,
+      },
       includeAssets: ['logo.png', 'unmatched-cover.png'],
       manifest: {
         name: 'Comic Reader',

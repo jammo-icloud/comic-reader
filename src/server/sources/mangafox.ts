@@ -105,7 +105,10 @@ export const mangafoxSource: MangaSource = {
     const imagecountMatch = html.match(/imagecount\s*=\s*(\d+)/);
     const chapteridMatch = html.match(/chapterid\s*=\s*(\d+)/);
 
-    if (!imagecountMatch || !chapteridMatch) return [];
+    if (!imagecountMatch || !chapteridMatch) {
+      console.error(`MangaFox: Could not find imagecount/chapterid for ${chapterId}`);
+      return [];
+    }
 
     const imagecount = parseInt(imagecountMatch[1], 10);
     const cid = chapteridMatch[1];
@@ -118,30 +121,41 @@ export const mangafoxSource: MangaSource = {
     }
 
     // Standard mode: fetch each page via chapterfun.ashx
+    // Each call returns a packed JS function that defines an array of 2 image URLs
     const pages: string[] = [];
-    // Fetch page 1 to get first batch of URLs
     for (let page = 1; page <= imagecount; page += 2) {
       try {
         const funUrl = `${SITE_URL}/manga/${chapterId}/chapterfun.ashx?cid=${cid}&page=${page}&key=`;
         const jsCode = await fetchPage(funUrl);
 
-        // Decode the packer
-        const decoded = jsCode.replace('eval(', '(');
-        const decodedStr = eval(decoded) as string;
+        // The response is: eval(function(p,a,c,k,e,d){...packer...}('...packed...',base,count,'...dict...'.split('|'),0,{}))
+        // When eval'd, it defines dm5imagefun() which returns an array of URLs, calls it, assigns to d.
+        // We need to extract the URL array from the unpacked code.
 
-        // Extract URLs from the decoded function
-        const urlMatches = decodedStr.match(/\/\/[^\s"']+\.(?:jpg|png|webp)[^\s"']*/g) || [];
-        for (const url of urlMatches) {
-          const fullUrl = url.startsWith('//') ? `https:${url}` : url;
-          if (!pages.includes(fullUrl)) {
-            pages.push(fullUrl);
+        // Step 1: Unpack by replacing outer eval with a function call
+        const unpacked = eval(jsCode.replace(/^eval/, '')) as string;
+
+        // Step 2: Extract URLs from the unpacked JS string
+        // The unpacked code looks like: function dm5imagefun(){var pix="//cdn.../store/manga/...";var pvalue=["/m000.jpg?...","/m001.jpg?..."];...return pvalue}var d;d=dm5imagefun();
+        // Extract the pix base path and pvalue array entries
+        const pixMatch = unpacked.match(/var pix="([^"]+)"/);
+        const pvalueMatch = unpacked.match(/var pvalue=\[([^\]]+)\]/);
+
+        if (pixMatch && pvalueMatch) {
+          const basePath = pixMatch[1];
+          const entries = pvalueMatch[1].match(/"([^"]+)"/g)?.map((s) => s.replace(/"/g, '')) || [];
+          for (const entry of entries) {
+            const fullUrl = `https:${basePath}${entry}`;
+            if (!pages.includes(fullUrl)) {
+              pages.push(fullUrl);
+            }
           }
         }
       } catch (err) {
         console.error(`MangaFox page ${page} fetch error:`, (err as Error).message);
       }
 
-      await sleep(100); // Be nice
+      await sleep(100);
     }
 
     return pages;

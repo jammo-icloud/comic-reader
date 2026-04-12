@@ -7,7 +7,18 @@ import { PDFDocument } from 'pdf-lib';
 import { slugify, loadAllSeries, saveSeries, loadComics, writeComics, type SeriesRecord, type ComicRecord } from '../data.js';
 
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
+const IMPORT_DIR = path.join(LIBRARY_DIR, 'import');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB per image max
+const uploadFiles = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      if (!fs.existsSync(IMPORT_DIR)) fs.mkdirSync(IMPORT_DIR, { recursive: true });
+      cb(null, IMPORT_DIR);
+    },
+    filename: (_req, file, cb) => cb(null, file.originalname),
+  }),
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB per file
+});
 
 const router = Router();
 
@@ -93,6 +104,7 @@ router.post('/import/chapter-images', upload.array('images', 500), async (req, r
         year: null,
         malId: null,
         mangaDexId: null,
+        englishTitle: null,
         placeholder: 'manga.png',
       };
       saveSeries(series);
@@ -120,6 +132,49 @@ router.post('/import/chapter-images', upload.array('images', 500), async (req, r
     console.error(`Chapter upload failed: ${(err as Error).message}`);
     res.status(500).json({ error: (err as Error).message });
   }
+});
+
+/**
+ * POST /api/import/upload-files
+ * Upload comic files (PDF/CBR/CBZ) directly via drag & drop or file picker.
+ * Files are saved to the import folder for processing.
+ */
+router.post('/import/upload-files', uploadFiles.array('files', 100), (req, res) => {
+  const files = req.files as Express.Multer.File[];
+  if (!files?.length) {
+    res.status(400).json({ error: 'No files uploaded' });
+    return;
+  }
+
+  const uploaded = files.map((f) => ({
+    name: f.originalname,
+    size: f.size,
+    path: f.path,
+  }));
+
+  console.log(`  Uploaded ${uploaded.length} files to import folder`);
+  res.json({ ok: true, files: uploaded, importDir: IMPORT_DIR });
+});
+
+/**
+ * GET /api/import/watch-folder
+ * Check what's in the NAS import folder
+ */
+router.get('/import/watch-folder', (_req, res) => {
+  if (!fs.existsSync(IMPORT_DIR)) {
+    fs.mkdirSync(IMPORT_DIR, { recursive: true });
+  }
+
+  const entries = fs.readdirSync(IMPORT_DIR, { withFileTypes: true });
+  const items = entries
+    .filter((e) => !e.name.startsWith('.'))
+    .map((e) => ({
+      name: e.name,
+      isDirectory: e.isDirectory(),
+      size: e.isFile() ? fs.statSync(path.join(IMPORT_DIR, e.name)).size : null,
+    }));
+
+  res.json({ path: IMPORT_DIR, items });
 });
 
 export default router;

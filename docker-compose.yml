@@ -11,7 +11,17 @@ services:
       - DATA_DIR=/library/.comic-reader
       - LIBRARY_DIR=/library
       - SERVER_PORT=3000
+      - NODE_ENV=production
       - OCR_SERVICE_URL=http://import-orchestrator:3001
+      # Synology DSM API for user authentication
+      # Points to DSM running on the NAS (host.docker.internal = NAS host)
+      - DSM_URL=http://host.docker.internal:5000
+      # First user to log in gets all existing comics in their collection
+      - DEFAULT_USER=local
+      # Set to your admin username for admin privileges
+      # - ADMIN_USER=james
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - import-orchestrator
     restart: unless-stopped

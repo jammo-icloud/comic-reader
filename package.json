@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@types/multer": "^2.1.0",
+    "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
     "lucide-react": "^1.7.0",
     "multer": "^2.1.1",
@@ -26,6 +27,7 @@
     "workbox-window": "^7.4.0"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.2",
     "@types/node": "^22.15.2",
     "@types/react": "^19.1.2",

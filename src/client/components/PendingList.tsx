@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { X, Check, SkipForward, BookOpen, Newspaper, Star, Loader, Pencil, AlertTriangle, Merge } from 'lucide-react';
 import type { PendingImport, Series } from '../lib/types';
-import { getImportReady, confirmImport, skipImport, getSeries } from '../lib/api';
+import { getImportReady, getLocalReady, confirmImport, skipImport, skipLocalImport, getSeries } from '../lib/api';
 
-export default function PendingList({ onClose, onUpdate }: { onClose: () => void; onUpdate?: () => void }) {
+export default function PendingList({ onClose, onUpdate, useLocal = false }: { onClose: () => void; onUpdate?: () => void; useLocal?: boolean }) {
   const [pending, setPending] = useState<PendingImport[]>([]);
   const [existingSeries, setExistingSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,16 +17,47 @@ export default function PendingList({ onClose, onUpdate }: { onClose: () => void
   const [brandImageFile, setBrandImageFile] = useState<File | null>(null);
   const [brandImagePreview, setBrandImagePreview] = useState<string | null>(null);
 
+  const [polling, setPolling] = useState(false);
+
   const loadPending = async () => {
     setLoading(true);
-    const [data, series] = await Promise.all([getImportReady(), getSeries()]);
+    const fetchReady = useLocal ? getLocalReady : getImportReady;
+    const [data, series] = await Promise.all([fetchReady(), getSeries()]);
     setPending(data);
     setExistingSeries(series);
     setLoading(false);
-    if (data.length > 0) prefill(data[0]);
+    if (data.length > 0) {
+      prefill(data[0]);
+      setPolling(false);
+    }
   };
 
   useEffect(() => { loadPending(); }, []);
+
+  // Poll for results when scan is async (orchestrator mode) and nothing ready yet
+  useEffect(() => {
+    if (useLocal || pending.length > 0 || !loading) {
+      // For orchestrator scans, start polling if we got 0 results on first load
+      if (!useLocal && pending.length === 0 && !loading) {
+        setPolling(true);
+      }
+    }
+  }, [loading]);
+
+  useEffect(() => {
+    if (!polling) return;
+    const interval = setInterval(async () => {
+      const data = await getImportReady().catch(() => []);
+      if (data.length > 0) {
+        setPending(data);
+        const series = await getSeries().catch(() => []);
+        setExistingSeries(series);
+        prefill(data[0]);
+        setPolling(false);
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [polling]);
 
   const prefill = (item: PendingImport) => {
     setEditName(item.folderName);
@@ -70,7 +101,7 @@ export default function PendingList({ onClose, onUpdate }: { onClose: () => void
 
   const handleSkip = async () => {
     if (!current) return;
-    await skipImport(current.sourceFolder);
+    await (useLocal ? skipLocalImport : skipImport)(current.sourceFolder);
     const remaining = pending.slice(1);
     setPending(remaining);
     if (remaining.length > 0) prefill(remaining[0]);
@@ -93,10 +124,21 @@ export default function PendingList({ onClose, onUpdate }: { onClose: () => void
       <div className="fixed inset-0 z-50 flex items-center justify-center">
         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
         <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-8 text-center max-w-sm mx-4">
-          <Check size={32} className="mx-auto text-green-500 mb-3" />
-          <h2 className="text-lg font-semibold">All caught up!</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">No pending imports.</p>
-          <button onClick={onClose} className="mt-4 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg">Done</button>
+          {polling ? (
+            <>
+              <Loader size={32} className="mx-auto text-blue-500 mb-3 animate-spin" />
+              <h2 className="text-lg font-semibold">Scanning folders...</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Searching MAL for each series. Items will appear here shortly.</p>
+              <button onClick={onClose} className="mt-4 px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Cancel</button>
+            </>
+          ) : (
+            <>
+              <Check size={32} className="mx-auto text-green-500 mb-3" />
+              <h2 className="text-lg font-semibold">All caught up!</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">No pending imports.</p>
+              <button onClick={onClose} className="mt-4 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg">Done</button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -177,7 +219,7 @@ export default function PendingList({ onClose, onUpdate }: { onClose: () => void
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{mal.title}</p>
                     <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      {mal.score > 0 && (
+                      {mal.score != null && mal.score > 0 && (
                         <span className="flex items-center gap-0.5 text-amber-600 dark:text-amber-400">
                           <Star size={11} fill="currentColor" /> {mal.score.toFixed(1)}
                         </span>

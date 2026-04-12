@@ -1,8 +1,12 @@
 import { Router } from 'express';
-import { importSeries } from '../importer.js';
-import { enrichSingle } from '../enrich.js';
+import fs from 'fs';
+import path from 'path';
+import { importSeries, scanSourceFolder, getPendingImports, skipImport as skipPending, clearPending } from '../importer.js';
+import { enrichSingle, searchMalForName } from '../enrich.js';
 
 const OCR_SERVICE_URL = process.env.OCR_SERVICE_URL || 'http://localhost:3001';
+const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
+const IMPORT_DIR = path.join(LIBRARY_DIR, 'import');
 
 const router = Router();
 
@@ -70,6 +74,12 @@ router.post('/import/confirm', async (req, res) => {
       body: JSON.stringify({ sourceFolder }),
     }).catch(() => {});
 
+    // Clean up source folder if it's inside the import directory
+    if (sourceFolder.startsWith(IMPORT_DIR) && fs.existsSync(sourceFolder)) {
+      fs.rmSync(sourceFolder, { recursive: true, force: true });
+      console.log(`  Cleaned up import source: ${sourceFolder}`);
+    }
+
     res.json(series);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -94,6 +104,68 @@ router.post('/import/clear', async (_req, res) => {
     const ocrRes = await fetch(`${OCR_SERVICE_URL}/import/clear`, { method: 'POST' });
     res.json(await ocrRes.json());
   } catch { res.status(502).json({ error: 'OCR service unreachable' }); }
+});
+
+// ==================== Local scan (no orchestrator needed) ====================
+
+// Scan the import folder directly — each subfolder becomes a pending import
+// Also searches MAL for each comic folder in the background
+router.post('/import/scan-local', async (_req, res) => {
+  try {
+    if (!fs.existsSync(IMPORT_DIR)) {
+      fs.mkdirSync(IMPORT_DIR, { recursive: true });
+    }
+    const result = scanSourceFolder(IMPORT_DIR);
+
+    // Search MAL for each pending comic (inline, with rate limiting)
+    const pending = getPendingImports();
+    for (const p of pending) {
+      if (p.suggestedType === 'comic' && !p.malMatch) {
+        const match = await searchMalForName(p.folderName);
+        if (match) p.malMatch = match;
+        // Brief rate limit between requests
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    }
+
+    res.json({ ok: true, count: result.count });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Get locally-scanned pending imports (no orchestrator)
+router.get('/import/local-ready', (_req, res) => {
+  const pending = getPendingImports();
+  // Map to the shape PendingList expects
+  const mapped = pending.map((p) => ({
+    sourceFolder: p.sourceFolder,
+    folderName: p.folderName,
+    suggestedType: p.suggestedType,
+    fileCount: p.fileCount,
+    files: p.files,
+    malMatch: p.malMatch,
+    status: 'ready' as const,
+  }));
+  res.json(mapped);
+});
+
+// Get local pending count
+router.get('/import/local-count', (_req, res) => {
+  res.json({ count: getPendingImports().length });
+});
+
+// Skip a local pending import
+router.post('/import/local-skip', (req, res) => {
+  const { sourceFolder } = req.body;
+  if (sourceFolder) skipPending(sourceFolder);
+  res.json({ ok: true });
+});
+
+// Clear local pending
+router.post('/import/local-clear', (_req, res) => {
+  clearPending();
+  res.json({ ok: true });
 });
 
 export default router;

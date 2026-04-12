@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { searchAllSources, getChaptersFromSource, getPageUrlsFromSource, getAllSources } from '../sources/index.js';
 import { queueDownload, getQueue, removeFromQueue, cancelDownload, onProgress, getTrackedList } from '../downloader.js';
+import { loadAllSeries, isInCollection } from '../data.js';
 
 const router = Router();
 
@@ -16,7 +17,24 @@ router.get('/discover/search', async (req, res) => {
 
   try {
     const results = await searchAllSources(q);
-    res.json({ results, total: results.length });
+
+    // Annotate results with local library matches
+    const allSeries = loadAllSeries();
+    const byMangaDexId = new Map(allSeries.filter((s) => s.mangaDexId).map((s) => [s.mangaDexId!, s.id]));
+    const byTitle = new Map(allSeries.map((s) => [s.name.toLowerCase(), s.id]));
+    const byEnglish = new Map(allSeries.filter((s) => s.englishTitle).map((s) => [s.englishTitle!.toLowerCase(), s.id]));
+    const username = req.username;
+
+    const annotated = results.map((r: any) => {
+      const localId = byMangaDexId.get(r.mangaId) || byTitle.get(r.title?.toLowerCase()) || byEnglish.get(r.title?.toLowerCase()) || null;
+      return {
+        ...r,
+        localSeriesId: localId,
+        inCollection: localId ? isInCollection(username, localId) : false,
+      };
+    });
+
+    res.json({ results: annotated, total: annotated.length });
   } catch (err) {
     console.error('Search error:', err);
     res.status(502).json({ error: 'Search failed' });

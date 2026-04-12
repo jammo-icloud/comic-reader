@@ -1,7 +1,17 @@
 node_modules/
 dist/
+dev-dist/
 data/
 comics/
+local-library/
 .DS_Store
 .claude/
 scripts/
+
+# Dev runtime files
+.env
+.dev.log
+.dev.pid
+.orchestrator.log
+.orchestrator.pid
+.vite-port

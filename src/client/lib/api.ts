@@ -15,6 +15,35 @@ function encodePath(p: string): string {
   return p.split('/').map(encodeURIComponent).join('/');
 }
 
+// ==================== User ====================
+
+export function getMe(): Promise<{ username: string; preferences: { theme: 'dark' | 'light' } }> {
+  return fetchJson('/me');
+}
+
+export function updatePreferences(prefs: { theme?: 'dark' | 'light' }): Promise<any> {
+  return fetchJson('/me/preferences', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(prefs),
+  });
+}
+
+// ==================== Collection ====================
+
+export function addToCollection(seriesId: string): Promise<void> {
+  return fetchJson(`/collection/${seriesId}`, { method: 'POST' });
+}
+
+export function removeFromCollection(seriesId: string): Promise<void> {
+  return fetchJson(`/collection/${seriesId}`, { method: 'DELETE' });
+}
+
+export function getCatalog(type?: 'comic' | 'magazine'): Promise<Series[]> {
+  const qs = type ? `?scope=catalog&type=${type}` : '?scope=catalog';
+  return fetchJson(`/series${qs}`);
+}
+
 // ==================== Series ====================
 
 export function getSeries(type?: 'comic' | 'magazine'): Promise<Series[]> {
@@ -24,6 +53,10 @@ export function getSeries(type?: 'comic' | 'magazine'): Promise<Series[]> {
 
 export function getSeriesDetail(id: string): Promise<Series> {
   return fetchJson(`/series/${id}`);
+}
+
+export function deleteSeries(id: string): Promise<void> {
+  return fetchJson(`/series/${id}`, { method: 'DELETE' });
 }
 
 // ==================== Comics (within a series) ====================
@@ -129,6 +162,47 @@ export function skipImport(sourceFolder: string): Promise<void> {
 
 export function clearImports(): Promise<void> {
   return fetchJson('/import/clear', { method: 'POST' });
+}
+
+export function getWatchFolder(): Promise<{ path: string; items: { name: string; isDirectory: boolean; size: number | null }[] }> {
+  return fetchJson('/import/watch-folder');
+}
+
+export function scanLocalImport(): Promise<{ ok: boolean; count: number }> {
+  return fetchJson('/import/scan-local', { method: 'POST' });
+}
+
+export function getLocalReady(): Promise<PendingImport[]> {
+  return fetchJson('/import/local-ready');
+}
+
+export function getLocalCount(): Promise<{ count: number }> {
+  return fetchJson('/import/local-count');
+}
+
+export function skipLocalImport(sourceFolder: string): Promise<void> {
+  return fetchJson('/import/local-skip', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sourceFolder }),
+  });
+}
+
+export function clearLocalImports(): Promise<void> {
+  return fetchJson('/import/local-clear', { method: 'POST' });
+}
+
+export async function uploadFiles(files: File[]): Promise<{ ok: boolean; files: { name: string; size: number; path: string }[]; importDir: string }> {
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append('files', file);
+  }
+  const res = await fetch(`${BASE}/import/upload-files`, { method: 'POST', body: formData });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || `Upload failed: ${res.status}`);
+  }
+  return res.json();
 }
 
 // ==================== Discover (MangaDex) ====================

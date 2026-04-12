@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Loader, Check, ExternalLink, Eye, FolderOpen, X } from 'lucide-react';
+import { ArrowLeft, Search, Loader, Check, ExternalLink, Eye, X } from 'lucide-react';
 import type { SearchResult, ChapterResult } from '../lib/types';
-import { discoverSearch, discoverChapters } from '../lib/api';
+import { discoverSearch, discoverChapters, addToCollection } from '../lib/api';
 import { ALL_SOURCES, HAKUNEKO_SITES, HAKUNEKO_URL, getSourceConfig } from '../lib/browser-sources/registry';
 import type { SourceConfig } from '../lib/browser-sources/types';
 import MangaSearchCard from '../components/MangaSearchCard';
 import ChapterPicker from '../components/ChapterPicker';
-import DownloadProgress from '../components/DownloadProgress';
+import NotificationDropdown from '../components/NotificationDropdown';
 import ThemeToggle from '../components/ThemeToggle';
 
 const colorHex: Record<string, string> = {
@@ -108,6 +108,25 @@ export default function DiscoverPage() {
   };
 
   const handleSelectManga = async (manga: SearchResult) => {
+    // If series exists locally and not in collection, add it
+    if (manga.localSeriesId && !manga.inCollection) {
+      await addToCollection(manga.localSeriesId);
+      // Update local state to show "In Collection"
+      setResults((prev) => prev.map((r) =>
+        r.mangaId === manga.mangaId && r.sourceId === manga.sourceId
+          ? { ...r, inCollection: true }
+          : r
+      ));
+      return;
+    }
+
+    // If already in collection, navigate to series page
+    if (manga.localSeriesId && manga.inCollection) {
+      navigate(`/series/${manga.localSeriesId}`);
+      return;
+    }
+
+    // Not in local library — open chapter picker for download
     setSelectedManga(manga);
     setLoadingChapters(true);
     try {
@@ -159,6 +178,7 @@ export default function DiscoverPage() {
               })}
             </div>
           )}
+          <NotificationDropdown />
           <ThemeToggle />
         </div>
       </header>
@@ -175,22 +195,6 @@ export default function DiscoverPage() {
                   <SourceCard key={source.id} source={source} selected={selectedSources.has(source.id)} onClick={() => toggleSource(source.id)} />
                 ))}
               </div>
-            </section>
-
-            {/* Import from local folder */}
-            <section>
-              <button
-                onClick={() => navigate('/')}
-                className="flex items-center gap-3 w-full text-left p-4 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
-              >
-                <FolderOpen size={20} className="text-gray-400 dark:text-gray-500 shrink-0" />
-                <div>
-                  <h3 className="text-sm font-medium">Import from local folder</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Already have manga downloaded? Use the +Folder button on the library page to import.
-                  </p>
-                </div>
-              </button>
             </section>
 
             {/* Looking for more */}
@@ -283,11 +287,6 @@ export default function DiscoverPage() {
         </div>
       )}
 
-      {/* Download progress */}
-      <div className="fixed bottom-0 left-0 right-0 z-40">
-        <DownloadProgress />
-      </div>
-
       {/* Chapter Picker */}
       {selectedManga && (
         <ChapterPicker
@@ -297,6 +296,7 @@ export default function DiscoverPage() {
           onClose={() => { setSelectedManga(null); setChapters([]); }}
         />
       )}
+
     </div>
   );
 }

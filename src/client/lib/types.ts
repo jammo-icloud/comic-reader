@@ -12,11 +12,13 @@ export interface Series {
   year: number | null;
   malId: number | null;
   mangaDexId: string | null;
+  englishTitle: string | null;
   placeholder: string;
   // Stats (from API)
   count: number;
   readCount: number;
   inProgress: number;
+  inCollection: boolean;
 }
 
 // --- Comic (within a series) ---
@@ -48,8 +50,9 @@ export interface ContinueReadingItem {
 export interface MalMatch {
   malId: number;
   title: string;
-  score: number;
-  synopsis: string;
+  englishTitle: string | null;
+  score: number | null;
+  synopsis: string | null;
   imageUrl: string;
   year: number | null;
   status: string;
@@ -77,6 +80,8 @@ export interface SearchResult {
   status: string;
   year: number | null;
   tags: string[];
+  localSeriesId: string | null;
+  inCollection: boolean;
 }
 
 export interface ChapterResult {

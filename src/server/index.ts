@@ -1,20 +1,28 @@
 import express from 'express';
 import path from 'path';
+import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
 import libraryRoutes from './routes/library.js';
 import readerRoutes from './routes/reader.js';
 import discoverRoutes from './routes/discover.js';
 import importRoutes from './routes/import.js';
 import chapterUploadRoutes from './routes/chapter-upload.js';
+import authRoutes from './routes/auth.js';
 import { resumeIncompleteDownloads } from './downloader.js';
+import { userMiddleware, authGuard } from './middleware/user.js';
+import { migrateToMultiUser } from './migrate.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.SERVER_PORT || '3000', 10);
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
+app.use(userMiddleware);
 
-// API routes
+// API routes — auth routes first (no guard), then guarded routes
+app.use('/api', authRoutes);
+app.use('/api', authGuard);
 app.use('/api', libraryRoutes);
 app.use('/api', readerRoutes);
 app.use('/api', discoverRoutes);
@@ -61,6 +69,9 @@ app.get('{*path}', (req, res) => {
 
 process.on('SIGINT', () => process.exit(0));
 process.on('SIGTERM', () => process.exit(0));
+
+// Migrate single-user data to multi-user (runs once)
+migrateToMultiUser();
 
 app.listen(PORT, () => {
   console.log(`Comic Reader running on http://localhost:${PORT}`);

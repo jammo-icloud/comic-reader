@@ -3,11 +3,12 @@ import path from 'path';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { getChapterPages, pageImageUrl, getMangaDetail, type MangaDexChapter } from './mangadex.js';
-import { getSeries } from './data.js';
+import { getPageUrlsFromSource } from './sources/index.js';
+import { loadAllSeries, saveSeries, type SeriesRecord } from './data.js';
 import { rescanLibrary } from './scanner.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
-const QUEUE_PATH = path.join(DATA_DIR, 'download-queue.json');
+const TASKS_DIR = path.join(DATA_DIR, 'tasks');
 const TRACKED_PATH = path.join(DATA_DIR, 'tracked-manga.json');
 
 // --- Types ---
@@ -57,48 +58,66 @@ function emitProgress(job: DownloadJob) { listeners.forEach((fn) => fn(job)); }
 
 // --- Queue persistence ---
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+function ensureTasksDir() {
+  if (!fs.existsSync(TASKS_DIR)) fs.mkdirSync(TASKS_DIR, { recursive: true });
 }
 
-function loadQueue(): DownloadJob[] {
-  if (fs.existsSync(QUEUE_PATH)) return JSON.parse(fs.readFileSync(QUEUE_PATH, 'utf-8'));
-  return [];
+function taskPath(id: string): string {
+  return path.join(TASKS_DIR, `${id}.json`);
 }
 
-function saveQueue(queue: DownloadJob[]) {
-  ensureDataDir();
-  fs.writeFileSync(QUEUE_PATH, JSON.stringify(queue, null, 2));
+function loadTask(id: string): DownloadJob | null {
+  const p = taskPath(id);
+  if (!fs.existsSync(p)) return null;
+  return JSON.parse(fs.readFileSync(p, 'utf-8'));
+}
+
+function saveTask(job: DownloadJob) {
+  ensureTasksDir();
+  fs.writeFileSync(taskPath(job.id), JSON.stringify(job, null, 2));
+}
+
+function deleteTask(id: string) {
+  const p = taskPath(id);
+  if (fs.existsSync(p)) fs.unlinkSync(p);
+}
+
+function loadAllTasks(): DownloadJob[] {
+  ensureTasksDir();
+  return fs.readdirSync(TASKS_DIR)
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => {
+      try { return JSON.parse(fs.readFileSync(path.join(TASKS_DIR, f), 'utf-8')); }
+      catch { return null; }
+    })
+    .filter(Boolean)
+    .sort((a: DownloadJob, b: DownloadJob) => a.createdAt.localeCompare(b.createdAt));
 }
 
 export function getQueue(): DownloadJob[] {
-  return loadQueue();
+  return loadAllTasks();
 }
 
 const cancelledJobs = new Set<string>();
 
 export function removeFromQueue(id: string) {
-  const queue = loadQueue().filter((j) => j.id !== id);
-  saveQueue(queue);
+  deleteTask(id);
 }
 
 export function cancelDownload(id: string): boolean {
-  const queue = loadQueue();
-  const job = queue.find((j) => j.id === id);
+  const job = loadTask(id);
   if (!job) return false;
 
   if (job.status === 'queued') {
-    // Not started yet — just remove it
-    saveQueue(queue.filter((j) => j.id !== id));
+    deleteTask(id);
     return true;
   }
 
   if (job.status === 'downloading') {
-    // Signal the download loop to stop
     cancelledJobs.add(id);
     job.status = 'error';
     job.error = 'Cancelled by user';
-    saveQueue(queue);
+    saveTask(job);
     emitProgress(job);
     return true;
   }
@@ -114,7 +133,7 @@ export function loadTracked(): Record<string, TrackedManga> {
 }
 
 function saveTracked(data: Record<string, TrackedManga>) {
-  ensureDataDir();
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(TRACKED_PATH, JSON.stringify(data, null, 2));
 }
 
@@ -192,18 +211,95 @@ async function assembleChapterPdf(
   fs.writeFileSync(outputPath, pdfBytes);
 }
 
+/**
+ * Download chapter from a non-MangaDex source (MangaFox, etc.)
+ * Uses the source adapter to get page URLs, then downloads images via proxy-compatible fetch.
+ */
+async function assembleChapterFromSource(
+  chapterId: string,
+  outputPath: string,
+  onPageDone?: () => void,
+): Promise<void> {
+  // Determine source from chapterId format
+  // MangaFox chapters: "slug/c001"
+  const sourceId = 'mangafox'; // Currently the only non-MangaDex source
+  const pageUrls = await getPageUrlsFromSource(sourceId, chapterId);
+
+  if (pageUrls.length === 0) {
+    console.error(`  No pages found for ${chapterId} from ${sourceId}`);
+    onPageDone?.();
+    return;
+  }
+
+  const pdf = await PDFDocument.create();
+  const PDF_WIDTH = 800;
+
+  // CDN referer mapping for image downloads
+  const referers: Record<string, string> = {
+    'zjcdn.mangafox.me': 'https://fanfox.net/',
+    'fmcdn.mfcdn.net': 'https://fanfox.net/',
+    'mfcdn.net': 'https://fanfox.net/',
+  };
+
+  function getReferer(url: string): string {
+    try {
+      const hostname = new URL(url).hostname;
+      for (const [cdn, ref] of Object.entries(referers)) {
+        if (hostname.includes(cdn)) return ref;
+      }
+    } catch {}
+    return '';
+  }
+
+  for (let i = 0; i < pageUrls.length; i++) {
+    const url = pageUrls[i];
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': getReferer(url),
+        },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const imgBuffer = Buffer.from(await res.arrayBuffer());
+
+      const resized = sharp(imgBuffer).resize({ width: PDF_WIDTH, withoutEnlargement: true });
+      const { width, height } = await resized.metadata().then((m) => ({
+        width: m.width || PDF_WIDTH,
+        height: m.height || 1200,
+      }));
+
+      const jpegBuffer = await resized.jpeg({ quality: 90 }).toBuffer();
+      const jpegImage = await pdf.embedJpg(jpegBuffer);
+      const page = pdf.addPage([width, height]);
+      page.drawImage(jpegImage, { x: 0, y: 0, width, height });
+
+      onPageDone?.();
+    } catch (err) {
+      console.error(`  Failed page ${i + 1}/${pageUrls.length}: ${(err as Error).message}`);
+      onPageDone?.();
+    }
+
+    if (i < pageUrls.length - 1) await sleep(200);
+  }
+
+  const pdfBytes = await pdf.save();
+  fs.writeFileSync(outputPath, pdfBytes);
+}
+
 async function processQueue() {
   if (processing) return;
   processing = true;
 
   try {
     while (true) {
-      const queue = loadQueue();
-      const job = queue.find((j) => j.status === 'queued' || j.status === 'downloading');
+      // Find next queued or downloading task
+      const allTasks = loadAllTasks();
+      const job = allTasks.find((j) => j.status === 'queued' || j.status === 'downloading');
       if (!job) break;
 
       job.status = 'downloading';
-      saveQueue(queue);
+      saveTask(job);
       emitProgress(job);
 
       const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
@@ -211,11 +307,36 @@ async function processQueue() {
       const seriesDir = path.join(LIBRARY_DIR, 'comics', slugName);
       if (!fs.existsSync(seriesDir)) fs.mkdirSync(seriesDir, { recursive: true });
 
+      // Ensure series record exists (so rescanLibrary can find it)
+      const existing = loadAllSeries().find((s) => s.id === slugName);
+      if (!existing) {
+        const newSeries: SeriesRecord = {
+          id: slugName,
+          type: 'comic',
+          name: job.mangaTitle,
+          coverFile: null,
+          score: null,
+          synopsis: job.metadata?.description || null,
+          tags: job.metadata?.tags || [],
+          status: job.metadata?.status || null,
+          year: job.metadata?.year || null,
+          malId: null,
+          mangaDexId: job.mangaDexId,
+          englishTitle: null,
+          placeholder: 'manga.png',
+        };
+        saveSeries(newSeries);
+        console.log(`  Created series record: ${job.mangaTitle}`);
+      }
+
       try {
+        let wasCancelled = false;
+
         for (let i = 0; i < job.chapters.length; i++) {
-          // Check for cancellation between chapters
+          // Re-read task from disk to check for cancellation
           if (cancelledJobs.has(job.id)) {
             cancelledJobs.delete(job.id);
+            wasCancelled = true;
             console.log(`  Download cancelled: ${job.mangaTitle}`);
             break;
           }
@@ -229,7 +350,7 @@ async function processQueue() {
           if (fs.existsSync(outputPath)) {
             job.progress.current = i + 1;
             job.progress.currentChapter = chapterNum;
-            saveQueue(queue);
+            saveTask(job);
             emitProgress(job);
             continue;
           }
@@ -238,50 +359,66 @@ async function processQueue() {
           job.progress.currentChapter = chapterNum;
           job.progress.pagesDownloaded = 0;
           job.progress.pagesTotal = ch.pages;
-          saveQueue(queue);
+          saveTask(job);
           emitProgress(job);
 
           console.log(`  Downloading Ch.${chapterNum} (${ch.pages} pages)...`);
 
-          await assembleChapterPdf(ch.id, outputPath, () => {
-            job.progress.pagesDownloaded++;
-            emitProgress(job);
-          });
+          // Determine source — MangaDex chapter IDs are UUIDs, others are slugs
+          const isMangaDex = /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(ch.id);
+
+          if (isMangaDex) {
+            await assembleChapterPdf(ch.id, outputPath, () => {
+              job.progress.pagesDownloaded++;
+              emitProgress(job);
+            });
+          } else {
+            await assembleChapterFromSource(ch.id, outputPath, () => {
+              job.progress.pagesDownloaded++;
+              emitProgress(job);
+            });
+          }
 
           job.progress.current = i + 1;
-          saveQueue(queue);
+          saveTask(job);
           emitProgress(job);
 
-          // Rate limit between chapters — longer pause to avoid CDN limits and let GC run
+          // Rate limit between chapters
           await sleep(1500);
         }
 
-        job.status = 'complete';
-        job.progress.current = job.chapters.length;
-        job.progress.currentChapter = null;
-        saveQueue(queue);
-        emitProgress(job);
+        if (wasCancelled) {
+          // Status already set to 'error' by cancelDownload()
+          // Just re-scan for any chapters that did complete
+          await rescanLibrary();
+        } else {
+          job.status = 'complete';
+          job.progress.current = job.chapters.length;
+          job.progress.currentChapter = null;
+          saveTask(job);
+          emitProgress(job);
 
-        // Track this manga for future sync — include rich metadata
-        const tracked = loadTracked();
-        tracked[job.mangaDexId] = {
-          mangaDexId: job.mangaDexId,
-          title: job.mangaTitle,
-          shelfId: job.shelfId,
-          lastSyncedAt: new Date().toISOString(),
-          downloadedChapterIds: job.chapters.map((c) => c.id),
-          ...(job.metadata || {}),
-        };
-        saveTracked(tracked);
+          // Track this manga for future sync — include rich metadata
+          const tracked = loadTracked();
+          tracked[job.mangaDexId] = {
+            mangaDexId: job.mangaDexId,
+            title: job.mangaTitle,
+            shelfId: job.shelfId,
+            lastSyncedAt: new Date().toISOString(),
+            downloadedChapterIds: job.chapters.map((c) => c.id),
+            ...(job.metadata || {}),
+          };
+          saveTracked(tracked);
 
-        // Re-scan library to pick up new files
-        console.log(`  Download complete: ${job.mangaTitle}. Rescanning...`);
-        await rescanLibrary();
+          // Re-scan library to pick up new files
+          console.log(`  Download complete: ${job.mangaTitle}. Rescanning...`);
+          await rescanLibrary();
+        }
 
       } catch (err) {
         job.status = 'error';
         job.error = (err as Error).message;
-        saveQueue(queue);
+        saveTask(job);
         emitProgress(job);
       }
     }
@@ -292,15 +429,16 @@ async function processQueue() {
 
 // Resume any incomplete downloads from a previous crash
 export function resumeIncompleteDownloads() {
-  const queue = loadQueue();
-  const hasIncomplete = queue.some((j) => j.status === 'queued' || j.status === 'downloading');
-  if (hasIncomplete) {
-    // Reset any 'downloading' back to 'queued' so they restart cleanly
-    for (const job of queue) {
-      if (job.status === 'downloading') job.status = 'queued';
+  const tasks = loadAllTasks();
+  const incomplete = tasks.filter((j) => j.status === 'queued' || j.status === 'downloading');
+  if (incomplete.length > 0) {
+    for (const job of incomplete) {
+      if (job.status === 'downloading') {
+        job.status = 'queued';
+        saveTask(job);
+      }
     }
-    saveQueue(queue);
-    console.log(`Resuming ${queue.filter(j => j.status === 'queued').length} incomplete download(s)...`);
+    console.log(`Resuming ${incomplete.length} incomplete download(s)...`);
     setTimeout(() => processQueue(), 1000);
   }
 }
@@ -312,8 +450,6 @@ export function queueDownload(
   chapters: { id: string; chapter: string | null; pages: number }[],
   metadata?: DownloadJob['metadata'],
 ): DownloadJob {
-  const queue = loadQueue();
-
   const job: DownloadJob = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     mangaDexId,
@@ -326,8 +462,7 @@ export function queueDownload(
     metadata,
   };
 
-  queue.push(job);
-  saveQueue(queue);
+  saveTask(job);
 
   // Start processing (non-blocking)
   setTimeout(() => processQueue(), 0);

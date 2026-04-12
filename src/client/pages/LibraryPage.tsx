@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Compass, FolderPlus, Bell, ChevronDown, ChevronRight, BookOpen, Newspaper } from 'lucide-react';
+import { Search, Compass, FolderPlus, ChevronDown, ChevronRight, BookOpen, Newspaper, WifiOff } from 'lucide-react';
 import type { Series, ContinueReadingItem } from '../lib/types';
-import { getSeries, getContinueReading, getSeriesCoverUrl, getPlaceholderUrl, getImportCount } from '../lib/api';
+import { getSeries, getContinueReading, getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
 import ThemeToggle from '../components/ThemeToggle';
-import ImportModal from '../components/ImportModal';
-import PendingList from '../components/PendingList';
+import NotificationDropdown from '../components/NotificationDropdown';
+import UserMenu from '../components/UserMenu';
 
 const btnClass = 'p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors text-gray-600 dark:text-gray-400';
 const btnActiveClass = 'p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors';
@@ -20,38 +20,38 @@ export default function LibraryPage() {
   const [showSearch, setShowSearch] = useState(false);
   const [continueCollapsed, setContinueCollapsed] = useState(true);
 
-  // Import
-  const [showImport, setShowImport] = useState(false);
-  const [showPending, setShowPending] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
-
   const loadData = useCallback(async () => {
-    const [series, cont, pending] = await Promise.all([
+    const [series, cont] = await Promise.all([
       getSeries(typeFilter),
       getContinueReading(),
-      getImportCount().catch(() => ({ count: 0 })),
     ]);
     setSeriesList(series);
     setContinueReading(cont);
-    setPendingCount(pending.count);
   }, [typeFilter]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Poll pending count every 5s when something might be scanning
+  // Check which series have cached chapters for offline reading
+  const [offlineSeries, setOfflineSeries] = useState<Set<string>>(new Set());
   useEffect(() => {
-    if (pendingCount === 0 && !showImport) return;
-    const interval = setInterval(async () => {
-      const { count } = await getImportCount().catch(() => ({ count: 0 }));
-      setPendingCount(count);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [pendingCount, showImport]);
+    if (typeof caches === 'undefined' || seriesList.length === 0) return;
+    (async () => {
+      const cache = await caches.open('pdf-cache');
+      const keys = await cache.keys();
+      const ids = new Set<string>();
+      for (const req of keys) {
+        // URLs like /api/comics/read/{seriesId}/...
+        const match = req.url.match(/\/api\/comics\/read\/([^/]+)\//);
+        if (match) ids.add(match[1]);
+      }
+      setOfflineSeries(ids);
+    })();
+  }, [seriesList]);
 
   const filtered = search
     ? seriesList.filter((s) => {
         const q = search.toLowerCase();
-        return s.name.toLowerCase().includes(q) || (s.synopsis?.toLowerCase().includes(q) ?? false);
+        return s.name.toLowerCase().includes(q) || (s.englishTitle?.toLowerCase().includes(q) ?? false) || (s.synopsis?.toLowerCase().includes(q) ?? false);
       })
     : seriesList;
 
@@ -103,28 +103,17 @@ export default function LibraryPage() {
 
           <div className="flex-1" />
 
-          {/* Import folder */}
+          {/* Notifications */}
+          <NotificationDropdown />
+
+          {/* Import */}
           <button
-            onClick={() => setShowImport(true)}
+            onClick={() => navigate('/import')}
             className={btnClass}
-            title="Import from folder"
+            title="Import"
           >
             <FolderPlus size={18} />
           </button>
-
-          {/* Pending badge */}
-          {pendingCount > 0 && (
-            <button
-              onClick={() => setShowPending(true)}
-              className="relative p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors text-amber-600 dark:text-amber-400"
-              title={`${pendingCount} pending imports`}
-            >
-              <Bell size={18} />
-              <span className="absolute -top-0.5 -right-0.5 bg-amber-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
-                {pendingCount}
-              </span>
-            </button>
-          )}
 
           {/* Discover */}
           <button
@@ -137,6 +126,7 @@ export default function LibraryPage() {
 
           {/* Theme */}
           <ThemeToggle />
+          <UserMenu />
         </div>
 
         {/* Search bar */}
@@ -206,80 +196,98 @@ export default function LibraryPage() {
             {search ? `Matching "${search}"` : typeFilter === 'comic' ? 'Comics' : 'Magazines'} ({filtered.length})
           </h2>
 
-          {filtered.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {filtered.map((s) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {/* Fake onboarding cards when library is empty */}
+            {filtered.length === 0 && !search && (
+              <>
                 <Link
-                  key={s.id}
-                  to={`/series/${s.id}`}
+                  to="/import"
                   className="group bg-white dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
                 >
-                  <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                    {s.coverFile ? (
-                      <img
-                        src={getSeriesCoverUrl(s.id)}
-                        alt={s.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <img
-                        src={getPlaceholderUrl(s.placeholder)}
-                        alt=""
-                        className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-200"
-                      />
-                    )}
+                  <div className="aspect-[2/3] bg-gradient-to-br from-blue-500 to-indigo-600 overflow-hidden relative">
+                    <img
+                      src={getPlaceholderUrl('import-first.png')}
+                      alt=""
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
                   </div>
                   <div className="p-3">
-                    <h3 className="text-sm font-medium truncate">{s.name}</h3>
-                    {s.year && <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{s.year}</p>}
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">{s.count} ch.</span>
-                      <span className="text-xs text-gray-400 dark:text-gray-500">{s.readCount}/{s.count}</span>
-                      {s.score && (
-                        <span className="text-xs text-amber-600 dark:text-amber-400 ml-auto">{s.score.toFixed(1)}</span>
-                      )}
-                    </div>
+                    <h3 className="text-sm font-medium">Import Your First Comic</h3>
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">Add from folder or drag & drop</p>
                   </div>
                 </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16">
-              <p className="text-gray-500 dark:text-gray-400 mb-4">
-                {search ? 'No results found.' : `No ${typeFilter === 'comic' ? 'comics' : 'magazines'} in your library yet.`}
-              </p>
-              {!search && (
-                <button
-                  onClick={() => setShowImport(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                <Link
+                  to="/discover"
+                  className="group bg-white dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
                 >
-                  <FolderPlus size={16} /> Import from folder
-                </button>
-              )}
-            </div>
-          )}
+                  <div className="aspect-[2/3] bg-gradient-to-br from-purple-500 to-pink-600 overflow-hidden relative">
+                    <img
+                      src={getPlaceholderUrl('discover-online.png')}
+                      alt=""
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  </div>
+                  <div className="p-3">
+                    <h3 className="text-sm font-medium">Discover Comics Online</h3>
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">Search MangaDex, MangaFox & more</p>
+                  </div>
+                </Link>
+              </>
+            )}
+            {filtered.length === 0 && search && (
+              <div className="col-span-full text-center py-16">
+                <p className="text-gray-500 dark:text-gray-400">No results found.</p>
+              </div>
+            )}
+            {filtered.map((s) => (
+              <Link
+                key={s.id}
+                to={`/series/${s.id}`}
+                className="group bg-white dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
+              >
+                <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 overflow-hidden relative">
+                  {s.coverFile ? (
+                    <img
+                      src={getSeriesCoverUrl(s.id)}
+                      alt={s.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <img
+                      src={getPlaceholderUrl(s.placeholder)}
+                      alt=""
+                      className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-200"
+                    />
+                  )}
+                  {offlineSeries.has(s.id) && (
+                    <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-full backdrop-blur-sm">
+                      <WifiOff size={9} /> Offline
+                    </div>
+                  )}
+                </div>
+                <div className="p-3">
+                  <h3 className="text-sm font-medium truncate">{s.name}</h3>
+                  {s.englishTitle && s.englishTitle.toLowerCase() !== s.name.toLowerCase() && (
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">{s.englishTitle}</p>
+                  )}
+                  {s.year && <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{s.year}</p>}
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{s.count} ch.</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{s.readCount}/{s.count}</span>
+                    {s.score != null && s.score > 0 && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 ml-auto">{s.score.toFixed(1)}</span>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
         </section>
       </main>
 
-      {/* Import modal */}
-      {showImport && (
-        <ImportModal
-          onClose={() => { setShowImport(false); loadData(); }}
-        />
-      )}
-
-      {/* Pending list */}
-      {showPending && (
-        <PendingList
-          onClose={() => { setShowPending(false); loadData(); }}
-          onUpdate={async () => {
-            const { count } = await getImportCount().catch(() => ({ count: 0 }));
-            setPendingCount(count);
-            loadData();
-          }}
-        />
-      )}
     </div>
   );
 }

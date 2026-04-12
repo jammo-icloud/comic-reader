@@ -1,7 +1,14 @@
 import { Router } from 'express';
 import pathMod from 'path';
 import fs from 'fs';
-import { loadAllSeries, loadComics, getSeriesStats, saveSeries, type SeriesRecord } from '../data.js';
+import {
+  loadAllSeries, loadComics, saveSeries, removeSeries,
+  loadComicsForUser, getSeriesStatsForUser,
+  loadCollection, addToCollection, removeFromCollection, isInCollection,
+  loadUserProgress, updateUserProgress,
+  loadPreferences, savePreferences,
+  type SeriesRecord,
+} from '../data.js';
 import { shortHash } from '../hash.js';
 import { getThumbnailPath, generateThumbnail } from '../thumbnails.js';
 import { enrichSeries, enrichSingle } from '../enrich.js';
@@ -12,16 +19,28 @@ const router = Router();
 
 router.get('/series', (req, res) => {
   const allSeries = loadAllSeries();
-  const { type } = req.query; // filter by type: 'comic' or 'magazine'
+  const { type, scope } = req.query;
+  const username = req.username;
 
-  let filtered = allSeries;
+  // scope=catalog returns all series (for browse/search dedup)
+  // default returns only user's collection
+  let filtered: SeriesRecord[];
+  if (scope === 'catalog') {
+    filtered = allSeries;
+  } else {
+    const collection = new Set(loadCollection(username).map((e) => e.seriesId));
+    filtered = allSeries.filter((s) => collection.has(s.id));
+  }
+
   if (type && typeof type === 'string') {
     filtered = filtered.filter((s) => s.type === type);
   }
 
+  const collectionSet = new Set(loadCollection(username).map((e) => e.seriesId));
   const result = filtered.map((s) => ({
     ...s,
-    ...getSeriesStats(s.id),
+    ...getSeriesStatsForUser(s.id, username),
+    inCollection: collectionSet.has(s.id),
   }));
 
   res.json(result);
@@ -31,13 +50,17 @@ router.get('/series/:id', (req, res) => {
   const allSeries = loadAllSeries();
   const series = allSeries.find((s) => s.id === req.params.id);
   if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
-  res.json({ ...series, ...getSeriesStats(series.id) });
+  res.json({
+    ...series,
+    ...getSeriesStatsForUser(series.id, req.username),
+    inCollection: isInCollection(req.username, series.id),
+  });
 });
 
 // --- Comics in a series ---
 
 router.get('/series/:id/comics', (req, res) => {
-  const comics = loadComics(req.params.id);
+  const comics = loadComicsForUser(req.params.id, req.username);
   const withHashes = comics.map((c) => ({
     ...c,
     thumbHash: shortHash(`${req.params.id}/${c.file}`),
@@ -47,25 +70,33 @@ router.get('/series/:id/comics', (req, res) => {
 
 // --- Continue reading ---
 
-router.get('/continue-reading', (_req, res) => {
+router.get('/continue-reading', (req, res) => {
+  const username = req.username;
   const allSeries = loadAllSeries();
-  const results: any[] = [];
+  const seriesMap = new Map(allSeries.map((s) => [s.id, s]));
+  const collection = new Set(loadCollection(username).map((e) => e.seriesId));
+  const progress = loadUserProgress(username);
 
-  for (const s of allSeries) {
-    const comics = loadComics(s.id);
-    for (const c of comics) {
-      if (c.currentPage > 0 && !c.isRead && c.lastReadAt) {
-        results.push({
-          seriesId: s.id,
-          seriesName: s.name,
-          file: c.file,
-          currentPage: c.currentPage,
-          pages: c.pages,
-          lastReadAt: c.lastReadAt,
-          thumbHash: shortHash(`${s.id}/${c.file}`),
-        });
-      }
-    }
+  const results: any[] = [];
+  for (const p of progress) {
+    if (!collection.has(p.seriesId)) continue;
+    if (p.currentPage <= 0 || p.isRead || !p.lastReadAt) continue;
+    const series = seriesMap.get(p.seriesId);
+    if (!series) continue;
+
+    // Get page count from shared comics
+    const comics = loadComics(p.seriesId);
+    const comic = comics.find((c) => c.file === p.file);
+
+    results.push({
+      seriesId: p.seriesId,
+      seriesName: series.name,
+      file: p.file,
+      currentPage: p.currentPage,
+      pages: comic?.pages || 0,
+      lastReadAt: p.lastReadAt,
+      thumbHash: shortHash(`${p.seriesId}/${p.file}`),
+    });
   }
 
   results.sort((a, b) => new Date(b.lastReadAt).getTime() - new Date(a.lastReadAt).getTime());
@@ -89,7 +120,12 @@ router.post('/series-override', async (req, res) => {
     const { seriesId, malId } = req.body;
     if (!seriesId || !malId) { res.status(400).json({ error: 'seriesId and malId required' }); return; }
     const result = await enrichSingle(seriesId, malId);
-    res.json(result);
+    if (!result) { res.status(404).json({ error: 'Series not found' }); return; }
+    if (result.error) {
+      res.json({ ...result.series, warning: result.error });
+    } else {
+      res.json(result.series);
+    }
   } catch (err) {
     res.status(500).json({ error: 'Override failed' });
   }
@@ -158,6 +194,67 @@ router.get('/series-cover/:id', (req, res) => {
   res.sendFile(pathMod.resolve(coverPath), (err) => {
     if (err && !res.headersSent) res.status(404).json({ error: 'Cover not found' });
   });
+});
+
+// --- Delete series ---
+
+router.delete('/series/:id', (req, res) => {
+  const seriesId = req.params.id;
+  const series = loadAllSeries().find((s) => s.id === seriesId);
+  if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
+
+  if (req.query.purge === 'true') {
+    // Full delete — remove files, metadata, and from all collections
+    const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
+    const DATA_DIR = process.env.DATA_DIR || './data';
+
+    const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
+    const seriesDir = pathMod.join(LIBRARY_DIR, typeDir, seriesId);
+    if (fs.existsSync(seriesDir)) {
+      fs.rmSync(seriesDir, { recursive: true, force: true });
+    }
+
+    if (series.coverFile) {
+      const coverPath = pathMod.join(DATA_DIR, 'series-covers', series.coverFile);
+      if (fs.existsSync(coverPath)) fs.unlinkSync(coverPath);
+    }
+
+    removeSeries(seriesId);
+    console.log(`Purged series: ${series.name} (${seriesId})`);
+  } else {
+    // Soft delete — just remove from this user's collection
+    removeFromCollection(req.username, seriesId);
+    console.log(`Removed "${series.name}" from ${req.username}'s collection`);
+  }
+
+  res.json({ ok: true });
+});
+
+// --- User / Collection / Preferences ---
+
+router.get('/me', (req, res) => {
+  const prefs = loadPreferences(req.username);
+  res.json({ username: req.username, preferences: prefs });
+});
+
+router.patch('/me/preferences', (req, res) => {
+  const prefs = loadPreferences(req.username);
+  if (req.body.theme) prefs.theme = req.body.theme;
+  savePreferences(req.username, prefs);
+  res.json(prefs);
+});
+
+router.post('/collection/:seriesId', (req, res) => {
+  const seriesId = req.params.seriesId;
+  const series = loadAllSeries().find((s) => s.id === seriesId);
+  if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
+  addToCollection(req.username, seriesId);
+  res.json({ ok: true });
+});
+
+router.delete('/collection/:seriesId', (req, res) => {
+  removeFromCollection(req.username, req.params.seriesId);
+  res.json({ ok: true });
 });
 
 // --- Thumbnails ---

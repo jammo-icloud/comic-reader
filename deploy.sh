@@ -35,11 +35,16 @@ rsync -av --delete \
   --exclude node_modules \
   --exclude dist \
   --exclude data \
+  --exclude local-library \
   --exclude comics \
   --exclude .git \
   --exclude .claude \
+  --exclude .env \
   --exclude .DS_Store \
   --exclude scripts \
+  --exclude "*.log" \
+  --exclude "*.pid" \
+  --exclude .vite-port \
   "${SCRIPT_DIR}/" "${NAS_HOST}:${REMOTE_DIR}/"
 
 echo ""

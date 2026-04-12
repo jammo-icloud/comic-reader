@@ -2,7 +2,7 @@ import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { resolveComicPath } from '../scanner.js';
-import { getComic, updateComic, loadAllSeries } from '../data.js';
+import { getComic, updateComic, updateUserProgress, addToCollection, isInCollection } from '../data.js';
 
 const router = Router();
 
@@ -67,22 +67,32 @@ router.patch('/comics/progress/:seriesId/{*file}', (req, res) => {
     return;
   }
 
+  const username = req.username;
   const { currentPage, isRead, pageCount } = req.body;
-  const updates: Partial<typeof comic> = { lastReadAt: new Date().toISOString() };
 
-  if (typeof pageCount === 'number' && pageCount > 0) {
-    updates.pages = pageCount;
+  // Update shared page count if provided
+  if (typeof pageCount === 'number' && pageCount > 0 && comic.pages !== pageCount) {
+    updateComic(seriesId, file, { pages: pageCount });
   }
+
+  // Build per-user progress update
+  const progressUpdates: Record<string, any> = { lastReadAt: new Date().toISOString() };
   if (typeof currentPage === 'number') {
-    updates.currentPage = currentPage;
+    progressUpdates.currentPage = currentPage;
     const totalPages = (typeof pageCount === 'number' ? pageCount : comic.pages) || 0;
-    if (totalPages > 0 && currentPage >= totalPages - 1) updates.isRead = true;
+    if (totalPages > 0 && currentPage >= totalPages - 1) progressUpdates.isRead = true;
   }
   if (typeof isRead === 'boolean') {
-    updates.isRead = isRead;
+    progressUpdates.isRead = isRead;
   }
 
-  updateComic(seriesId, file, updates);
+  updateUserProgress(username, seriesId, file, progressUpdates);
+
+  // Auto-add to collection on first read
+  if (!isInCollection(username, seriesId)) {
+    addToCollection(username, seriesId);
+  }
+
   res.json({ ok: true });
 });
 

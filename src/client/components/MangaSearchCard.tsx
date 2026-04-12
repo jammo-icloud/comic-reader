@@ -1,4 +1,4 @@
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Library, Check } from 'lucide-react';
 import type { SearchResult } from '../lib/types';
 import { getSourceConfig } from '../lib/browser-sources/registry';
 
@@ -73,6 +73,12 @@ export default function MangaSearchCard({
         {manga.status && manga.status !== 'unknown' && (
           <div className={`absolute top-2 right-2 ${statusColors[manga.status] || 'bg-gray-600'} text-white text-[10px] px-1.5 py-0.5 rounded capitalize`}>
             {manga.status}
+          </div>
+        )}
+        {/* Local library match badge */}
+        {manga.localSeriesId && (
+          <div className={`absolute top-2 left-2 flex items-center gap-1 text-white text-[9px] px-1.5 py-0.5 rounded-full ${manga.inCollection ? 'bg-green-600/90' : 'bg-blue-600/90'}`}>
+            {manga.inCollection ? <><Check size={9} /> In Collection</> : <><Library size={9} /> In Library</>}
           </div>
         )}
       </div>

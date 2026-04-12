@@ -22,13 +22,20 @@ zip -r "$OUTPUT" . \
   -x "dist/*" \
   -x "data/*" \
   -x "library/*" \
+  -x "local-library/*" \
   -x "comics/*" \
   -x "scripts/*" \
   -x ".git/*" \
   -x ".claude/*" \
+  -x ".env" \
   -x ".DS_Store" \
   -x "*/.DS_Store" \
   -x "*.log" \
+  -x ".dev.log" \
+  -x ".orchestrator.log" \
+  -x ".dev.pid" \
+  -x ".orchestrator.pid" \
+  -x ".vite-port" \
   -x "build-for-nas.sh" \
   -x "package-for-nas.sh"
 

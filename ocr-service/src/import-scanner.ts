@@ -88,7 +88,7 @@ async function searchMal(query: string): Promise<MalMatch | null> {
     return {
       malId: match.mal_id,
       title: match.titles?.[0]?.title || query,
-      score: match.score || 0,
+      score: match.score || null,
       synopsis: match.synopsis || '',
       imageUrl: match.images?.jpg?.large_image_url || match.images?.jpg?.image_url || '',
       year: match.published?.prop?.from?.year || null,
@@ -154,17 +154,29 @@ export async function startScan(sourcePath: string): Promise<ScanJob> {
   const entries = fs.readdirSync(sourcePath, { withFileTypes: true });
   const folders = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.'));
 
+  // If no subfolders but the path itself contains comic files, treat it as a single series
+  let scanPath = sourcePath;
+  let folderNames = folders.map((f) => f.name);
+  if (folderNames.length === 0) {
+    const hasComicFiles = entries.some((e) => e.isFile() && COMIC_EXTENSIONS.has(path.extname(e.name).toLowerCase()));
+    if (hasComicFiles) {
+      // Scan the parent dir with this folder as the only entry
+      scanPath = path.dirname(sourcePath);
+      folderNames = [path.basename(sourcePath)];
+    }
+  }
+
   const job: ScanJob = {
     id: `scan-${Date.now()}`,
     sourcePath,
     status: 'scanning',
-    progress: { current: 0, total: folders.length, currentFolder: null },
+    progress: { current: 0, total: folderNames.length, currentFolder: null },
   };
   currentScanJob = job;
   emit('scan-progress', job);
 
   // Run in background
-  processScanning(sourcePath, folders.map((f) => f.name), job).catch((err) => {
+  processScanning(scanPath, folderNames, job).catch((err) => {
     job.status = 'error';
     job.error = (err as Error).message;
     emit('scan-progress', job);
