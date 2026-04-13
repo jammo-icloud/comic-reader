@@ -306,7 +306,9 @@ export default function LibraryPage() {
                 <p className="text-gray-500 dark:text-gray-400">No results found.</p>
               </div>
             )}
-            {filtered.map((s) => (
+            {filtered.map((s) => {
+              const isNsfw = (s.tags || []).some((t) => ['adult', 'hentai', 'nsfw', 'erotica'].includes(t.toLowerCase()));
+              return (
               <Link
                 key={s.id}
                 to={`/series/${s.id}`}
@@ -317,15 +319,20 @@ export default function LibraryPage() {
                     <img
                       src={getSeriesCoverUrl(s.id)}
                       alt={s.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 ${isNsfw ? 'blur-lg group-hover:blur-sm' : ''}`}
                       loading="lazy"
                     />
                   ) : (
                     <img
                       src={getPlaceholderUrl(s.placeholder)}
                       alt=""
-                      className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-200"
+                      className={`w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-200 ${isNsfw ? 'blur-lg group-hover:blur-sm' : ''}`}
                     />
+                  )}
+                  {isNsfw && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity">
+                      <span className="text-[10px] text-white bg-red-600/80 px-2 py-0.5 rounded-full font-medium">NSFW</span>
+                    </div>
                   )}
                   {offlineSeries.has(s.id) && (
                     <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-full backdrop-blur-sm">
@@ -348,7 +355,8 @@ export default function LibraryPage() {
                   </div>
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </section>
       </main>

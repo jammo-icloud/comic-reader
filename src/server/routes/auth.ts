@@ -159,7 +159,7 @@ router.post('/auth/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.2.1';
 
 router.get('/auth/version', (_req, res) => {
   res.json({ version: APP_VERSION });
