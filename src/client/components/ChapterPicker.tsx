@@ -80,6 +80,13 @@ export default function ChapterPicker({ manga, chapters, loading, onClose, onDow
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-12"><Loader size={20} className="animate-spin text-blue-500" /></div>
+          ) : chapters.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400">No downloadable chapters available</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 max-w-sm">
+                This title may have been removed due to licensing restrictions. Try searching on other sources like MangaFox, or use the Manga Finder extension for more options.
+              </p>
+            </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {chapters.map((ch) => (
