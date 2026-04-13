@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search, Loader, Check, ExternalLink, Eye, X } from 'lucide-react';
 import type { SearchResult, ChapterResult } from '../lib/types';
-import { discoverSearch, discoverChapters, addToCollection } from '../lib/api';
+import { discoverSearch, discoverChapters, addToCollection, getComics } from '../lib/api';
 import { ALL_SOURCES, HAKUNEKO_SITES, HAKUNEKO_URL, getSourceConfig } from '../lib/browser-sources/registry';
 import type { SourceConfig } from '../lib/browser-sources/types';
 import MangaSearchCard from '../components/MangaSearchCard';
@@ -107,31 +107,39 @@ export default function DiscoverPage() {
     setSourcesLocked(false);
   };
 
+  const [localChapterNums, setLocalChapterNums] = useState<Set<string>>(new Set());
+
   const handleSelectManga = async (manga: SearchResult) => {
-    // If series exists locally and not in collection, add it
+    // If in library but not collection, add to collection first
     if (manga.localSeriesId && !manga.inCollection) {
       await addToCollection(manga.localSeriesId);
-      // Update local state to show "In Collection"
       setResults((prev) => prev.map((r) =>
         r.mangaId === manga.mangaId && r.sourceId === manga.sourceId
           ? { ...r, inCollection: true }
           : r
       ));
-      return;
     }
 
-    // If already in collection, navigate to series page
-    if (manga.localSeriesId && manga.inCollection) {
-      navigate(`/series/${manga.localSeriesId}`);
-      return;
-    }
-
-    // Not in local library — open chapter picker for download
+    // Always open chapter picker — for new downloads OR to find new chapters
     setSelectedManga(manga);
     setLoadingChapters(true);
+    setLocalChapterNums(new Set());
+
+    // If series exists locally, load existing chapter numbers
+    if (manga.localSeriesId) {
+      try {
+        const comics = await getComics(manga.localSeriesId);
+        const nums = new Set(comics.map((c: any) => {
+          // Extract chapter number from filename like "chapter-001.pdf" or "Chapter 001.pdf"
+          const match = c.file.match(/(\d+(?:\.\d+)?)/);
+          return match ? String(parseFloat(match[1])) : '';
+        }).filter(Boolean));
+        setLocalChapterNums(nums);
+      } catch {}
+    }
+
     try {
       const data = await discoverChapters(manga.sourceId, manga.mangaId);
-      // Handle both old format (array) and new format ({chapters, metadata})
       const ch = Array.isArray(data) ? data : data.chapters;
       setChapters(ch);
       // Merge source metadata into the manga object for the download
@@ -327,7 +335,8 @@ export default function DiscoverPage() {
           manga={selectedManga}
           chapters={chapters}
           loading={loadingChapters}
-          onClose={() => { setSelectedManga(null); setChapters([]); }}
+          localChapterNums={localChapterNums}
+          onClose={() => { setSelectedManga(null); setChapters([]); setLocalChapterNums(new Set()); }}
         />
       )}
 
