@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Compass, FolderPlus, ChevronDown, ChevronRight, BookOpen, Newspaper, WifiOff, Shield } from 'lucide-react';
+import { Search, Compass, FolderPlus, ChevronDown, ChevronRight, BookOpen, Newspaper, WifiOff, Shield, Menu, X } from 'lucide-react';
 import { useAuth } from '../App';
 import type { Series, ContinueReadingItem } from '../lib/types';
 import { getSeries, getContinueReading, getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
@@ -21,6 +21,8 @@ export default function LibraryPage() {
   const [showSearch, setShowSearch] = useState(false);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [continueCollapsed, setContinueCollapsed] = useState(true);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const { isAdmin } = useAuth();
 
   const loadData = useCallback(async () => {
     const [series, cont] = await Promise.all([
@@ -72,7 +74,7 @@ export default function LibraryPage() {
 
           <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-1" />
 
-          {/* Search */}
+          {/* Search — always visible */}
           <button
             onClick={() => { setShowSearch(!showSearch); if (showSearch) setSearch(''); }}
             className={showSearch ? btnActiveClass : btnClass}
@@ -81,7 +83,7 @@ export default function LibraryPage() {
             <Search size={18} />
           </button>
 
-          {/* Type filter */}
+          {/* Type filter — always visible */}
           <div className="relative">
             <button
               onClick={() => setShowTypeMenu(!showTypeMenu)}
@@ -110,42 +112,58 @@ export default function LibraryPage() {
 
           <div className="flex-1" />
 
-          {/* Notifications */}
+          {/* Notifications — always visible */}
           <NotificationDropdown />
 
-          {/* Admin */}
-          {useAuth().isAdmin && (
-            <button
-              onClick={() => navigate('/admin')}
-              className={btnClass}
-              title="Admin"
-            >
-              <Shield size={18} />
+          {/* Desktop icons — hidden on mobile */}
+          <div className="hidden sm:flex items-center gap-1.5">
+            {isAdmin && (
+              <button onClick={() => navigate('/admin')} className={btnClass} title="Admin">
+                <Shield size={18} />
+              </button>
+            )}
+            <button onClick={() => navigate('/import')} className={btnClass} title="Import">
+              <FolderPlus size={18} />
             </button>
-          )}
+            <button onClick={() => navigate('/discover')} className={btnClass} title="Discover">
+              <Compass size={18} />
+            </button>
+            <ThemeToggle />
+            <UserMenu />
+          </div>
 
-          {/* Import */}
+          {/* Mobile hamburger — visible only on small screens */}
           <button
-            onClick={() => navigate('/import')}
-            className={btnClass}
-            title="Import"
+            onClick={() => setShowMobileMenu(!showMobileMenu)}
+            className="sm:hidden p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
           >
-            <FolderPlus size={18} />
+            {showMobileMenu ? <X size={18} /> : <Menu size={18} />}
           </button>
-
-          {/* Discover */}
-          <button
-            onClick={() => navigate('/discover')}
-            className={btnClass}
-            title="Discover manga on MangaDex"
-          >
-            <Compass size={18} />
-          </button>
-
-          {/* Theme */}
-          <ThemeToggle />
-          <UserMenu />
         </div>
+
+        {/* Mobile menu dropdown */}
+        {showMobileMenu && (
+          <div className="sm:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-4 py-2 space-y-1">
+            {isAdmin && (
+              <button onClick={() => { navigate('/admin'); setShowMobileMenu(false); }} className="flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+                <Shield size={16} /> Admin
+              </button>
+            )}
+            <button onClick={() => { navigate('/import'); setShowMobileMenu(false); }} className="flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+              <FolderPlus size={16} /> Import
+            </button>
+            <button onClick={() => { navigate('/discover'); setShowMobileMenu(false); }} className="flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+              <Compass size={16} /> Discover
+            </button>
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-sm text-gray-500">Theme</span>
+              <ThemeToggle />
+            </div>
+            <div className="border-t border-gray-100 dark:border-gray-800 pt-1">
+              <UserMenu />
+            </div>
+          </div>
+        )}
 
         {/* Search bar */}
         {showSearch && (
