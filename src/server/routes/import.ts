@@ -51,7 +51,7 @@ router.get('/import/count', async (_req, res) => {
   } catch { res.json({ count: 0 }); }
 });
 
-// Confirm import — this happens on the main app (moves files, creates metadata)
+// Confirm import — responds immediately, processes in background
 router.post('/import/confirm', async (req, res) => {
   const { sourceFolder, type, name, malId } = req.body;
   if (!sourceFolder || !type || !name) {
@@ -59,37 +59,35 @@ router.post('/import/confirm', async (req, res) => {
     return;
   }
 
+  const username = req.username;
+  console.log(`  Import confirm: "${name}" (${type}) from ${sourceFolder} [user: ${username}]`);
+
+  // Respond immediately — import runs in background
+  res.json({ ok: true, status: 'importing', name });
+
+  // Background processing
   try {
-    console.log(`  Import confirm: "${name}" (${type}) from ${sourceFolder} [user: ${req.username}]`);
-    // Execute the import (rename + move files, create metadata)
     const series = await importSeries({ sourceFolder, type, name, malId });
 
-    // Enrich with MAL if provided
     if (malId) {
       await enrichSingle(series.id, malId);
     }
 
-    // Tell orchestrator this one is confirmed
     await fetch(`${OCR_SERVICE_URL}/import/confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sourceFolder }),
     }).catch(() => {});
 
-    // Add to the importing user's collection
-    const username = req.username;
     addToCollection(username, series.id);
-    console.log(`  Added "${series.name}" to ${username}'s collection`);
+    console.log(`  Import complete: "${series.name}" → ${username}'s collection (${series.id})`);
 
-    // Clean up source folder if it's inside the import directory
     if (sourceFolder.startsWith(IMPORT_DIR) && fs.existsSync(sourceFolder)) {
       fs.rmSync(sourceFolder, { recursive: true, force: true });
       console.log(`  Cleaned up import source: ${sourceFolder}`);
     }
-
-    res.json(series);
   } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
+    console.error(`  Import failed for "${name}": ${(err as Error).message}`);
   }
 });
 
