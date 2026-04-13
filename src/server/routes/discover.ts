@@ -112,7 +112,7 @@ router.post('/discover/download', (req, res) => {
     res.status(400).json({ error: 'mangaDexId, mangaTitle, shelfId, and chapters required' });
     return;
   }
-  const job = queueDownload(mangaDexId, mangaTitle, shelfId, chapters, metadata);
+  const job = queueDownload(mangaDexId, mangaTitle, shelfId, chapters, metadata, req.username);
   res.json(job);
 });
 

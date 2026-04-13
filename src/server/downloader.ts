@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { getChapterPages, pageImageUrl, getMangaDetail, type MangaDexChapter } from './mangadex.js';
 import { getPageUrlsFromSource } from './sources/index.js';
-import { loadAllSeries, saveSeries, type SeriesRecord } from './data.js';
+import { loadAllSeries, saveSeries, addToCollection, type SeriesRecord } from './data.js';
 import { rescanLibrary } from './scanner.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -18,6 +18,7 @@ export interface DownloadJob {
   mangaDexId: string;
   mangaTitle: string;
   shelfId: string;
+  username: string;
   chapters: { id: string; chapter: string | null; pages: number }[];
   status: 'queued' | 'downloading' | 'complete' | 'error';
   progress: { current: number; total: number; currentChapter: string | null; pagesDownloaded: number; pagesTotal: number };
@@ -329,6 +330,10 @@ async function processQueue() {
         console.log(`  Created series record: ${job.mangaTitle}`);
       }
 
+      // Add to the downloading user's collection
+      addToCollection(job.username, slugName);
+      console.log(`  Added to ${job.username}'s collection: ${slugName}`);
+
       try {
         let wasCancelled = false;
         const skippedChapters: string[] = [];
@@ -462,12 +467,14 @@ export function queueDownload(
   shelfId: string,
   chapters: { id: string; chapter: string | null; pages: number }[],
   metadata?: DownloadJob['metadata'],
+  username?: string,
 ): DownloadJob {
   const job: DownloadJob = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     mangaDexId,
     mangaTitle,
     shelfId,
+    username: username || process.env.DEFAULT_USER || 'local',
     chapters,
     status: 'queued',
     progress: { current: 0, total: chapters.length, currentChapter: null, pagesDownloaded: 0, pagesTotal: 0 },
