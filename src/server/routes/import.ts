@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { importSeries, scanSourceFolder, getPendingImports, skipImport as skipPending, clearPending } from '../importer.js';
 import { enrichSingle, searchMalForName } from '../enrich.js';
+import { addToCollection } from '../data.js';
 
 const OCR_SERVICE_URL = process.env.OCR_SERVICE_URL || 'http://localhost:3001';
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
@@ -59,6 +60,7 @@ router.post('/import/confirm', async (req, res) => {
   }
 
   try {
+    console.log(`  Import confirm: "${name}" (${type}) from ${sourceFolder} [user: ${req.username}]`);
     // Execute the import (rename + move files, create metadata)
     const series = await importSeries({ sourceFolder, type, name, malId });
 
@@ -73,6 +75,11 @@ router.post('/import/confirm', async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sourceFolder }),
     }).catch(() => {});
+
+    // Add to the importing user's collection
+    const username = req.username;
+    addToCollection(username, series.id);
+    console.log(`  Added "${series.name}" to ${username}'s collection`);
 
     // Clean up source folder if it's inside the import directory
     if (sourceFolder.startsWith(IMPORT_DIR) && fs.existsSync(sourceFolder)) {
