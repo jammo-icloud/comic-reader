@@ -231,11 +231,11 @@ export default function LibraryPage() {
                   >
                     <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
                       <img
-                        src={`/api/thumbnails/${item.seriesId}/${item.file}`}
-                        alt={item.file}
+                        src={getSeriesCoverUrl(item.seriesId)}
+                        alt={item.seriesName}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                         loading="lazy"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        onError={(e) => { (e.target as HTMLImageElement).src = getPlaceholderUrl('manga.png'); }}
                       />
                       <div className="absolute top-2 right-2 bg-blue-600/90 text-white text-xs px-1.5 py-0.5 rounded">
                         p.{item.currentPage + 1}/{item.pages || '?'}
