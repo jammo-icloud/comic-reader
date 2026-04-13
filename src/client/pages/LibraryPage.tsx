@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Compass, FolderPlus, ChevronDown, ChevronRight, BookOpen, Newspaper, WifiOff } from 'lucide-react';
+import { Search, Compass, FolderPlus, ChevronDown, ChevronRight, BookOpen, Newspaper, WifiOff, Shield } from 'lucide-react';
+import { useAuth } from '../App';
 import type { Series, ContinueReadingItem } from '../lib/types';
 import { getSeries, getContinueReading, getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
 import ThemeToggle from '../components/ThemeToggle';
@@ -111,6 +112,17 @@ export default function LibraryPage() {
 
           {/* Notifications */}
           <NotificationDropdown />
+
+          {/* Admin */}
+          {useAuth().isAdmin && (
+            <button
+              onClick={() => navigate('/admin')}
+              className={btnClass}
+              title="Admin"
+            >
+              <Shield size={18} />
+            </button>
+          )}
 
           {/* Import */}
           <button

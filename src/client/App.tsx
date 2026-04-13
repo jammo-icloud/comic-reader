@@ -5,6 +5,7 @@ import SeriesPage from './pages/SeriesPage';
 import ReaderPage from './pages/ReaderPage';
 import DiscoverPage from './pages/DiscoverPage';
 import ImportPage from './pages/ImportPage';
+import AdminPage from './pages/AdminPage';
 import LoginPage from './pages/LoginPage';
 import OfflineIndicator from './components/OfflineIndicator';
 
@@ -73,6 +74,7 @@ export default function App() {
         <Route path="/" element={<AuthGuard><LibraryPage /></AuthGuard>} />
         <Route path="/import" element={<AuthGuard><ImportPage /></AuthGuard>} />
         <Route path="/discover" element={<AuthGuard><DiscoverPage /></AuthGuard>} />
+        <Route path="/admin" element={<AuthGuard><AdminPage /></AuthGuard>} />
         <Route path="/series/:id" element={<AuthGuard><SeriesPage /></AuthGuard>} />
         <Route path="/read/:id/*" element={<AuthGuard><ReaderPage /></AuthGuard>} />
       </Routes>

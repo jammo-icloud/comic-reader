@@ -44,6 +44,52 @@ export function getCatalog(type?: 'comic' | 'magazine'): Promise<Series[]> {
   return fetchJson(`/series${qs}`);
 }
 
+// ==================== Admin ====================
+
+export function getAdminStats(): Promise<{ seriesCount: number; chapterCount: number; userCount: number; activeTasks: number; totalTasks: number; librarySize: number; dataSize: number }> {
+  return fetchJson('/admin/stats');
+}
+
+export function getAdminTasks(): Promise<any[]> {
+  return fetchJson('/admin/tasks');
+}
+
+export function deleteAdminTask(id: string): Promise<void> {
+  return fetchJson(`/admin/tasks/${id}`, { method: 'DELETE' });
+}
+
+export function retryAdminTask(id: string): Promise<void> {
+  return fetchJson(`/admin/tasks/${id}/retry`, { method: 'POST' });
+}
+
+export function cancelAdminTask(id: string): Promise<void> {
+  return fetchJson(`/admin/tasks/${id}/cancel`, { method: 'POST' });
+}
+
+export function clearAdminTasks(): Promise<{ cleared: number }> {
+  return fetchJson('/admin/tasks/clear', { method: 'POST' });
+}
+
+export function getAdminCatalog(): Promise<any[]> {
+  return fetchJson('/admin/catalog');
+}
+
+export function purgeAdminSeries(id: string): Promise<void> {
+  return fetchJson(`/admin/catalog/${id}`, { method: 'DELETE' });
+}
+
+export function adminEnrich(force = false): Promise<{ found: number; skipped: number; failed: number }> {
+  return fetchJson(`/admin/enrich${force ? '?force=true' : ''}`, { method: 'POST' });
+}
+
+export function adminRescan(): Promise<{ updated: number }> {
+  return fetchJson('/admin/rescan', { method: 'POST' });
+}
+
+export function getAdminUsers(): Promise<{ username: string; collectionSize: number; progressEntries: number; readChapters: number }[]> {
+  return fetchJson('/admin/users');
+}
+
 // ==================== Series ====================
 
 export function getSeries(type?: 'comic' | 'magazine'): Promise<Series[]> {
