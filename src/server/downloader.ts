@@ -328,7 +328,15 @@ async function processQueue() {
           coverFile: null,
           score: null,
           synopsis: job.metadata?.description || null,
-          tags: job.metadata?.tags || [],
+          tags: [
+            ...(job.metadata?.tags || []),
+            // Add source-specific tags if not already present
+            ...({
+              mangadex: ['manga'],
+              mangafox: ['manga'],
+              readallcomics: ['western', 'comics'],
+            }[job.metadata?.sourceId || ''] || []),
+          ].filter((t, i, a) => a.indexOf(t) === i), // dedupe
           status: job.metadata?.status || null,
           year: job.metadata?.year || null,
           malId: null,
