@@ -216,7 +216,7 @@ router.get('/import/watch-folder', (_req, res) => {
 
   const entries = fs.readdirSync(IMPORT_DIR, { withFileTypes: true });
   const items = entries
-    .filter((e) => !e.name.startsWith('.'))
+    .filter((e) => !e.name.startsWith('.') && e.name !== '@eaDir' && e.name !== '#recycle' && e.name !== '@tmp')
     .map((e) => ({
       name: e.name,
       isDirectory: e.isDirectory(),

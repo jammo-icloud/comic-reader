@@ -96,7 +96,7 @@ function findFiles(dir: string): string[] {
 
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
-    if (entry.name.startsWith('.')) continue;
+    if (entry.name.startsWith('.') || entry.name === '@eaDir' || entry.name === '#recycle' || entry.name === '@tmp') continue;
     const fullPath = path.join(dir, entry.name);
 
     if (entry.isFile()) {
@@ -130,7 +130,8 @@ export function scanSourceFolder(sourcePath: string): { count: number } {
   }
 
   const entries = fs.readdirSync(sourcePath, { withFileTypes: true });
-  const folders = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.'));
+  const IGNORE_DIRS = new Set(['.', '@eaDir', '#recycle', '@tmp', '.DS_Store']);
+  const folders = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.') && !IGNORE_DIRS.has(e.name));
   const looseFiles = entries
     .filter((e) => e.isFile() && !e.name.startsWith('.') && COMIC_EXTENSIONS.has(path.extname(e.name).toLowerCase()))
     .map((e) => e.name);
