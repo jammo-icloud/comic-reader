@@ -334,6 +334,38 @@ async function processQueue() {
       addToCollection(job.username, slugName);
       console.log(`  Added to ${job.username}'s collection: ${slugName}`);
 
+      // Download cover art if available and series doesn't have one yet
+      const series = loadAllSeries().find((s) => s.id === slugName);
+      if (series && !series.coverFile && job.metadata?.coverUrl) {
+        try {
+          const DATA_DIR = process.env.DATA_DIR || './data';
+          const coversDir = path.join(DATA_DIR, 'series-covers');
+          if (!fs.existsSync(coversDir)) fs.mkdirSync(coversDir, { recursive: true });
+
+          const coverUrl = job.metadata.coverUrl;
+          // Handle proxied URLs from the web app
+          const actualUrl = coverUrl.startsWith('/api/discover/proxy-image?url=')
+            ? decodeURIComponent(coverUrl.replace('/api/discover/proxy-image?url=', ''))
+            : coverUrl;
+
+          const coverRes = await fetch(actualUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+          });
+          if (coverRes.ok) {
+            const coverBuffer = Buffer.from(await coverRes.arrayBuffer());
+            const { shortHash } = await import('./hash.js');
+            const filename = `${shortHash(slugName)}.jpg`;
+            const sharp = (await import('sharp')).default;
+            await sharp(coverBuffer).resize(300, 450, { fit: 'cover' }).jpeg({ quality: 85 }).toFile(path.join(coversDir, filename));
+            series.coverFile = filename;
+            saveSeries(series);
+            console.log(`  Set cover for "${job.mangaTitle}"`);
+          }
+        } catch (err) {
+          console.error(`  Cover download failed:`, (err as Error).message);
+        }
+      }
+
       try {
         let wasCancelled = false;
         const skippedChapters: string[] = [];
