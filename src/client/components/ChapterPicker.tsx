@@ -39,6 +39,7 @@ export default function ChapterPicker({ manga, chapters, loading, onClose, onDow
         tags: manga.tags,
         contentRating: manga.status,
         coverUrl: manga.coverUrl,
+        sourceId: manga.sourceId,
       });
       onDownloadStarted?.();
       onClose();

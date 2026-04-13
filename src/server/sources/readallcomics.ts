@@ -38,13 +38,14 @@ export const readallcomicsSource: MangaSource & { lastMetadata: any } = {
     const html = await fetchPage(`${SITE_URL}/?story=${encodeURIComponent(query)}&s=&type=comic`);
 
     const items: SearchResult[] = [];
-    const coverRegex = /<img\s+src="([^"]*)"[^>]*class="book-cover"[^>]*alt="([^"]*)"/g;
+    // Covers: <img src="URL" alt="TITLE" class="book-cover">
+    const coverRegex = /<img\s+src="([^"]*)"[^>]*class="book-cover"/g;
     const titleRegex = /href="https:\/\/readallcomics\.com\/category\/([^/]+)\/"[^>]*class="cat-title">([^<]+)/g;
 
-    const covers: { url: string }[] = [];
+    const covers: string[] = [];
     let match;
     while ((match = coverRegex.exec(html)) !== null) {
-      covers.push({ url: match[1] });
+      covers.push(match[1]);
     }
 
     let idx = 0;
@@ -55,7 +56,7 @@ export const readallcomicsSource: MangaSource & { lastMetadata: any } = {
         sourceName: 'ReadAllComics',
         mangaId: slug,
         title: title.trim(),
-        coverUrl: covers[idx]?.url || null,
+        coverUrl: covers[idx] || null,
         description: '',
         status: 'unknown',
         year: null,

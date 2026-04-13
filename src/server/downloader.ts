@@ -32,6 +32,7 @@ export interface DownloadJob {
     tags?: string[];
     contentRating?: string;
     coverUrl?: string;
+    sourceId?: string;
   };
 }
 
@@ -220,11 +221,18 @@ async function assembleChapterFromSource(
   chapterId: string,
   outputPath: string,
   onPageDone?: () => void,
+  sourceId?: string,
 ): Promise<void> {
-  // Determine source from chapterId format
-  // MangaFox chapters: "slug/c001"
-  const sourceId = 'mangafox'; // Currently the only non-MangaDex source
-  const pageUrls = await getPageUrlsFromSource(sourceId, chapterId);
+  // Use provided sourceId, or try to detect from chapter ID format
+  let detectedSource = sourceId;
+  if (!detectedSource) {
+    if (chapterId.includes('/c') && chapterId.match(/\/c[\d.]+$/)) {
+      detectedSource = 'mangafox';
+    } else {
+      detectedSource = 'readallcomics'; // Default for non-MangaFox slugs
+    }
+  }
+  const pageUrls = await getPageUrlsFromSource(detectedSource, chapterId);
 
   if (pageUrls.length === 0) {
     console.error(`  No pages found for ${chapterId} from ${sourceId}`);
@@ -240,6 +248,8 @@ async function assembleChapterFromSource(
     'zjcdn.mangafox.me': 'https://fanfox.net/',
     'fmcdn.mfcdn.net': 'https://fanfox.net/',
     'mfcdn.net': 'https://fanfox.net/',
+    'bp.blogspot.com': 'https://readallcomics.com/',
+    'blogger.googleusercontent.com': 'https://readallcomics.com/',
   };
 
   function getReferer(url: string): string {
@@ -434,7 +444,7 @@ async function processQueue() {
               await assembleChapterFromSource(ch.id, outputPath, () => {
                 job.progress.pagesDownloaded++;
                 emitProgress(job);
-              });
+              }, job.metadata?.sourceId);
             }
           } catch (chErr) {
             // Skip this chapter but continue with the rest
