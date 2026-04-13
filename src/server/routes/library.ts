@@ -199,12 +199,16 @@ router.get('/series-cover/:id', (req, res) => {
     return;
   }
 
-  res.sendFile(coverPath, (err) => {
-    if (err && !res.headersSent) {
-      console.error(`  sendFile error: ${(err as Error).message}`);
-      res.status(404).json({ error: 'Cover not found' });
-    }
-  });
+  // Read and serve the file directly instead of sendFile (avoids Express 5 path issues)
+  try {
+    const data = fs.readFileSync(coverPath);
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    res.send(data);
+  } catch (err) {
+    console.error(`  Cover read error: ${(err as Error).message}`);
+    if (!res.headersSent) res.status(404).json({ error: 'Cover not found' });
+  }
 });
 
 // --- Delete series ---
