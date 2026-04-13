@@ -105,6 +105,14 @@ export function deleteSeries(id: string): Promise<void> {
   return fetchJson(`/series/${id}`, { method: 'DELETE' });
 }
 
+export function updateSeriesTags(id: string, tags: string[]): Promise<any> {
+  return fetchJson(`/series/${id}/tags`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tags }),
+  });
+}
+
 // ==================== Comics (within a series) ====================
 
 export function getComics(seriesId: string): Promise<Comic[]> {

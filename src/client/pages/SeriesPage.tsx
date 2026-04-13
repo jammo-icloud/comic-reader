@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, LayoutGrid, List, Star, Pencil } from 'lucide-react';
 import type { Series, Comic } from '../lib/types';
-import { getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl, overrideMalId, deleteSeries, getThumbnailUrl } from '../lib/api';
+import { getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl, overrideMalId, deleteSeries, getThumbnailUrl, updateSeriesTags } from '../lib/api';
 import ComicCard from '../components/ComicCard';
 import ComicListItem from '../components/ComicListItem';
 import ThemeToggle from '../components/ThemeToggle';
@@ -23,6 +23,25 @@ export default function SeriesPage() {
   const [showOverride, setShowOverride] = useState(false);
   const [malIdInput, setMalIdInput] = useState('');
   const [overriding, setOverriding] = useState(false);
+
+  // Tag editing
+  const [showTagEdit, setShowTagEdit] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const [savingTags, setSavingTags] = useState(false);
+
+  const handleTagSave = async () => {
+    if (!id) return;
+    setSavingTags(true);
+    const tags = tagInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+    try {
+      await updateSeriesTags(id, tags);
+      const updated = await getSeriesDetail(id);
+      setSeries(updated);
+      setShowTagEdit(false);
+    } finally {
+      setSavingTags(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -147,13 +166,34 @@ export default function SeriesPage() {
               <OfflineButton comics={comics.map((c) => ({ ...c, path: `${id}/${c.file}` }))} label={`Save all ${comics.length} offline`} />
             </div>
 
-            {series.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {series.tags.map((tag) => (
-                  <span key={tag} className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full">{tag}</span>
-                ))}
-              </div>
-            )}
+            <div className="flex flex-wrap items-center gap-1.5 mt-3">
+              {series.tags.map((tag) => (
+                <span key={tag} className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full capitalize">{tag}</span>
+              ))}
+              {!showTagEdit ? (
+                <button
+                  onClick={() => { setShowTagEdit(true); setTagInput(series.tags.join(', ')); }}
+                  className="text-gray-400 dark:text-gray-600 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                  title="Edit tags"
+                >
+                  <Pencil size={11} />
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5 w-full mt-1">
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleTagSave()}
+                    placeholder="action, comedy, manga..."
+                    autoFocus
+                    className="flex-1 px-2 py-1 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <button onClick={handleTagSave} disabled={savingTags} className="px-2 py-1 text-xs bg-blue-600 text-white rounded disabled:opacity-50">{savingTags ? '...' : 'Save'}</button>
+                  <button onClick={() => setShowTagEdit(false)} className="text-xs text-gray-400">Cancel</button>
+                </div>
+              )}
+            </div>
 
             {series.synopsis && (
               <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-5">{series.synopsis}</p>

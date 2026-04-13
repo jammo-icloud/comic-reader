@@ -211,6 +211,18 @@ router.get('/series-cover/:id', (req, res) => {
   }
 });
 
+// --- Update series tags ---
+
+router.patch('/series/:id/tags', (req, res) => {
+  const series = loadAllSeries().find((s) => s.id === req.params.id);
+  if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
+  const { tags } = req.body;
+  if (!Array.isArray(tags)) { res.status(400).json({ error: 'tags must be an array' }); return; }
+  series.tags = tags;
+  saveSeries(series);
+  res.json(series);
+});
+
 // --- Delete series ---
 
 router.delete('/series/:id', (req, res) => {
