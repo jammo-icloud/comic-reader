@@ -43,6 +43,12 @@ export function authGuard(req: Request, res: Response, next: NextFunction) {
     return;
   }
 
+  // Allow static assets (covers, thumbnails) — these are loaded by <img> tags
+  if (req.path.startsWith('/series-cover/') || req.path.startsWith('/thumbnails/')) {
+    next();
+    return;
+  }
+
   // Allow extension uploads (chapter-images endpoint uses its own API key or is local-network only)
   if (req.path.startsWith('/import/chapter-images')) {
     next();
