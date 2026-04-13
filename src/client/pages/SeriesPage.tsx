@@ -131,14 +131,24 @@ export default function SeriesPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{series.englishTitle}</p>
             )}
 
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-1.5 mt-1">
               {!showOverride ? (
-                <button onClick={() => setShowOverride(true)} className="text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors" title="Change MAL match">
-                  <Pencil size={13} />
-                </button>
+                <>
+                  {series.malId ? (
+                    <a href={`https://myanimelist.net/manga/${series.malId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500 transition-colors font-mono">
+                      MAL #{series.malId}
+                    </a>
+                  ) : (
+                    <span className="text-xs text-gray-500 dark:text-gray-600">No MAL link</span>
+                  )}
+                  <button onClick={() => setShowOverride(true)} className="text-gray-400 dark:text-gray-600 hover:text-blue-500 dark:hover:text-blue-400 transition-colors" title="Edit MAL ID">
+                    <Pencil size={11} />
+                  </button>
+                </>
               ) : (
                 <div className="flex items-center gap-1.5">
-                  <input type="number" value={malIdInput} onChange={(e) => setMalIdInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleOverrideSubmit()} placeholder="MAL ID" autoFocus className="w-24 px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                  <span className="text-xs text-gray-500">MAL #</span>
+                  <input type="number" value={malIdInput} onChange={(e) => setMalIdInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleOverrideSubmit()} placeholder={series.malId ? String(series.malId) : 'ID'} autoFocus className="w-20 px-2 py-0.5 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono" />
                   <button onClick={handleOverrideSubmit} disabled={overriding || !malIdInput.trim()} className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded disabled:opacity-50">{overriding ? '...' : 'Go'}</button>
                   <button onClick={() => { setShowOverride(false); setMalIdInput(''); }} className="text-xs text-gray-400">Cancel</button>
                 </div>
@@ -198,12 +208,6 @@ export default function SeriesPage() {
             {series.synopsis && (
               <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-5">{series.synopsis}</p>
             )}
-
-            <div className="flex flex-wrap gap-3 mt-2">
-              {series.malId && (
-                <a href={`https://myanimelist.net/manga/${series.malId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500">MyAnimeList &rarr;</a>
-              )}
-            </div>
 
             <div className="mt-3">
               {!confirmDelete ? (

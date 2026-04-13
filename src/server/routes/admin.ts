@@ -40,7 +40,7 @@ function getDirSize(dir: string): number {
   return size;
 }
 
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.3.1';
 
 router.get('/admin/stats', (_req, res) => {
   const allSeries = loadAllSeries();
