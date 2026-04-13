@@ -26,7 +26,7 @@ async function fetchPage(url: string): Promise<string> {
   return res.text();
 }
 
-export const mangafoxSource: MangaSource = {
+export const mangafoxSource: MangaSource & { lastMetadata: any } = {
   id: 'mangafox',
   name: 'MangaFox',
 
@@ -64,8 +64,38 @@ export const mangafoxSource: MangaSource = {
     return items;
   },
 
+  lastMetadata: null as any,
+
   async getChapters(mangaSlug: string): Promise<ChapterResult[]> {
     const html = await fetchPage(`${SITE_URL}/manga/${mangaSlug}/`);
+
+    // Extract metadata from detail page
+    const synopsisMatch = html.match(/class="fullcontent">([\s\S]*?)<\/p>/);
+    const synopsis = synopsisMatch ? synopsisMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+
+    const genreTags: string[] = [];
+    const tagRegex = /detail-info-right-tag-list[\s\S]*?<\/p>/;
+    const tagBlock = html.match(tagRegex)?.[0] || '';
+    const tagItemRegex = /title="([^"]+)"/g;
+    let tagMatch;
+    while ((tagMatch = tagItemRegex.exec(tagBlock)) !== null) {
+      const tag = tagMatch[1];
+      // Skip author names and chapter references
+      if (!tag.includes('Ch.') && !tag.includes('Vol.') && tag.length < 30) {
+        genreTags.push(tag.toLowerCase());
+      }
+    }
+
+    const statusMatch = html.match(/detail-info-right-title-tip[^>]*>([^<]+)/);
+    const status = statusMatch ? statusMatch[1].trim().toLowerCase() : '';
+
+    this.lastMetadata = {
+      description: synopsis,
+      genres: genreTags,
+      status: status || null,
+      coverUrl: null, // Already from search
+      year: null,
+    };
 
     const chapters: ChapterResult[] = [];
     const regex = /href="(\/manga\/[^"]*\/c[\d.]+\/[^"]*)"[^>]*>/g;
