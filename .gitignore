@@ -6,7 +6,7 @@ comics/
 local-library/
 .DS_Store
 .claude/
-scripts/
+# scripts/ — tracked, dev utility scripts
 
 # Dev runtime files
 .env
