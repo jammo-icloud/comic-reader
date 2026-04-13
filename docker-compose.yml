@@ -19,7 +19,7 @@ services:
       # First user to log in gets all existing comics in their collection
       - DEFAULT_USER=local
       # Set to your admin username for admin privileges
-      # - ADMIN_USER=james
+      - ADMIN_USER=jammo
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

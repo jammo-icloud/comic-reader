@@ -40,6 +40,8 @@ function getDirSize(dir: string): number {
   return size;
 }
 
+const APP_VERSION = '2.0.0';
+
 router.get('/admin/stats', (_req, res) => {
   const allSeries = loadAllSeries();
   let totalChapters = 0;
@@ -58,6 +60,7 @@ router.get('/admin/stats', (_req, res) => {
   const dataSize = getDirSize(DATA_DIR);
 
   res.json({
+    version: APP_VERSION,
     seriesCount: allSeries.length,
     chapterCount: totalChapters,
     userCount: users,

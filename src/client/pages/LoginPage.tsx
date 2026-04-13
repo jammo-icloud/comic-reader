@@ -1,7 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import { Loader, AlertCircle, ShieldCheck } from 'lucide-react';
 
+function useVersion() {
+  const [version, setVersion] = useState('');
+  useEffect(() => {
+    fetch('/api/auth/version').then((r) => r.json()).then((d) => setVersion(d.version)).catch(() => {});
+  }, []);
+  return version;
+}
+
 export default function LoginPage() {
+  const version = useVersion();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [otpCode, setOtpCode] = useState('');
@@ -147,7 +156,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-[10px] text-gray-600 mt-4">
-          Synology NAS Authentication
+          Synology NAS Authentication {version && `· v${version}`}
         </p>
       </div>
     </div>

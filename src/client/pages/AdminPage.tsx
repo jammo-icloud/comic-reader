@@ -80,7 +80,10 @@ export default function AdminPage() {
           <button onClick={() => navigate('/')} className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400">
             <ArrowLeft size={18} />
           </button>
-          <h1 className="text-lg font-semibold flex-1">Admin</h1>
+          <h1 className="text-lg font-semibold flex-1">
+            Admin
+            {stats?.version && <span className="text-[10px] text-gray-500 ml-2 font-normal">v{stats.version}</span>}
+          </h1>
           <ThemeToggle />
           <UserMenu />
         </div>
