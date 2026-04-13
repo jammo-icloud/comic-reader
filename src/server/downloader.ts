@@ -343,13 +343,32 @@ async function processQueue() {
           if (!fs.existsSync(coversDir)) fs.mkdirSync(coversDir, { recursive: true });
 
           const coverUrl = job.metadata.coverUrl;
-          // Handle proxied URLs from the web app
-          const actualUrl = coverUrl.startsWith('/api/discover/proxy-image?url=')
-            ? decodeURIComponent(coverUrl.replace('/api/discover/proxy-image?url=', ''))
-            : coverUrl;
+          // Resolve cover URLs to actual CDN URLs
+          let actualUrl: string;
+          if (coverUrl.startsWith('/api/discover/proxy-image?url=')) {
+            // MangaFox proxy URL — extract the real CDN URL
+            actualUrl = decodeURIComponent(coverUrl.replace('/api/discover/proxy-image?url=', ''));
+          } else if (coverUrl.startsWith('/api/discover/cover/')) {
+            // MangaDex proxy URL — convert to direct CDN URL
+            // /api/discover/cover/{mangaId}/{filename} → https://uploads.mangadex.org/covers/{mangaId}/{filename}
+            const parts = coverUrl.replace('/api/discover/cover/', '').split('/');
+            actualUrl = `https://uploads.mangadex.org/covers/${parts[0]}/${parts[1]}`;
+          } else if (coverUrl.startsWith('/')) {
+            // Other relative URLs — can't resolve, skip
+            console.error(`  Can't resolve relative cover URL: ${coverUrl}`);
+            actualUrl = '';
+          } else {
+            actualUrl = coverUrl;
+          }
+
+          if (!actualUrl) throw new Error('No resolvable cover URL');
 
           const coverRes = await fetch(actualUrl, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Referer': actualUrl.includes('mangadex') ? 'https://mangadex.org/' :
+                         actualUrl.includes('mfcdn') || actualUrl.includes('fanfox') ? 'https://fanfox.net/' : '',
+            },
           });
           if (coverRes.ok) {
             const coverBuffer = Buffer.from(await coverRes.arrayBuffer());
