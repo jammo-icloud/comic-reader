@@ -189,10 +189,21 @@ router.get('/series-cover/:id', (req, res) => {
   if (!series?.coverFile) { res.status(404).json({ error: 'No cover' }); return; }
 
   const DATA_DIR = process.env.DATA_DIR || './data';
-  const coverPath = pathMod.join(DATA_DIR, 'series-covers', series.coverFile);
+  const coverPath = pathMod.resolve(pathMod.join(DATA_DIR, 'series-covers', series.coverFile));
 
-  res.sendFile(pathMod.resolve(coverPath), (err) => {
-    if (err && !res.headersSent) res.status(404).json({ error: 'Cover not found' });
+  const exists = fs.existsSync(coverPath);
+  console.log(`  Cover request: ${req.params.id} → ${coverPath} (exists: ${exists})`);
+
+  if (!exists) {
+    res.status(404).json({ error: 'Cover file not found', path: coverPath });
+    return;
+  }
+
+  res.sendFile(coverPath, (err) => {
+    if (err && !res.headersSent) {
+      console.error(`  sendFile error: ${(err as Error).message}`);
+      res.status(404).json({ error: 'Cover not found' });
+    }
   });
 });
 
