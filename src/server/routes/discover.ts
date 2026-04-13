@@ -116,8 +116,11 @@ router.post('/discover/download', (req, res) => {
   res.json(job);
 });
 
-// Download queue
-router.get('/discover/queue', (_req, res) => { res.json(getQueue()); });
+// Download queue — filtered to current user's downloads
+router.get('/discover/queue', (req, res) => {
+  const userJobs = getQueue().filter((j) => j.username === req.username);
+  res.json(userJobs);
+});
 
 router.post('/discover/queue/:id/cancel', (req, res) => {
   const cancelled = cancelDownload(req.params.id);
@@ -133,13 +136,18 @@ router.delete('/discover/queue/:id', (req, res) => {
 // Tracked manga
 router.get('/discover/tracked', (_req, res) => { res.json(getTrackedList()); });
 
-// SSE progress
+// SSE progress — only sends events for the connected user's downloads
 router.get('/discover/progress', (req, res) => {
+  const username = req.username;
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
-  const cleanup = onProgress((job) => { res.write(`data: ${JSON.stringify(job)}\n\n`); });
+  const cleanup = onProgress((job) => {
+    if (job.username === username) {
+      res.write(`data: ${JSON.stringify(job)}\n\n`);
+    }
+  });
   req.on('close', cleanup);
 });
 
