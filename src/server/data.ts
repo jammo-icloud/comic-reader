@@ -202,7 +202,12 @@ function collectionPath(username: string): string {
 export function loadCollection(username: string): CollectionEntry[] {
   const p = collectionPath(username);
   if (!fs.existsSync(p)) return [];
-  return fs.readFileSync(p, 'utf-8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  try {
+    return fs.readFileSync(p, 'utf-8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  } catch {
+    console.error(`Corrupt collection file for "${username}", resetting`);
+    return [];
+  }
 }
 
 export function addToCollection(username: string, seriesId: string) {
@@ -232,7 +237,12 @@ function progressPath(username: string): string {
 export function loadUserProgress(username: string): UserProgressRecord[] {
   const p = progressPath(username);
   if (!fs.existsSync(p)) return [];
-  return fs.readFileSync(p, 'utf-8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  try {
+    return fs.readFileSync(p, 'utf-8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  } catch {
+    console.error(`Corrupt progress file for "${username}", resetting`);
+    return [];
+  }
 }
 
 export function loadProgressForSeries(username: string, seriesId: string): Map<string, UserProgressRecord> {
@@ -272,7 +282,12 @@ function prefsPath(username: string): string {
 export function loadPreferences(username: string): UserPreferences {
   const p = prefsPath(username);
   if (!fs.existsSync(p)) return { theme: 'dark' };
-  return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch {
+    console.error(`Corrupt preferences for "${username}", using defaults`);
+    return { theme: 'dark' };
+  }
 }
 
 export function savePreferences(username: string, prefs: UserPreferences) {

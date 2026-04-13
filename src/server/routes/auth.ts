@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { ensureUserDir, loadPreferences, savePreferences, userDir } from '../data.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -19,6 +20,36 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 // Synology DSM API base URL (running on the same NAS)
 const DSM_URL = process.env.DSM_URL || 'http://localhost:5000';
+
+/**
+ * Initialize a new user on first login.
+ * Creates user directory, preferences, and empty collection/progress files.
+ */
+function initializeUser(username: string) {
+  ensureUserDir(username);
+  const dir = userDir(username);
+
+  // Create preferences if missing
+  const prefsPath = path.join(dir, 'preferences.json');
+  if (!fs.existsSync(prefsPath)) {
+    savePreferences(username, { theme: 'dark' });
+    console.log(`  Initialized preferences for "${username}"`);
+  }
+
+  // Create empty collection if missing or corrupt
+  const collPath = path.join(dir, 'collection.jsonl');
+  if (!fs.existsSync(collPath) || fs.statSync(collPath).size <= 1) {
+    fs.writeFileSync(collPath, '');
+    console.log(`  Initialized collection for "${username}"`);
+  }
+
+  // Create empty progress if missing or corrupt
+  const progPath = path.join(dir, 'progress.jsonl');
+  if (!fs.existsSync(progPath) || fs.statSync(progPath).size <= 1) {
+    fs.writeFileSync(progPath, '');
+    console.log(`  Initialized progress for "${username}"`);
+  }
+}
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
@@ -73,6 +104,9 @@ router.post('/auth/login', async (req, res) => {
     // Logout from DSM (we don't need the DSM session, just validated creds)
     fetch(`${DSM_URL}/webapi/entry.cgi?api=SYNO.API.Auth&version=6&method=logout&_sid=${dsmData.data?.sid || ''}`).catch(() => {});
 
+    // Initialize user data on first login
+    initializeUser(username);
+
     // Create our own session
     const token = generateToken();
     sessions.set(token, {
@@ -99,6 +133,7 @@ router.post('/auth/login', async (req, res) => {
 
     // Dev mode: accept any login
     console.log(`  Dev mode auth: accepting login for "${username}"`);
+    initializeUser(username);
     const token = generateToken();
     sessions.set(token, {
       username,
