@@ -29,6 +29,19 @@ export function updatePreferences(prefs: { theme?: 'dark' | 'light' }): Promise<
   });
 }
 
+// ==================== CRZ Import ====================
+
+export async function uploadCrz(file: File): Promise<{ seriesId: string; title: string; chaptersImported: number; merged: boolean }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${BASE}/import/crz`, { method: 'POST', body: formData });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || `CRZ import failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 // ==================== Collection ====================
 
 export function addToCollection(seriesId: string): Promise<void> {

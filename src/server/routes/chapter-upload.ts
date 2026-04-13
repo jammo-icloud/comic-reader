@@ -6,6 +6,7 @@ import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { slugify, loadAllSeries, saveSeries, loadComics, writeComics, addToCollection, type SeriesRecord, type ComicRecord } from '../data.js';
 import { shortHash } from '../hash.js';
+import { importCrz } from '../crz-handler.js';
 
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
 const IMPORT_DIR = path.join(LIBRARY_DIR, 'import');
@@ -224,6 +225,27 @@ router.get('/import/watch-folder', (_req, res) => {
     }));
 
   res.json({ path: IMPORT_DIR, items });
+});
+
+/**
+ * POST /api/import/crz
+ * Import a .crz (Comic Reader Zip) file — chapters + metadata + cover.
+ */
+const crzUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } }); // 500MB
+router.post('/import/crz', crzUpload.single('file'), async (req, res) => {
+  const file = req.file;
+  if (!file) {
+    res.status(400).json({ error: 'No .crz file uploaded' });
+    return;
+  }
+
+  try {
+    const result = await importCrz(file.buffer, req.username);
+    res.json(result);
+  } catch (err) {
+    console.error(`CRZ import failed: ${(err as Error).message}`);
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 export default router;

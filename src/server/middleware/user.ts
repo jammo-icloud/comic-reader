@@ -49,8 +49,8 @@ export function authGuard(req: Request, res: Response, next: NextFunction) {
     return;
   }
 
-  // Allow extension uploads (chapter-images endpoint uses its own API key or is local-network only)
-  if (req.path.startsWith('/import/chapter-images')) {
+  // Allow extension uploads and .crz imports
+  if (req.path.startsWith('/import/chapter-images') || req.path.startsWith('/import/crz')) {
     next();
     return;
   }

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FolderOpen, Upload, Loader, HardDrive, FileText, AlertCircle, Search } from 'lucide-react';
-import { getWatchFolder, uploadFiles, scanLocalImport, importScan } from '../lib/api';
+import { getWatchFolder, uploadFiles, scanLocalImport, importScan, uploadCrz } from '../lib/api';
 import PendingList from '../components/PendingList';
 import NotificationDropdown from '../components/NotificationDropdown';
 import ThemeToggle from '../components/ThemeToggle';
@@ -33,6 +33,9 @@ export default function ImportPage() {
   const [watchPath, setWatchPath] = useState('');
   const [loadingWatch, setLoadingWatch] = useState(false);
   const [scanningWatch, setScanningWatch] = useState(false);
+
+  // CRZ import
+  const [crzMessage, setCrzMessage] = useState('');
 
   // PendingList
   const [showPendingList, setShowPendingList] = useState(false);
@@ -75,12 +78,34 @@ export default function ImportPage() {
 
   // File upload (drag & drop or file picker)
   const handleFiles = async (files: File[]) => {
+    // Route .crz files to the CRZ import handler
+    const crzFiles = files.filter((f) => f.name.toLowerCase().endsWith('.crz'));
+    const otherFiles = files.filter((f) => !f.name.toLowerCase().endsWith('.crz'));
+
+    if (crzFiles.length > 0) {
+      setUploading(true);
+      setUploadError('');
+      setCrzMessage('');
+      try {
+        for (const crz of crzFiles) {
+          const result = await uploadCrz(crz);
+          setCrzMessage(`Imported "${result.title}": ${result.chaptersImported} chapters${result.merged ? ' (merged)' : ''}`);
+        }
+      } catch (err) {
+        setUploadError((err as Error).message);
+      } finally {
+        setUploading(false);
+      }
+      if (otherFiles.length === 0) return;
+    }
+
     const validExtensions = ['.pdf', '.cbr', '.cbz'];
-    const valid = files.filter((f) => validExtensions.some((ext) => f.name.toLowerCase().endsWith(ext)));
-    if (valid.length === 0) {
-      setUploadError('No supported files (PDF, CBR, CBZ)');
+    const valid = otherFiles.filter((f) => validExtensions.some((ext) => f.name.toLowerCase().endsWith(ext)));
+    if (valid.length === 0 && crzFiles.length === 0) {
+      setUploadError('No supported files (PDF, CBR, CBZ, CRZ)');
       return;
     }
+    if (valid.length === 0) return;
     setUploading(true);
     setUploadError('');
     try {
@@ -198,7 +223,7 @@ export default function ImportPage() {
               <Upload size={28} className={dragOver ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'} />
             )}
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {uploading ? 'Uploading...' : 'Drag & drop PDF, CBR, or CBZ files here'}
+              {uploading ? 'Uploading...' : 'Drag & drop PDF, CBR, CBZ, or CRZ files here'}
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -207,10 +232,13 @@ export default function ImportPage() {
             >
               or browse files
             </button>
+            {crzMessage && (
+              <p className="text-xs text-green-500 mt-1">{crzMessage}</p>
+            )}
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.cbr,.cbz"
+              accept=".pdf,.cbr,.cbz,.crz"
               multiple
               className="hidden"
               onChange={handleFileInput}
