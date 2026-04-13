@@ -331,6 +331,7 @@ async function processQueue() {
 
       try {
         let wasCancelled = false;
+        const skippedChapters: string[] = [];
 
         for (let i = 0; i < job.chapters.length; i++) {
           // Re-read task from disk to check for cancellation
@@ -364,19 +365,25 @@ async function processQueue() {
 
           console.log(`  Downloading Ch.${chapterNum} (${ch.pages} pages)...`);
 
-          // Determine source — MangaDex chapter IDs are UUIDs, others are slugs
-          const isMangaDex = /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(ch.id);
+          try {
+            // Determine source — MangaDex chapter IDs are UUIDs, others are slugs
+            const isMangaDex = /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(ch.id);
 
-          if (isMangaDex) {
-            await assembleChapterPdf(ch.id, outputPath, () => {
-              job.progress.pagesDownloaded++;
-              emitProgress(job);
-            });
-          } else {
-            await assembleChapterFromSource(ch.id, outputPath, () => {
-              job.progress.pagesDownloaded++;
-              emitProgress(job);
-            });
+            if (isMangaDex) {
+              await assembleChapterPdf(ch.id, outputPath, () => {
+                job.progress.pagesDownloaded++;
+                emitProgress(job);
+              });
+            } else {
+              await assembleChapterFromSource(ch.id, outputPath, () => {
+                job.progress.pagesDownloaded++;
+                emitProgress(job);
+              });
+            }
+          } catch (chErr) {
+            // Skip this chapter but continue with the rest
+            console.error(`  Ch.${chapterNum} failed: ${(chErr as Error).message} — skipping`);
+            skippedChapters.push(chapterNum);
           }
 
           job.progress.current = i + 1;
@@ -410,8 +417,14 @@ async function processQueue() {
           };
           saveTracked(tracked);
 
+          // Note skipped chapters in the job error field (visible in UI)
+          if (skippedChapters.length > 0) {
+            job.error = `Skipped ${skippedChapters.length} chapter(s): ${skippedChapters.join(', ')}`;
+          }
+
           // Re-scan library to pick up new files
-          console.log(`  Download complete: ${job.mangaTitle}. Rescanning...`);
+          const skipNote = skippedChapters.length > 0 ? ` (${skippedChapters.length} skipped)` : '';
+          console.log(`  Download complete: ${job.mangaTitle}${skipNote}. Rescanning...`);
           await rescanLibrary();
         }
 
