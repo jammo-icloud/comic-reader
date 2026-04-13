@@ -200,9 +200,6 @@ export default function SeriesPage() {
             )}
 
             <div className="flex flex-wrap gap-3 mt-2">
-              {series.mangaDexId && /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(series.mangaDexId) && (
-                <a href={`https://mangadex.org/title/${series.mangaDexId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500">MangaDex &rarr;</a>
-              )}
               {series.malId && (
                 <a href={`https://myanimelist.net/manga/${series.malId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500">MyAnimeList &rarr;</a>
               )}

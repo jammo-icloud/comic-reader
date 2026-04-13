@@ -9,13 +9,12 @@ import { rescanLibrary } from './scanner.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const TASKS_DIR = path.join(DATA_DIR, 'tasks');
-const TRACKED_PATH = path.join(DATA_DIR, 'tracked-manga.json');
 
 // --- Types ---
 
 export interface DownloadJob {
   id: string;
-  mangaDexId: string;
+  mangaDexId: string; // Legacy — stores source manga ID, not necessarily MangaDex
   mangaTitle: string;
   shelfId: string;
   username: string;
@@ -34,21 +33,6 @@ export interface DownloadJob {
     coverUrl?: string;
     sourceId?: string;
   };
-}
-
-export interface TrackedManga {
-  mangaDexId: string;
-  title: string;
-  shelfId: string;
-  lastSyncedAt: string;
-  downloadedChapterIds: string[];
-  // Rich metadata from MangaDex
-  description?: string;
-  status?: string;      // ongoing, completed, hiatus, cancelled
-  year?: number | null;
-  tags?: string[];
-  contentRating?: string;
-  coverUrl?: string;
 }
 
 // --- SSE listeners ---
@@ -125,22 +109,6 @@ export function cancelDownload(id: string): boolean {
   }
 
   return false;
-}
-
-// --- Tracked manga ---
-
-export function loadTracked(): Record<string, TrackedManga> {
-  if (fs.existsSync(TRACKED_PATH)) return JSON.parse(fs.readFileSync(TRACKED_PATH, 'utf-8'));
-  return {};
-}
-
-function saveTracked(data: Record<string, TrackedManga>) {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(TRACKED_PATH, JSON.stringify(data, null, 2));
-}
-
-export function getTrackedList(): TrackedManga[] {
-  return Object.values(loadTracked());
 }
 
 // --- Download logic ---
@@ -340,7 +308,7 @@ async function processQueue() {
           status: job.metadata?.status || null,
           year: job.metadata?.year || null,
           malId: null,
-          mangaDexId: job.mangaDexId,
+          mangaDexId: null,
           englishTitle: null,
           placeholder: 'manga.png',
         };
@@ -478,18 +446,6 @@ async function processQueue() {
           job.progress.currentChapter = null;
           saveTask(job);
           emitProgress(job);
-
-          // Track this manga for future sync — include rich metadata
-          const tracked = loadTracked();
-          tracked[job.mangaDexId] = {
-            mangaDexId: job.mangaDexId,
-            title: job.mangaTitle,
-            shelfId: job.shelfId,
-            lastSyncedAt: new Date().toISOString(),
-            downloadedChapterIds: job.chapters.map((c) => c.id),
-            ...(job.metadata || {}),
-          };
-          saveTracked(tracked);
 
           // Note skipped chapters in the job error field (visible in UI)
           if (skippedChapters.length > 0) {
