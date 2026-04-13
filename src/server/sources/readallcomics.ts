@@ -30,7 +30,7 @@ async function fetchPage(url: string): Promise<string> {
   return res.text();
 }
 
-export const readallcomicsSource: MangaSource = {
+export const readallcomicsSource: MangaSource & { lastMetadata: any } = {
   id: 'readallcomics',
   name: 'ReadAllComics',
 
@@ -67,8 +67,50 @@ export const readallcomicsSource: MangaSource = {
     return items;
   },
 
+  /**
+   * Extract metadata from the category page (called during chapter fetch).
+   * Stored as a side-effect so the downloader can use it.
+   */
+  lastMetadata: null as { description: string; genres: string[]; publisher: string; coverUrl: string | null; year: number | null } | null,
+
   async getChapters(mangaSlug: string): Promise<ChapterResult[]> {
     const html = await fetchPage(`${SITE_URL}/category/${mangaSlug}/`);
+
+    // Extract metadata from description-archive block
+    const descBlock = html.match(/class="description-archive"[\s\S]*?<\/div>\s*<\/div>\s*<\/center>/i)?.[0] || '';
+
+    // Synopsis — text after <strong> blocks, before </div>
+    const synopsisMatch = descBlock.match(/<\/strong>\s*<\/p>\s*<\/div>([\s\S]*?)<\/div>/);
+    let synopsis = '';
+    if (!synopsisMatch) {
+      // Try alternate pattern — text after <hr> tag
+      const altMatch = descBlock.match(/<strong>([\s\S]*?)<\/strong>\s*<\/p>/g);
+      if (altMatch) {
+        const lastStrong = altMatch[altMatch.length - 1];
+        const textMatch = lastStrong.match(/<strong>([\s\S]*?)<\/strong>/);
+        if (textMatch) synopsis = textMatch[1].replace(/<[^>]+>/g, '').trim();
+      }
+    } else {
+      synopsis = synopsisMatch[1].replace(/<[^>]+>/g, '').trim();
+    }
+
+    // Genres
+    const genresMatch = descBlock.match(/Genres:\s*<strong>([^<]+)<\/strong>/i);
+    const genres = genresMatch ? genresMatch[1].split(',').map((g) => g.trim().toLowerCase()) : [];
+
+    // Publisher
+    const pubMatch = descBlock.match(/Publisher:\s*<strong>([^<]+)<\/strong>/i);
+    const publisher = pubMatch ? pubMatch[1].trim() : '';
+
+    // Cover from description block
+    const coverMatch = descBlock.match(/<img[^>]*src="([^"]+)"/);
+    const descCover = coverMatch ? coverMatch[1] : null;
+
+    // Year from "Vol 1: October 2003" or similar
+    const yearMatch = descBlock.match(/(\d{4})/);
+    const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
+
+    this.lastMetadata = { description: synopsis, genres, publisher, coverUrl: descCover, year };
 
     const chapters: ChapterResult[] = [];
     const regex = /href="https:\/\/readallcomics\.com\/([^"]+)\/"[^>]*>\s*([^<]+)/g;

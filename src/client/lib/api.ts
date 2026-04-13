@@ -257,7 +257,7 @@ export function discoverSearch(query: string, offset = 0): Promise<{ results: Ma
   return fetchJson(`/discover/search?q=${encodeURIComponent(query)}&offset=${offset}`);
 }
 
-export function discoverChapters(sourceId: string, mangaId: string): Promise<MangaDexChapter[]> {
+export function discoverChapters(sourceId: string, mangaId: string): Promise<{ chapters: MangaDexChapter[]; metadata?: any }> {
   return fetchJson(`/discover/chapters/${sourceId}/${encodeURIComponent(mangaId)}`);
 }
 

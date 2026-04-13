@@ -130,8 +130,18 @@ export default function DiscoverPage() {
     setSelectedManga(manga);
     setLoadingChapters(true);
     try {
-      const ch = await discoverChapters(manga.sourceId, manga.mangaId);
+      const data = await discoverChapters(manga.sourceId, manga.mangaId);
+      // Handle both old format (array) and new format ({chapters, metadata})
+      const ch = Array.isArray(data) ? data : data.chapters;
       setChapters(ch);
+      // Merge source metadata into the manga object for the download
+      if (!Array.isArray(data) && data.metadata) {
+        const m = data.metadata;
+        if (m.description && !manga.description) manga.description = m.description;
+        if (m.genres?.length && !manga.tags?.length) manga.tags = m.genres;
+        if (m.coverUrl && !manga.coverUrl) manga.coverUrl = m.coverUrl;
+        if (m.year && !manga.year) manga.year = m.year;
+      }
     } catch (err) {
       setChapters([]);
     } finally {

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { searchAllSources, getChaptersFromSource, getPageUrlsFromSource, getAllSources } from '../sources/index.js';
+import { searchAllSources, getChaptersFromSource, getPageUrlsFromSource, getAllSources, getSource } from '../sources/index.js';
 import { queueDownload, getQueue, removeFromQueue, cancelDownload, onProgress, getTrackedList } from '../downloader.js';
 import { loadAllSeries, isInCollection } from '../data.js';
 
@@ -44,8 +44,14 @@ router.get('/discover/search', async (req, res) => {
 // Get chapters for a manga from a specific source
 router.get('/discover/chapters/:sourceId/:mangaId', async (req, res) => {
   try {
+    const source = getSource(req.params.sourceId);
     const chapters = await getChaptersFromSource(req.params.sourceId, req.params.mangaId);
-    res.json(chapters);
+
+    // Include metadata if the source extracted it (e.g., ReadAllComics)
+    const metadata = (source as any)?.lastMetadata || null;
+    if (source) (source as any).lastMetadata = null; // Reset after reading
+
+    res.json({ chapters, metadata });
   } catch (err) {
     res.status(502).json({ error: 'Failed to fetch chapters' });
   }
