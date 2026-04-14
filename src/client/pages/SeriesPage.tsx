@@ -24,6 +24,9 @@ export default function SeriesPage() {
   const [malIdInput, setMalIdInput] = useState('');
   const [overriding, setOverriding] = useState(false);
 
+  // Synopsis toggle
+  const [expandSynopsis, setExpandSynopsis] = useState(false);
+
   // Tag editing
   const [showTagEdit, setShowTagEdit] = useState(false);
   const [tagInput, setTagInput] = useState('');
@@ -206,7 +209,15 @@ export default function SeriesPage() {
             </div>
 
             {series.synopsis && (
-              <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-5">{series.synopsis}</p>
+              <div className="mt-3">
+                <p className={`text-sm text-gray-600 dark:text-gray-400 leading-relaxed ${expandSynopsis ? '' : 'line-clamp-2'}`}>{series.synopsis}</p>
+                <button
+                  onClick={() => setExpandSynopsis(!expandSynopsis)}
+                  className="text-[11px] text-gray-400 hover:text-blue-500 mt-0.5 transition-colors"
+                >
+                  {expandSynopsis ? 'Show less' : 'Show more'}
+                </button>
+              </div>
             )}
 
             <div className="mt-3">

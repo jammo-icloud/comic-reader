@@ -19,7 +19,8 @@ export default function LibraryPage() {
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
+  const [showAllTags, setShowAllTags] = useState(false);
   const [continueCollapsed, setContinueCollapsed] = useState(true);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const { isAdmin } = useAuth();
@@ -60,7 +61,7 @@ export default function LibraryPage() {
       const q = search.toLowerCase();
       if (!s.name.toLowerCase().includes(q) && !(s.englishTitle?.toLowerCase().includes(q)) && !(s.synopsis?.toLowerCase().includes(q))) return false;
     }
-    if (tagFilter && !(s.tags || []).includes(tagFilter)) return false;
+    if (tagFilters.size > 0 && !(s.tags || []).some((t) => tagFilters.has(t))) return false;
     return true;
   });
 
@@ -180,38 +181,70 @@ export default function LibraryPage() {
         )}
       </header>
 
-      {/* Tag filter pills */}
+      {/* Tag filter — collapsible, multi-select */}
       {allTags.length > 0 && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 flex flex-wrap gap-1.5">
-          <button
-            onClick={() => setTagFilter(null)}
-            className={`text-[11px] px-2.5 py-1 rounded-full transition-colors ${
-              !tagFilter
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
-          >
-            All
-          </button>
-          {allTags.map((tag) => (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
-              key={tag}
-              onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
-              className={`text-[11px] px-2.5 py-1 rounded-full capitalize transition-colors ${
-                tagFilter === tag
+              onClick={() => { setTagFilters(new Set()); setShowAllTags(false); }}
+              className={`text-[11px] px-2.5 py-1 rounded-full transition-colors ${
+                tagFilters.size === 0
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
-              {tag}
+              All
             </button>
-          ))}
+            {tagFilters.size > 0 && (
+              <span className="text-[10px] text-gray-500 dark:text-gray-400">{filtered.length} results</span>
+            )}
+            {!showAllTags && (
+              <button
+                onClick={() => setShowAllTags(true)}
+                className="text-[11px] px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center gap-1"
+              >
+                Tags <ChevronDown size={10} />
+              </button>
+            )}
+          </div>
+          {showAllTags && (
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {allTags.map((tag) => {
+                const active = tagFilters.has(tag);
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => {
+                      setTagFilters((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(tag)) next.delete(tag); else next.add(tag);
+                        return next;
+                      });
+                    }}
+                    className={`text-[11px] px-2.5 py-1 rounded-full capitalize transition-colors ${
+                      active
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setShowAllTags(false)}
+                className="text-[10px] text-gray-400 hover:text-gray-300 ml-1"
+              >
+                collapse
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Continue Reading */}
-        {continueReading.length > 0 && !search && !tagFilter && (
+        {continueReading.length > 0 && !search && tagFilters.size === 0 && (
           <section>
             <button
               onClick={() => setContinueCollapsed(!continueCollapsed)}
