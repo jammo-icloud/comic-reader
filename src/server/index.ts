@@ -12,6 +12,7 @@ import adminRoutes from './routes/admin.js';
 import { resumeIncompleteDownloads } from './downloader.js';
 import { userMiddleware, authGuard } from './middleware/user.js';
 import { migrateToMultiUser } from './migrate.js';
+import { runCleanup } from './cleanup.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.SERVER_PORT || '3000', 10);
@@ -74,6 +75,9 @@ process.on('SIGTERM', () => process.exit(0));
 
 // Migrate single-user data to multi-user (runs once)
 migrateToMultiUser();
+
+// Compact and clean up data files
+runCleanup();
 
 app.listen(PORT, () => {
   console.log(`Comic Reader running on http://localhost:${PORT}`);
