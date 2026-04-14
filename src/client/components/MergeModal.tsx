@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { X, GitMerge, Loader, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, GitMerge, Loader, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { getMergePreview, executeMerge } from '../lib/api';
 
 interface CatalogItem {
@@ -25,8 +25,8 @@ interface MergeSlot {
 }
 
 interface MergeModalProps {
-  keepSeries: CatalogItem;
-  catalog: CatalogItem[];
+  seriesA: CatalogItem;
+  seriesB: CatalogItem;
   onClose: () => void;
   onComplete: () => void;
 }
@@ -52,14 +52,10 @@ function displayValue(val: any): string {
   return String(val);
 }
 
-export default function MergeModal({ keepSeries, catalog, onClose, onComplete }: MergeModalProps) {
-  const [removeId, setRemoveId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-
-  // Preview data
+export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: MergeModalProps) {
+  // Preview data — seriesA = "keep", seriesB = "remove" (but user chooses per-cell)
   const [preview, setPreview] = useState<{ keep: any; remove: any; slots: MergeSlot[] } | null>(null);
-  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(true);
 
   // Selections
   const [chapterChoices, setChapterChoices] = useState<Map<number, 'keep' | 'remove'>>(new Map());
@@ -70,42 +66,29 @@ export default function MergeModal({ keepSeries, catalog, onClose, onComplete }:
   const [executing, setExecuting] = useState(false);
   const [error, setError] = useState('');
 
-  // Filter catalog for dropdown (exclude the keep series, match types)
-  const filteredCatalog = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return catalog
-      .filter((s) => s.id !== keepSeries.id && s.type === keepSeries.type)
-      .filter((s) =>
-        !q || s.name.toLowerCase().includes(q) || (s.englishTitle?.toLowerCase().includes(q))
-      );
-  }, [catalog, keepSeries, searchQuery]);
-
-  // Load preview when removeId changes
+  // Load preview immediately
   useEffect(() => {
-    if (!removeId) { setPreview(null); return; }
     setLoadingPreview(true);
     setError('');
-    getMergePreview(keepSeries.id, removeId)
+    getMergePreview(seriesA.id, seriesB.id)
       .then((data) => {
         setPreview(data);
-        // Default selections: keep side when both exist, auto-select sole side
         const defaults = new Map<number, 'keep' | 'remove'>();
         for (const slot of data.slots) {
           if (slot.keepChapter && !slot.removeChapter) defaults.set(slot.order, 'keep');
           else if (!slot.keepChapter && slot.removeChapter) defaults.set(slot.order, 'remove');
-          else defaults.set(slot.order, 'keep'); // Default to keep when both
+          else defaults.set(slot.order, 'keep');
         }
         setChapterChoices(defaults);
-        // Default metadata: keep side for everything
         setMetaChoices(new Map(META_FIELDS.map((f) => [f.key, 'keep'])));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoadingPreview(false));
-  }, [removeId, keepSeries.id]);
+  }, [seriesA.id, seriesB.id]);
 
   const handleMerge = async () => {
-    if (!preview || !removeId) return;
-    if (!confirm(`Merge "${preview.remove.name}" into "${preview.keep.name}"? The removed series and its unchosen chapters will be permanently deleted.`)) return;
+    if (!preview) return;
+    if (!confirm(`Merge these two series? The unchosen series folder and its rejected chapters will be permanently deleted.`)) return;
 
     setExecuting(true);
     setError('');
@@ -123,7 +106,7 @@ export default function MergeModal({ keepSeries, catalog, onClose, onComplete }:
       const metadata: Record<string, 'keep' | 'remove'> = {};
       for (const [key, val] of metaChoices) metadata[key] = val;
 
-      await executeMerge({ keepId: keepSeries.id, removeId, chapters, metadata });
+      await executeMerge({ keepId: seriesA.id, removeId: seriesB.id, chapters, metadata });
       onComplete();
     } catch (err) {
       setError((err as Error).message);
@@ -137,12 +120,12 @@ export default function MergeModal({ keepSeries, catalog, onClose, onComplete }:
   const totalChapters = keepCount + removeCount;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-5xl mx-4 max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-5xl mx-4 max-h-full overflow-y-auto">
 
         {/* Header */}
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-800 shrink-0">
+        <div className="sticky top-0 z-10 flex items-center gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-t-xl">
           <GitMerge size={18} className="text-blue-500" />
           <h2 className="text-lg font-semibold flex-1">Merge Series</h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400">
@@ -150,71 +133,14 @@ export default function MergeModal({ keepSeries, catalog, onClose, onComplete }:
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+        <div className="px-6 py-4 space-y-6">
 
-          {/* Series picker */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Keep side */}
-            <div className="p-3 rounded-lg border-2 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10">
-              <p className="text-[10px] uppercase font-medium text-blue-500 mb-1">Keep</p>
-              <p className="font-semibold truncate">{keepSeries.name}</p>
-              {keepSeries.englishTitle && keepSeries.englishTitle !== keepSeries.name && (
-                <p className="text-xs text-gray-400 truncate">{keepSeries.englishTitle}</p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">{keepSeries.count} chapters</p>
-            </div>
-
-            {/* Remove side — dropdown picker */}
-            <div className="p-3 rounded-lg border-2 border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10">
-              <p className="text-[10px] uppercase font-medium text-red-500 mb-1">Merge &amp; Remove</p>
-              {removeId && preview ? (
-                <div>
-                  <p className="font-semibold truncate">{preview.remove.name}</p>
-                  {preview.remove.englishTitle && preview.remove.englishTitle !== preview.remove.name && (
-                    <p className="text-xs text-gray-400 truncate">{preview.remove.englishTitle}</p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">{preview.remove.count} chapters</p>
-                  <button onClick={() => { setRemoveId(null); setPreview(null); }} className="text-xs text-red-500 mt-1 hover:underline">Change</button>
-                </div>
-              ) : (
-                <div className="relative">
-                  <div
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-pointer"
-                    onClick={() => setDropdownOpen(!dropdownOpen)}
-                  >
-                    <Search size={14} className="text-gray-400 shrink-0" />
-                    <input
-                      type="text"
-                      placeholder="Search series to merge..."
-                      value={searchQuery}
-                      onChange={(e) => { setSearchQuery(e.target.value); setDropdownOpen(true); }}
-                      onClick={(e) => { e.stopPropagation(); setDropdownOpen(true); }}
-                      className="flex-1 bg-transparent outline-none text-sm"
-                    />
-                    {dropdownOpen ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
-                  </div>
-                  {dropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto z-10">
-                      {filteredCatalog.length === 0 && (
-                        <p className="px-3 py-2 text-sm text-gray-400">No matching series</p>
-                      )}
-                      {filteredCatalog.map((s) => (
-                        <button
-                          key={s.id}
-                          onClick={() => { setRemoveId(s.id); setDropdownOpen(false); setSearchQuery(''); }}
-                          className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm"
-                        >
-                          <p className="truncate font-medium">{s.name}</p>
-                          {s.englishTitle && s.englishTitle !== s.name && (
-                            <p className="text-[10px] text-gray-400 truncate">{s.englishTitle}</p>
-                          )}
-                          <p className="text-[10px] text-gray-400">{s.count} chapters</p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+          {/* Instructions */}
+          <div className="flex items-start gap-3 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-4 py-3">
+            <Info size={16} className="shrink-0 mt-0.5 text-blue-400" />
+            <div>
+              <p>Click a cell to select which value to keep for each row. <strong className="text-gray-700 dark:text-gray-200">Highlighted cells are kept</strong>, unhighlighted cells are discarded.</p>
+              <p className="mt-1 text-xs text-gray-400">Merging <strong>{seriesA.name}</strong> ({seriesA.count} ch.) with <strong>{seriesB.name}</strong> ({seriesB.count} ch.). The unchosen series folder will be deleted.</p>
             </div>
           </div>
 
@@ -248,12 +174,8 @@ export default function MergeModal({ keepSeries, catalog, onClose, onComplete }:
                       <thead>
                         <tr className="bg-gray-50 dark:bg-gray-800/50 text-xs text-gray-500">
                           <th className="px-3 py-1.5 text-left font-medium w-28">Field</th>
-                          <th className="px-3 py-1.5 text-left font-medium">
-                            <span className="text-blue-500">Keep</span>
-                          </th>
-                          <th className="px-3 py-1.5 text-left font-medium">
-                            <span className="text-red-500">Remove</span>
-                          </th>
+                          <th className="px-3 py-1.5 text-left font-medium truncate max-w-[200px]">{seriesA.name}</th>
+                          <th className="px-3 py-1.5 text-left font-medium truncate max-w-[200px]">{seriesB.name}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -280,7 +202,7 @@ export default function MergeModal({ keepSeries, catalog, onClose, onComplete }:
                               <td
                                 className={`px-3 py-1.5 text-xs cursor-pointer truncate max-w-[200px] ${
                                   choice === 'remove'
-                                    ? 'bg-red-50 dark:bg-red-900/20 font-medium'
+                                    ? 'bg-blue-50 dark:bg-blue-900/20 font-medium'
                                     : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                                 }`}
                                 onClick={() => setMetaChoices((prev) => new Map(prev).set(key, 'remove'))}
@@ -310,9 +232,9 @@ export default function MergeModal({ keepSeries, catalog, onClose, onComplete }:
                         for (const s of preview.slots) all.set(s.order, s.keepChapter ? 'keep' : 'remove');
                         setChapterChoices(all);
                       }}
-                      className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 hover:bg-blue-100"
+                      className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                     >
-                      All left
+                      All {seriesA.name.length > 15 ? 'left' : seriesA.name}
                     </button>
                     <button
                       onClick={() => {
@@ -320,30 +242,25 @@ export default function MergeModal({ keepSeries, catalog, onClose, onComplete }:
                         for (const s of preview.slots) all.set(s.order, s.removeChapter ? 'remove' : 'keep');
                         setChapterChoices(all);
                       }}
-                      className="px-2 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 hover:bg-red-100"
+                      className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                     >
-                      All right
+                      All {seriesB.name.length > 15 ? 'right' : seriesB.name}
                     </button>
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden max-h-[40vh] overflow-y-auto">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                   <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800/80 backdrop-blur">
-                      <tr className="text-gray-500">
+                    <thead>
+                      <tr className="bg-gray-50 dark:bg-gray-800/50 text-gray-500">
                         <th className="px-3 py-1.5 text-left font-medium w-16">#</th>
-                        <th className="px-3 py-1.5 text-left font-medium">
-                          <span className="text-blue-500">Keep</span>
-                        </th>
-                        <th className="px-3 py-1.5 text-left font-medium">
-                          <span className="text-red-500">Remove</span>
-                        </th>
+                        <th className="px-3 py-1.5 text-left font-medium truncate max-w-[200px]">{seriesA.name}</th>
+                        <th className="px-3 py-1.5 text-left font-medium truncate max-w-[200px]">{seriesB.name}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                       {preview.slots.map((slot) => {
                         const choice = chapterChoices.get(slot.order);
-                        const onlyOne = !slot.keepChapter || !slot.removeChapter;
 
                         return (
                           <tr key={slot.order}>
@@ -370,7 +287,7 @@ export default function MergeModal({ keepSeries, catalog, onClose, onComplete }:
                                 !slot.removeChapter
                                   ? 'text-gray-300 dark:text-gray-700'
                                   : choice === 'remove'
-                                    ? 'bg-red-50 dark:bg-red-900/20 font-medium cursor-pointer'
+                                    ? 'bg-blue-50 dark:bg-blue-900/20 font-medium cursor-pointer'
                                     : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800'
                               }`}
                               onClick={() => slot.removeChapter && setChapterChoices((prev) => new Map(prev).set(slot.order, 'remove'))}
@@ -389,26 +306,24 @@ export default function MergeModal({ keepSeries, catalog, onClose, onComplete }:
                   </table>
                 </div>
               </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between pt-2 pb-1">
+                <p className="text-xs text-gray-400">
+                  {keepCount} from {seriesA.name.length > 20 ? 'left' : seriesA.name} + {removeCount} from {seriesB.name.length > 20 ? 'right' : seriesB.name} = {totalChapters} chapters
+                </p>
+                <button
+                  onClick={handleMerge}
+                  disabled={executing || totalChapters === 0}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  {executing ? <Loader className="animate-spin" size={14} /> : <GitMerge size={14} />}
+                  {executing ? 'Merging...' : 'Merge Series'}
+                </button>
+              </div>
             </>
           )}
         </div>
-
-        {/* Footer */}
-        {preview && (
-          <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 dark:border-gray-800 shrink-0">
-            <p className="text-xs text-gray-400">
-              {keepCount} from keep + {removeCount} from remove = {totalChapters} chapters
-            </p>
-            <button
-              onClick={handleMerge}
-              disabled={executing || totalChapters === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              {executing ? <Loader className="animate-spin" size={14} /> : <GitMerge size={14} />}
-              {executing ? 'Merging...' : 'Merge Series'}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import { enrichSeries } from '../enrich.js';
 import { rescanLibrary } from '../scanner.js';
 import { runCleanup } from '../cleanup.js';
 import { buildMergePreview, executeMerge } from '../merge.js';
+import { optimizeSeries } from '../pdf-optimizer.js';
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -199,6 +200,17 @@ router.post('/admin/merge', (req, res) => {
       return;
     }
     const result = executeMerge({ keepId, removeId, chapters, metadata: metadata || {} });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// --- Optimize PDFs ---
+
+router.post('/admin/catalog/:id/optimize', async (req, res) => {
+  try {
+    const result = await optimizeSeries(req.params.id);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });

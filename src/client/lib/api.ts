@@ -91,6 +91,10 @@ export function purgeAdminSeries(id: string): Promise<void> {
   return fetchJson(`/admin/catalog/${id}`, { method: 'DELETE' });
 }
 
+export function optimizeAdminSeries(id: string): Promise<{ filesOptimized: number; filesSkipped: number; totalSaved: number }> {
+  return fetchJson(`/admin/catalog/${id}/optimize`, { method: 'POST' });
+}
+
 export function getAdminSeriesComics(seriesId: string): Promise<Comic[]> {
   return fetchJson(`/admin/catalog/${seriesId}/comics`);
 }

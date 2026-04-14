@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge, FileDown } from 'lucide-react';
 import {
   getAdminStats, getAdminTasks, deleteAdminTask, retryAdminTask, cancelAdminTask, clearAdminTasks,
-  getAdminCatalog, purgeAdminSeries, adminEnrich, adminRescan, adminCleanup,
+  getAdminCatalog, purgeAdminSeries, optimizeAdminSeries, adminEnrich, adminRescan, adminCleanup,
   getAdminUsers,
 } from '../lib/api';
 import ThemeToggle from '../components/ThemeToggle';
@@ -36,8 +36,12 @@ export default function AdminPage() {
   const [rescanning, setRescanning] = useState(false);
   const [cleaning, setCleaning] = useState(false);
 
-  // Merge
-  const [mergeTarget, setMergeTarget] = useState<any | null>(null);
+  // Merge — select exactly 2 series from the catalog
+  const [mergeSelected, setMergeSelected] = useState<Set<string>>(new Set());
+  const [mergeTarget, setMergeTarget] = useState<{ a: any; b: any } | null>(null);
+
+  // Optimize
+  const [optimizing, setOptimizing] = useState<Set<string>>(new Set());
 
   // Users
   const [users, setUsers] = useState<any[]>([]);
@@ -211,6 +215,22 @@ export default function AdminPage() {
                 />
               </div>
               <div className="flex items-center gap-2">
+                {mergeSelected.size === 2 && (
+                  <button
+                    onClick={() => {
+                      const ids = [...mergeSelected];
+                      const a = catalog.find((s) => s.id === ids[0]);
+                      const b = catalog.find((s) => s.id === ids[1]);
+                      if (a && b) setMergeTarget({ a, b });
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+                  >
+                    <GitMerge size={12} /> Merge Selected
+                  </button>
+                )}
+                {mergeSelected.size > 0 && mergeSelected.size < 2 && (
+                  <span className="text-[10px] text-gray-400">Select one more to merge</span>
+                )}
                 <button
                   onClick={async () => { setCleaning(true); await adminCleanup().catch(() => {}); setCleaning(false); getAdminStats().then(setStats).catch(() => {}); setLoadingCatalog(true); getAdminCatalog().then(setCatalog).finally(() => setLoadingCatalog(false)); }}
                   disabled={cleaning}
@@ -249,12 +269,33 @@ export default function AdminPage() {
                         <th className="px-4 py-2 font-medium">Chapters</th>
                         <th className="px-4 py-2 font-medium">Tags</th>
                         <th className="px-4 py-2 font-medium">MAL</th>
-                        <th className="px-4 py-2 font-medium w-20">Actions</th>
+                        <th className="px-4 py-2 font-medium w-12"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                      {filteredCatalog.map((s) => (
-                        <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      {filteredCatalog.map((s) => {
+                        const isSelected = mergeSelected.has(s.id);
+                        const canSelect = isSelected || mergeSelected.size < 2;
+                        return (
+                        <tr
+                          key={s.id}
+                          onClick={() => {
+                            if (!canSelect && !isSelected) return;
+                            setMergeSelected((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(s.id)) next.delete(s.id);
+                              else if (next.size < 2) next.add(s.id);
+                              return next;
+                            });
+                          }}
+                          className={`cursor-pointer transition-colors ${
+                            isSelected
+                              ? 'bg-blue-50 dark:bg-blue-900/15 border-l-2 border-l-blue-500'
+                              : canSelect
+                                ? 'hover:bg-gray-50 dark:hover:bg-gray-800/50 border-l-2 border-l-transparent'
+                                : 'border-l-2 border-l-transparent opacity-60'
+                          }`}
+                        >
                           <td className="px-4 py-2">
                             <p className="font-medium truncate max-w-[250px]">{s.name}</p>
                             {s.englishTitle && s.englishTitle !== s.name && (
@@ -272,17 +313,35 @@ export default function AdminPage() {
                           <td className="px-4 py-2 text-gray-500">{s.malId || '—'}</td>
                           <td className="px-4 py-2 flex gap-1">
                             <button
-                              onClick={() => setMergeTarget(s)}
-                              className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition-colors"
-                              title="Merge with another series"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                setOptimizing((prev) => new Set(prev).add(s.id));
+                                try {
+                                  const result = await optimizeAdminSeries(s.id);
+                                  if (result.filesOptimized > 0) {
+                                    alert(`Optimized ${result.filesOptimized} files, saved ${(result.totalSaved / 1024 / 1024).toFixed(1)} MB`);
+                                  } else {
+                                    alert('All files already optimized');
+                                  }
+                                } catch (err) {
+                                  alert(`Optimization failed: ${(err as Error).message}`);
+                                } finally {
+                                  setOptimizing((prev) => { const next = new Set(prev); next.delete(s.id); return next; });
+                                }
+                              }}
+                              disabled={optimizing.has(s.id)}
+                              className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-50"
+                              title="Optimize PDFs (shrink oversized pages)"
                             >
-                              <GitMerge size={13} />
+                              {optimizing.has(s.id) ? <Loader size={13} className="animate-spin" /> : <FileDown size={13} />}
                             </button>
                             <button
-                              onClick={async () => {
+                              onClick={async (e) => {
+                                e.stopPropagation();
                                 if (!confirm(`Permanently delete "${s.name}" and all ${s.count} chapters?`)) return;
                                 await purgeAdminSeries(s.id);
                                 setCatalog((prev) => prev.filter((x) => x.id !== s.id));
+                                setMergeSelected((prev) => { const next = new Set(prev); next.delete(s.id); return next; });
                               }}
                               className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors"
                               title="Purge (delete files)"
@@ -291,7 +350,8 @@ export default function AdminPage() {
                             </button>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -342,11 +402,12 @@ export default function AdminPage() {
       {/* Merge Modal */}
       {mergeTarget && (
         <MergeModal
-          keepSeries={mergeTarget}
-          catalog={catalog}
+          seriesA={mergeTarget.a}
+          seriesB={mergeTarget.b}
           onClose={() => setMergeTarget(null)}
           onComplete={() => {
             setMergeTarget(null);
+            setMergeSelected(new Set());
             setLoadingCatalog(true);
             getAdminCatalog().then(setCatalog).finally(() => setLoadingCatalog(false));
             getAdminStats().then(setStats);
