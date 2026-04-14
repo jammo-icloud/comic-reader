@@ -136,7 +136,7 @@ export function isImageFolder(dirPath: string): boolean {
  */
 const DATA_DIR = process.env.DATA_DIR || './data';
 const CONVERTED_DIR = path.join(DATA_DIR, 'converted');
-const TASK_DIR = path.join(DATA_DIR, '.tasks');
+const TASK_DIR = path.join(DATA_DIR, 'conversion-tasks');
 
 // --- Task tracking for crash recovery ---
 
