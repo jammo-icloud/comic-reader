@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge, FileDown } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge } from 'lucide-react';
 import {
   getAdminStats, getAdminTasks, deleteAdminTask, retryAdminTask, cancelAdminTask, clearAdminTasks,
-  getAdminCatalog, purgeAdminSeries, optimizeAdminSeries, adminEnrich, adminRescan, adminCleanup,
+  getAdminCatalog, purgeAdminSeries, adminEnrich, adminRescan, adminCleanup,
   getAdminUsers,
 } from '../lib/api';
 import ThemeToggle from '../components/ThemeToggle';
@@ -40,8 +40,6 @@ export default function AdminPage() {
   const [mergeSelected, setMergeSelected] = useState<Set<string>>(new Set());
   const [mergeTarget, setMergeTarget] = useState<{ a: any; b: any } | null>(null);
 
-  // Optimize
-  const [optimizing, setOptimizing] = useState<Set<string>>(new Set());
 
   // Users
   const [users, setUsers] = useState<any[]>([]);
@@ -311,30 +309,7 @@ export default function AdminPage() {
                             </div>
                           </td>
                           <td className="px-4 py-2 text-gray-500">{s.malId || '—'}</td>
-                          <td className="px-4 py-2 flex gap-1">
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                setOptimizing((prev) => new Set(prev).add(s.id));
-                                try {
-                                  const result = await optimizeAdminSeries(s.id);
-                                  if (result.filesOptimized > 0) {
-                                    alert(`Optimized ${result.filesOptimized} files, saved ${(result.totalSaved / 1024 / 1024).toFixed(1)} MB`);
-                                  } else {
-                                    alert('All files already optimized');
-                                  }
-                                } catch (err) {
-                                  alert(`Optimization failed: ${(err as Error).message}`);
-                                } finally {
-                                  setOptimizing((prev) => { const next = new Set(prev); next.delete(s.id); return next; });
-                                }
-                              }}
-                              disabled={optimizing.has(s.id)}
-                              className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-50"
-                              title="Optimize PDFs (shrink oversized pages)"
-                            >
-                              {optimizing.has(s.id) ? <Loader size={13} className="animate-spin" /> : <FileDown size={13} />}
-                            </button>
+                          <td className="px-4 py-2">
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation();

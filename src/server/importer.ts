@@ -3,7 +3,7 @@ import path from 'path';
 import { slugify, loadAllSeries, loadComics, saveSeries, writeComics, type SeriesRecord, type ComicRecord } from './data.js';
 import { shortHash } from './hash.js';
 import { convertToPdf, isImageFolder } from './converter.js';
-import { optimizeOnImport } from './pdf-optimizer.js';
+// PDF optimization runs locally (too CPU-heavy for NAS) — see scripts/optimize-pdf.ts
 
 /**
  * Read page count directly from PDF metadata — no rendering library needed.
@@ -288,8 +288,6 @@ export async function importSeries(config: ImportConfig): Promise<SeriesRecord> 
       if (converted) {
         const destFile = path.join(destDir, finalFilename);
         fs.copyFileSync(converted, destFile);
-        // Optimize oversized pages (e.g., high-res photo PDFs)
-        await optimizeOnImport(destFile);
         comics.push({
           file: finalFilename,
           pages: getPageCount(destFile),
@@ -304,8 +302,6 @@ export async function importSeries(config: ImportConfig): Promise<SeriesRecord> 
       if (!fs.existsSync(destPath)) {
         fs.copyFileSync(sourcePath, destPath);
       }
-      // Optimize oversized pages (e.g., high-res photo PDFs)
-      await optimizeOnImport(destPath);
       comics.push({
         file: newFilename,
         pages: getPageCount(destPath),

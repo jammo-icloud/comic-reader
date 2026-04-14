@@ -1,19 +1,25 @@
 #!/usr/bin/env tsx
 /**
- * PDF Optimizer — test script.
+ * PDF Optimizer — local batch script.
  * Re-renders oversized PDF pages to a capped resolution.
- * Detects cover pages (different aspect ratio) and moves them to front.
+ * Detects cover pages buried at the end and moves them to front.
  *
- * Usage:
+ * Single file:
  *   npx tsx scripts/optimize-pdf.ts input.pdf [max-dimension] [quality]
  *
- * Examples:
- *   npx tsx scripts/optimize-pdf.ts ~/Photos/met-art-book.pdf
- *   npx tsx scripts/optimize-pdf.ts ~/Photos/met-art-book.pdf 2400
- *   npx tsx scripts/optimize-pdf.ts ~/Photos/met-art-book.pdf 1800 85
+ * Batch (entire folder):
+ *   npx tsx scripts/optimize-pdf.ts /path/to/folder [max-dimension] [quality]
  *
- * Analyze only (no output file):
- *   npx tsx scripts/optimize-pdf.ts ~/Photos/met-art-book.pdf --analyze
+ * Analyze only (no output):
+ *   npx tsx scripts/optimize-pdf.ts input.pdf --analyze
+ *
+ * Output: overwrites the original file (or creates .optimized copy with --copy)
+ *
+ * Examples:
+ *   npx tsx scripts/optimize-pdf.ts ~/Met-Art/
+ *   npx tsx scripts/optimize-pdf.ts ~/Met-Art/ 2400 90
+ *   npx tsx scripts/optimize-pdf.ts ~/Met-Art/ --analyze
+ *   npx tsx scripts/optimize-pdf.ts single-file.pdf --copy
  */
 import fs from 'fs';
 import path from 'path';
@@ -21,35 +27,41 @@ import * as mupdf from 'mupdf';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 
-const inputPath = process.argv[2];
-const analyzeOnly = process.argv.includes('--analyze');
-const MAX_DIM = parseInt(process.argv.find((a) => /^\d+$/.test(a) && a !== inputPath) || '2400', 10);
-const qualityArg = process.argv.find((a, i) => /^\d+$/.test(a) && i > 2 && a !== String(MAX_DIM));
-const QUALITY = parseInt(qualityArg || '90', 10);
+const args = process.argv.slice(2);
+const inputPath = args.find((a) => !a.startsWith('--') && !/^\d+$/.test(a));
+const analyzeOnly = args.includes('--analyze');
+const copyMode = args.includes('--copy');
+const numArgs = args.filter((a) => /^\d+$/.test(a));
+const MAX_DIM = parseInt(numArgs[0] || '2400', 10);
+const QUALITY = parseInt(numArgs[1] || '90', 10);
 
-// Optimization trigger: if any page exceeds this, the PDF needs optimization
 const TRIGGER_DIM = 2400;
-// File size fast-check: skip mupdf inspection for files under this size
-const MIN_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MIN_FILE_SIZE = 50 * 1024 * 1024;
 
-if (!inputPath || inputPath === '--analyze') {
-  console.log('Usage: npx tsx scripts/optimize-pdf.ts <input.pdf> [max-dimension] [quality]');
-  console.log('       npx tsx scripts/optimize-pdf.ts <input.pdf> --analyze');
+if (!inputPath) {
+  console.log('PDF Optimizer — shrink oversized pages, detect and move covers');
   console.log('');
-  console.log('  max-dimension  Longest edge in pixels (default: 2400)');
-  console.log('  quality        JPEG quality 1-100 (default: 90)');
-  console.log('  --analyze      Just inspect pages, don\'t create output');
+  console.log('Usage:');
+  console.log('  npx tsx scripts/optimize-pdf.ts <file-or-folder> [max-dim] [quality] [flags]');
   console.log('');
-  console.log('Try different values to compare:');
-  console.log('  2400 = high quality reading (recommended)');
-  console.log('  1800 = balanced, smaller files');
-  console.log('  1200 = fast loading, visible quality loss on zoom');
+  console.log('Arguments:');
+  console.log('  max-dim    Longest edge in pixels (default: 2400)');
+  console.log('  quality    JPEG quality 1-100 (default: 90)');
+  console.log('');
+  console.log('Flags:');
+  console.log('  --analyze  Inspect pages without modifying');
+  console.log('  --copy     Write .optimized.pdf instead of overwriting original');
+  console.log('');
+  console.log('Examples:');
+  console.log('  npx tsx scripts/optimize-pdf.ts ~/Met-Art/              # batch optimize folder');
+  console.log('  npx tsx scripts/optimize-pdf.ts ~/Met-Art/ --analyze    # just inspect');
+  console.log('  npx tsx scripts/optimize-pdf.ts file.pdf 1800 85       # custom settings');
   process.exit(1);
 }
 
 const resolved = path.resolve(inputPath);
 if (!fs.existsSync(resolved)) {
-  console.error(`File not found: ${resolved}`);
+  console.error(`Not found: ${resolved}`);
   process.exit(1);
 }
 
@@ -63,57 +75,10 @@ interface PageInfo {
   needsResize: boolean;
 }
 
-/**
- * Detect the cover page — looks for a page with a distinctly different
- * aspect ratio or size from the majority. Returns the index to move to front,
- * or -1 if no cover detected (or it's already page 0).
- */
-function detectCover(pages: PageInfo[]): { coverIndex: number; reason: string } {
-  if (pages.length < 3) return { coverIndex: -1, reason: 'too few pages' };
-
-  // Find the dominant aspect ratio (mode of rounded ratios)
-  const ratios = pages.map((p) => Math.round(p.aspectRatio * 100) / 100);
-  const ratioCounts = new Map<number, number>();
-  for (const r of ratios) ratioCounts.set(r, (ratioCounts.get(r) || 0) + 1);
-
-  let dominantRatio = 0;
-  let dominantCount = 0;
-  for (const [r, count] of ratioCounts) {
-    if (count > dominantCount) { dominantRatio = r; dominantCount = count; }
-  }
-
-  // Find the dominant orientation
-  const orientations = pages.map((p) => p.orientation);
-  const orientCounts = { portrait: 0, landscape: 0, square: 0 };
-  for (const o of orientations) orientCounts[o]++;
-  const dominantOrientation = orientCounts.portrait >= orientCounts.landscape ? 'portrait' : 'landscape';
-
-  // Simple rule: only check the last page.
-  // If the cover isn't already page 1, it's always the last page.
-  const last = pages[pages.length - 1];
-  const ratioDiff = Math.abs(last.aspectRatio - dominantRatio);
-  const isOrientationOutlier = last.orientation !== dominantOrientation && last.orientation !== 'square';
-  const isSizeOutlier = last.longestEdge < pages[0].longestEdge * 0.7;
-  const isRatioOutlier = ratioDiff > 0.15;
-
-  if (isOrientationOutlier) {
-    return { coverIndex: last.index, reason: `last page has different orientation (${last.orientation} vs ${dominantOrientation})` };
-  }
-  if (isRatioOutlier) {
-    return { coverIndex: last.index, reason: `last page has different aspect ratio (${last.aspectRatio.toFixed(2)} vs ${dominantRatio.toFixed(2)})` };
-  }
-  if (isSizeOutlier) {
-    return { coverIndex: last.index, reason: `last page is smaller (${last.longestEdge}px vs ${pages[0].longestEdge}px)` };
-  }
-
-  return { coverIndex: -1, reason: 'last page matches the rest (no cover detected)' };
-}
-
-async function analyze(): Promise<{ pages: PageInfo[]; needsOptimization: boolean; coverIndex: number; coverReason: string }> {
-  const data = fs.readFileSync(resolved);
+function analyzePages(filePath: string): PageInfo[] {
+  const data = fs.readFileSync(filePath);
   const doc = mupdf.Document.openDocument(data, 'application/pdf');
   const pageCount = doc.countPages();
-
   const pages: PageInfo[] = [];
   for (let i = 0; i < pageCount; i++) {
     const page = doc.loadPage(i);
@@ -122,151 +87,185 @@ async function analyze(): Promise<{ pages: PageInfo[]; needsOptimization: boolea
     const h = bounds[3] - bounds[1];
     const longestEdge = Math.max(w, h);
     pages.push({
-      index: i,
-      width: Math.round(w),
-      height: Math.round(h),
+      index: i, width: Math.round(w), height: Math.round(h),
       aspectRatio: w / h,
       orientation: Math.abs(w - h) < 10 ? 'square' : w > h ? 'landscape' : 'portrait',
       longestEdge: Math.round(longestEdge),
       needsResize: longestEdge > TRIGGER_DIM,
     });
   }
-
-  const needsOptimization = pages.some((p) => p.needsResize);
-  const { coverIndex, reason: coverReason } = detectCover(pages);
-
-  return { pages, needsOptimization, coverIndex, coverReason };
+  return pages;
 }
 
-async function run() {
-  const inputSize = fs.statSync(resolved).size;
-  console.log(`File: ${path.basename(resolved)}`);
-  console.log(`Size: ${(inputSize / 1024 / 1024).toFixed(1)} MB`);
+function detectCover(pages: PageInfo[]): number {
+  if (pages.length < 3) return -1;
 
-  // Fast-check: skip tiny files
-  if (inputSize < MIN_FILE_SIZE && !analyzeOnly) {
-    console.log(`\nUnder ${MIN_FILE_SIZE / 1024 / 1024}MB — likely doesn't need optimization.`);
-    console.log('Use --analyze to inspect anyway.');
-    return;
+  const ratios = pages.map((p) => Math.round(p.aspectRatio * 100) / 100);
+  const ratioCounts = new Map<number, number>();
+  for (const r of ratios) ratioCounts.set(r, (ratioCounts.get(r) || 0) + 1);
+  let dominantRatio = 0, dominantCount = 0;
+  for (const [r, count] of ratioCounts) { if (count > dominantCount) { dominantRatio = r; dominantCount = count; } }
+
+  const orientCounts = { portrait: 0, landscape: 0, square: 0 };
+  for (const p of pages) orientCounts[p.orientation]++;
+  const dominantOrientation = orientCounts.portrait >= orientCounts.landscape ? 'portrait' : 'landscape';
+
+  const last = pages[pages.length - 1];
+  const ratioDiff = Math.abs(last.aspectRatio - dominantRatio);
+  if (last.orientation !== dominantOrientation && last.orientation !== 'square') return last.index;
+  if (ratioDiff > 0.15) return last.index;
+  if (last.longestEdge < pages[0].longestEdge * 0.7) return last.index;
+  return -1;
+}
+
+async function optimizeFile(filePath: string): Promise<{ originalSize: number; optimizedSize: number; pagesResized: number; coverMoved: boolean } | null> {
+  const stat = fs.statSync(filePath);
+  const originalSize = stat.size;
+  const basename = path.basename(filePath);
+
+  if (originalSize < MIN_FILE_SIZE) {
+    if (analyzeOnly) console.log(`  ${basename}: ${(originalSize / 1024 / 1024).toFixed(1)} MB — under threshold, skipping`);
+    return null;
   }
 
-  console.log('\nAnalyzing pages...');
-  const { pages, needsOptimization, coverIndex, coverReason } = await analyze();
-
-  // Print page analysis
-  console.log(`\nPages: ${pages.length}`);
-  console.log('');
-
-  // Group by dimensions for compact display
-  const dimGroups = new Map<string, number[]>();
-  for (const p of pages) {
-    const key = `${p.width}x${p.height}`;
-    if (!dimGroups.has(key)) dimGroups.set(key, []);
-    dimGroups.get(key)!.push(p.index + 1);
+  let pages: PageInfo[];
+  try {
+    pages = analyzePages(filePath);
+  } catch (err) {
+    console.error(`  ${basename}: failed to analyze — ${(err as Error).message}`);
+    return null;
   }
-  for (const [dim, pageNums] of dimGroups) {
-    const longestEdge = Math.max(...dim.split('x').map(Number));
-    const flag = longestEdge > TRIGGER_DIM ? ' ⚠️  OVERSIZED' : ' ✓';
-    if (pageNums.length <= 5) {
-      console.log(`  ${dim} — pages ${pageNums.join(', ')}${flag}`);
-    } else {
-      console.log(`  ${dim} — ${pageNums.length} pages (${pageNums[0]}–${pageNums[pageNums.length - 1]})${flag}`);
+
+  const oversized = pages.filter((p) => p.needsResize);
+  const coverIndex = detectCover(pages);
+
+  if (analyzeOnly) {
+    const dimGroups = new Map<string, number[]>();
+    for (const p of pages) {
+      const key = `${p.width}x${p.height}`;
+      if (!dimGroups.has(key)) dimGroups.set(key, []);
+      dimGroups.get(key)!.push(p.index + 1);
     }
+    console.log(`  ${basename}: ${pages.length} pages, ${(originalSize / 1024 / 1024).toFixed(1)} MB`);
+    for (const [dim, nums] of dimGroups) {
+      const longest = Math.max(...dim.split('x').map(Number));
+      const flag = longest > TRIGGER_DIM ? ' OVERSIZED' : '';
+      console.log(`    ${dim} — ${nums.length} pages${flag}`);
+    }
+    if (coverIndex >= 0) console.log(`    Cover: page ${coverIndex + 1}`);
+    if (oversized.length === 0 && coverIndex < 0) console.log(`    -> No optimization needed`);
+    else console.log(`    -> ${oversized.length} pages to resize${coverIndex >= 0 ? ', cover to move' : ''}`);
+    return null;
   }
 
-  // Cover detection
-  console.log('');
-  if (coverIndex >= 0) {
-    const cover = pages[coverIndex];
-    console.log(`📖 Cover detected: page ${coverIndex + 1} (${cover.width}x${cover.height}) — ${coverReason}`);
-    console.log(`   Will move to front of PDF.`);
-  } else {
-    console.log(`📖 Cover: ${coverReason} (no reordering needed)`);
+  if (oversized.length === 0 && coverIndex < 0) {
+    console.log(`  ${basename}: already optimized`);
+    return null;
   }
 
-  // Optimization verdict
-  console.log('');
-  if (needsOptimization) {
-    const oversized = pages.filter((p) => p.needsResize).length;
-    console.log(`🔧 Optimization needed: ${oversized}/${pages.length} pages exceed ${TRIGGER_DIM}px`);
-  } else {
-    console.log(`✅ All pages within ${TRIGGER_DIM}px — no optimization needed`);
-  }
+  process.stdout.write(`  ${basename}: ${pages.length}p, ${(originalSize / 1024 / 1024).toFixed(1)} MB → `);
 
-  if (analyzeOnly) return;
-
-  if (!needsOptimization && coverIndex < 0) {
-    console.log('\nNothing to do! PDF is already optimized.');
-    return;
-  }
-
-  // Build optimized PDF
-  console.log(`\nOptimizing: max ${MAX_DIM}px, JPEG quality ${QUALITY}...`);
-  console.log('');
-
-  const data = fs.readFileSync(resolved);
+  const data = fs.readFileSync(filePath);
   const doc = mupdf.Document.openDocument(data, 'application/pdf');
   const outPdf = await PDFDocument.create();
 
-  // Determine page order — cover first if detected
   const pageOrder = pages.map((p) => p.index);
   if (coverIndex > 0) {
     pageOrder.splice(pageOrder.indexOf(coverIndex), 1);
     pageOrder.unshift(coverIndex);
   }
 
+  let pagesResized = 0;
   for (const pageIdx of pageOrder) {
     const info = pages[pageIdx];
     const page = doc.loadPage(pageIdx);
-
-    const longestEdge = info.longestEdge;
-    const needsResize = longestEdge > MAX_DIM;
-
-    const scale = needsResize ? MAX_DIM / longestEdge : 1.0;
+    const needsResize = info.longestEdge > MAX_DIM;
+    const scale = needsResize ? MAX_DIM / info.longestEdge : 1.0;
     const renderW = Math.round(info.width * scale);
     const renderH = Math.round(info.height * scale);
+    if (needsResize) pagesResized++;
 
-    const label = coverIndex === pageIdx ? ' [COVER]' : '';
-    const status = needsResize
-      ? `${info.width}x${info.height} → ${renderW}x${renderH}${label}`
-      : `${info.width}x${info.height} (pass-through)${label}`;
-    process.stdout.write(`  Page ${pageOrder.indexOf(pageIdx) + 1}/${pages.length}: ${status}...`);
-
-    // Render via mupdf
-    const pixmap = page.toPixmap(
-      mupdf.Matrix.scale(scale, scale),
-      mupdf.ColorSpace.DeviceRGB,
-      false,
-      true
-    );
+    const pixmap = page.toPixmap(mupdf.Matrix.scale(scale, scale), mupdf.ColorSpace.DeviceRGB, false, true);
     const pngBuffer = pixmap.asPNG();
-
-    // Compress via sharp
-    const jpegBuffer = await sharp(Buffer.from(pngBuffer))
-      .jpeg({ quality: QUALITY })
-      .toBuffer();
-
-    // Add to output
+    const jpegBuffer = await sharp(Buffer.from(pngBuffer)).jpeg({ quality: QUALITY }).toBuffer();
     const jpegImage = await outPdf.embedJpg(jpegBuffer);
     const outPage = outPdf.addPage([renderW, renderH]);
     outPage.drawImage(jpegImage, { x: 0, y: 0, width: renderW, height: renderH });
-
-    console.log(` ${(jpegBuffer.length / 1024).toFixed(0)} KB`);
   }
 
-  const ext = path.extname(resolved);
-  const base = resolved.slice(0, -ext.length);
-  const outputPath = `${base}.optimized-${MAX_DIM}px-q${QUALITY}${ext}`;
-
   const pdfBytes = await outPdf.save();
-  fs.writeFileSync(outputPath, pdfBytes);
 
-  const outputSize = fs.statSync(outputPath).size;
-  const ratio = ((1 - outputSize / inputSize) * 100).toFixed(0);
-  console.log('');
-  console.log(`Output: ${(outputSize / 1024 / 1024).toFixed(1)} MB (${ratio}% smaller)`);
-  if (coverIndex > 0) console.log(`Cover moved from page ${coverIndex + 1} → page 1`);
-  console.log(`\nDone! Open both in Preview to compare.`);
+  if (copyMode) {
+    const ext = path.extname(filePath);
+    const base = filePath.slice(0, -ext.length);
+    const outPath = `${base}.optimized${ext}`;
+    fs.writeFileSync(outPath, pdfBytes);
+  } else {
+    const tmpPath = filePath + '.optimizing';
+    fs.writeFileSync(tmpPath, pdfBytes);
+    fs.renameSync(tmpPath, filePath);
+  }
+
+  const optimizedSize = pdfBytes.length;
+  const saved = ((1 - optimizedSize / originalSize) * 100).toFixed(0);
+  console.log(`${(optimizedSize / 1024 / 1024).toFixed(1)} MB (${saved}% smaller, ${pagesResized} resized${coverIndex >= 0 ? ', cover moved' : ''})`);
+
+  return { originalSize, optimizedSize, pagesResized, coverMoved: coverIndex >= 0 };
+}
+
+async function run() {
+  const stat = fs.statSync(resolved);
+
+  if (stat.isFile()) {
+    console.log(`Optimizing: ${path.basename(resolved)} (max ${MAX_DIM}px, q${QUALITY})`);
+    console.log('');
+    await optimizeFile(resolved);
+    return;
+  }
+
+  if (stat.isDirectory()) {
+    // Find all PDFs recursively
+    const pdfs: string[] = [];
+    function walk(dir: string) {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name.startsWith('.') || entry.name === '@eaDir') continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.isFile() && entry.name.toLowerCase().endsWith('.pdf')) pdfs.push(full);
+      }
+    }
+    walk(resolved);
+
+    if (pdfs.length === 0) {
+      console.log('No PDF files found.');
+      return;
+    }
+
+    console.log(`Found ${pdfs.length} PDFs in ${resolved}`);
+    console.log(`Settings: max ${MAX_DIM}px, JPEG quality ${QUALITY}${analyzeOnly ? ' (analyze only)' : ''}${copyMode ? ' (copy mode)' : ' (in-place)'}`);
+    console.log('');
+
+    let totalOptimized = 0, totalSkipped = 0, totalSaved = 0;
+
+    for (let i = 0; i < pdfs.length; i++) {
+      const result = await optimizeFile(pdfs[i]);
+      if (result) {
+        totalOptimized++;
+        totalSaved += result.originalSize - result.optimizedSize;
+      } else {
+        totalSkipped++;
+      }
+    }
+
+    if (!analyzeOnly) {
+      console.log('');
+      console.log(`Done! ${totalOptimized} optimized, ${totalSkipped} skipped, ${(totalSaved / 1024 / 1024).toFixed(1)} MB saved`);
+    }
+    return;
+  }
+
+  console.error('Not a file or directory');
+  process.exit(1);
 }
 
 run().catch((err) => {

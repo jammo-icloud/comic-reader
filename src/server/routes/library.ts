@@ -128,15 +128,19 @@ router.post('/series-override', async (req, res) => {
   try {
     const { seriesId, malId } = req.body;
     if (!seriesId || !malId) { res.status(400).json({ error: 'seriesId and malId required' }); return; }
+    console.log(`  MAL override: series=${seriesId}, malId=${malId}`);
     const result = await enrichSingle(seriesId, malId);
     if (!result) { res.status(404).json({ error: 'Series not found' }); return; }
     if (result.error) {
+      console.log(`  MAL override warning: ${result.error}`);
       res.json({ ...result.series, warning: result.error });
     } else {
+      console.log(`  MAL override success: "${result.series.name}" (score: ${result.series.score})`);
       res.json(result.series);
     }
   } catch (err) {
-    res.status(500).json({ error: 'Override failed' });
+    console.error(`  MAL override failed:`, (err as Error).message);
+    res.status(500).json({ error: `Override failed: ${(err as Error).message}` });
   }
 });
 
