@@ -2,7 +2,7 @@
 # Check status of all comic-reader dev services
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-VITE_PORT=5173
+VITE_PORT=5880
 [ -f "$DIR/.vite-port" ] && VITE_PORT=$(cat "$DIR/.vite-port")
 
 echo "Comic Reader Dev Status"

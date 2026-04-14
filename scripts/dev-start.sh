@@ -9,7 +9,7 @@ export OCR_SERVICE_URL="http://localhost:3001"
 # Create local dirs
 mkdir -p "$LIBRARY_DIR/import" "$LIBRARY_DIR/comics" "$LIBRARY_DIR/magazines" "$DATA_DIR"
 
-# Find first open port starting at 5173
+# Find first open port starting at 5880
 find_open_port() {
   local port=$1
   while lsof -ti:$port >/dev/null 2>&1; do
@@ -21,7 +21,7 @@ find_open_port() {
 # Kill any existing comic-reader processes
 "$DIR/scripts/dev-stop.sh" 2>/dev/null
 
-VITE_PORT=$(find_open_port 5173)
+VITE_PORT=$(find_open_port 5880)
 
 echo "Starting orchestrator (port 3001)..."
 cd "$DIR/ocr-service"
