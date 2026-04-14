@@ -7,7 +7,7 @@ import {
   loadCollection, addToCollection, removeFromCollection, isInCollection,
   loadUserProgress, updateUserProgress,
   loadPreferences, savePreferences,
-  isNsfwSeries,
+  isNsfwSeries, VALID_THEMES,
   type SeriesRecord,
 } from '../data.js';
 import { shortHash } from '../hash.js';
@@ -275,7 +275,9 @@ router.get('/me', (req, res) => {
 
 router.patch('/me/preferences', (req, res) => {
   const currentPrefs = loadPreferences(req.username);
-  if (req.body.theme) currentPrefs.theme = req.body.theme;
+  if (req.body.theme && VALID_THEMES.includes(req.body.theme)) {
+    currentPrefs.theme = req.body.theme;
+  }
   if (req.body.safeMode !== undefined) currentPrefs.safeMode = !!req.body.safeMode;
   savePreferences(req.username, currentPrefs);
   res.json(currentPrefs);

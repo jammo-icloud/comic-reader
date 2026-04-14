@@ -1,3 +1,5 @@
+@import './themes.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,17 +9,17 @@ body {
   min-height: 100vh;
 }
 
-/* Dark scrollbar */
+/* Themed scrollbar */
 .dark ::-webkit-scrollbar {
   width: 8px;
 }
 .dark ::-webkit-scrollbar-track {
-  background: rgb(17 24 39);
+  background: rgb(var(--gray-900));
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: rgb(75 85 99);
+  background: rgb(var(--gray-600));
   border-radius: 4px;
 }
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: rgb(107 114 128);
+  background: rgb(var(--gray-500));
 }

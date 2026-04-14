@@ -32,7 +32,7 @@ function initializeUser(username: string) {
   // Create preferences if missing
   const prefsPath = path.join(dir, 'preferences.json');
   if (!fs.existsSync(prefsPath)) {
-    savePreferences(username, { theme: 'dark', safeMode: true });
+    savePreferences(username, { theme: 'midnight', safeMode: true });
     console.log(`  Initialized preferences for "${username}"`);
   }
 

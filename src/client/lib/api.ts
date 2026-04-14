@@ -17,11 +17,11 @@ function encodePath(p: string): string {
 
 // ==================== User ====================
 
-export function getMe(): Promise<{ username: string; preferences: { theme: 'dark' | 'light'; safeMode: boolean } }> {
+export function getMe(): Promise<{ username: string; preferences: { theme: string; safeMode: boolean } }> {
   return fetchJson('/me');
 }
 
-export function updatePreferences(prefs: { theme?: 'dark' | 'light'; safeMode?: boolean }): Promise<any> {
+export function updatePreferences(prefs: { theme?: string; safeMode?: boolean }): Promise<any> {
   return fetchJson('/me/preferences', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

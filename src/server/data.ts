@@ -177,9 +177,18 @@ export interface UserProgressRecord {
 }
 
 export interface UserPreferences {
-  theme: 'dark' | 'light';
+  theme: string; // theme name (e.g., 'midnight', 'latte', 'tankobon')
   safeMode: boolean; // filters out adult/NSFW content (default: true)
 }
+
+export const VALID_THEMES = [
+  // Dark themes
+  'midnight', 'nord-frost', 'mocha', 'rosewood', 'tankobon-dark', 'newsprint-dark',
+  // Light themes
+  'latte', 'dawn', 'alucard', 'gruvbox-sand', 'tankobon', 'newsprint',
+] as const;
+
+export const DARK_THEMES = new Set(['midnight', 'nord-frost', 'mocha', 'rosewood', 'tankobon-dark', 'newsprint-dark']);
 
 export const NSFW_TAGS = new Set(['adult', 'hentai', 'nsfw', 'erotica', 'ecchi', 'mature', 'nudity', 'sexual violence', 'smut']);
 
@@ -288,15 +297,18 @@ function prefsPath(username: string): string {
 
 export function loadPreferences(username: string): UserPreferences {
   const p = prefsPath(username);
-  if (!fs.existsSync(p)) return { theme: 'dark', safeMode: true };
+  if (!fs.existsSync(p)) return { theme: 'midnight', safeMode: true };
   try {
     const prefs = JSON.parse(fs.readFileSync(p, 'utf-8'));
-    // Backfill safeMode for existing users who predate this setting
+    // Backfill defaults for existing users who predate newer settings
     if (prefs.safeMode === undefined) prefs.safeMode = true;
+    // Migrate old 'dark'/'light' theme values to named themes
+    if (prefs.theme === 'dark') prefs.theme = 'midnight';
+    if (prefs.theme === 'light') prefs.theme = 'latte';
     return prefs;
   } catch {
     console.error(`Corrupt preferences for "${username}", using defaults`);
-    return { theme: 'dark', safeMode: true };
+    return { theme: 'midnight', safeMode: true };
   }
 }
 

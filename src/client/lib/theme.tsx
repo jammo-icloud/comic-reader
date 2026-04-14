@@ -1,18 +1,35 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { getMe, updatePreferences } from './api';
+import { applyTheme, isDarkTheme, THEME_PAIRS } from './themes';
 
-type Theme = 'dark' | 'light';
-
-const ThemeContext = createContext<{ theme: Theme; toggle: () => void; username: string }>({
-  theme: 'dark',
-  toggle: () => {},
+const ThemeContext = createContext<{
+  theme: string;
+  isDark: boolean;
+  setTheme: (id: string) => void;
+  toggleDarkLight: () => void;
+  username: string;
+}>({
+  theme: 'midnight',
+  isDark: true,
+  setTheme: () => {},
+  toggleDarkLight: () => {},
   username: '',
 });
 
+/**
+ * Find the paired theme (dark<->light) for a given theme.
+ */
+function getPairedTheme(themeId: string): string {
+  for (const [dark, light] of THEME_PAIRS) {
+    if (dark.id === themeId) return light.id;
+    if (light.id === themeId) return dark.id;
+  }
+  return isDarkTheme(themeId) ? 'latte' : 'midnight';
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem('comic-reader-theme');
-    return (saved === 'light' ? 'light' : 'dark') as Theme;
+  const [theme, setThemeState] = useState(() => {
+    return localStorage.getItem('comic-reader-theme') || 'midnight';
   });
   const [username, setUsername] = useState('');
 
@@ -20,30 +37,39 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     getMe().then(({ username: user, preferences }) => {
       setUsername(user);
-      if (preferences.theme !== theme) {
-        setTheme(preferences.theme);
-      }
-    }).catch(() => {});
+      const serverTheme = preferences.theme || 'midnight';
+      setThemeState(serverTheme);
+      applyTheme(serverTheme);
+      localStorage.setItem('comic-reader-theme', serverTheme);
+    }).catch(() => {
+      // Use localStorage fallback
+      applyTheme(theme);
+    });
   }, []);
 
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    applyTheme(theme);
     localStorage.setItem('comic-reader-theme', theme);
   }, [theme]);
 
-  const toggle = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    updatePreferences({ theme: next }).catch(() => {});
+  const setTheme = (id: string) => {
+    setThemeState(id);
+    updatePreferences({ theme: id }).catch(() => {});
+  };
+
+  const toggleDarkLight = () => {
+    const paired = getPairedTheme(theme);
+    setTheme(paired);
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggle, username }}>
+    <ThemeContext.Provider value={{
+      theme,
+      isDark: isDarkTheme(theme),
+      setTheme,
+      toggleDarkLight,
+      username,
+    }}>
       {children}
     </ThemeContext.Provider>
   );
