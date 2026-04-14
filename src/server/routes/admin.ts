@@ -5,6 +5,7 @@ import { loadAllSeries, loadComics, removeSeries, loadCollection, loadUserProgre
 import { getQueue, removeFromQueue, cancelDownload } from '../downloader.js';
 import { enrichSeries } from '../enrich.js';
 import { rescanLibrary } from '../scanner.js';
+import { runCleanup } from '../cleanup.js';
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -190,6 +191,15 @@ router.post('/admin/rescan', async (_req, res) => {
   try {
     const result = await rescanLibrary();
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post('/admin/cleanup', (_req, res) => {
+  try {
+    runCleanup();
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

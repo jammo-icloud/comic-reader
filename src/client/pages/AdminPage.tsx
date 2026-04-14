@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles } from 'lucide-react';
 import {
   getAdminStats, getAdminTasks, deleteAdminTask, retryAdminTask, cancelAdminTask, clearAdminTasks,
-  getAdminCatalog, purgeAdminSeries, adminEnrich, adminRescan,
+  getAdminCatalog, purgeAdminSeries, adminEnrich, adminRescan, adminCleanup,
   getAdminUsers,
 } from '../lib/api';
 import ThemeToggle from '../components/ThemeToggle';
@@ -33,6 +33,7 @@ export default function AdminPage() {
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [rescanning, setRescanning] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
 
   // Users
   const [users, setUsers] = useState<any[]>([]);
@@ -206,6 +207,13 @@ export default function AdminPage() {
                 />
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => { setCleaning(true); await adminCleanup().catch(() => {}); setCleaning(false); getAdminStats().then(setStats).catch(() => {}); setLoadingCatalog(true); getAdminCatalog().then(setCatalog).finally(() => setLoadingCatalog(false)); }}
+                  disabled={cleaning}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {cleaning ? <Loader size={12} className="animate-spin" /> : <Sparkles size={12} />} Cleanup
+                </button>
                 <button
                   onClick={async () => { setRescanning(true); await adminRescan().catch(() => {}); setRescanning(false); setLoadingCatalog(true); getAdminCatalog().then(setCatalog).finally(() => setLoadingCatalog(false)); }}
                   disabled={rescanning}

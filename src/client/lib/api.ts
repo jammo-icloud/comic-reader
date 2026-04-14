@@ -99,6 +99,10 @@ export function adminRescan(): Promise<{ updated: number }> {
   return fetchJson('/admin/rescan', { method: 'POST' });
 }
 
+export function adminCleanup(): Promise<{ ok: boolean }> {
+  return fetchJson('/admin/cleanup', { method: 'POST' });
+}
+
 export function getAdminUsers(): Promise<{ username: string; collectionSize: number; progressEntries: number; readChapters: number }[]> {
   return fetchJson('/admin/users');
 }
