@@ -7,6 +7,7 @@ import {
   loadCollection, addToCollection, removeFromCollection, isInCollection,
   loadUserProgress, updateUserProgress,
   loadPreferences, savePreferences,
+  isNsfwSeries,
   type SeriesRecord,
 } from '../data.js';
 import { shortHash } from '../hash.js';
@@ -34,6 +35,12 @@ router.get('/series', (req, res) => {
 
   if (type && typeof type === 'string') {
     filtered = filtered.filter((s) => s.type === type);
+  }
+
+  // Safe mode: filter out NSFW series unless user has disabled safe mode
+  const prefs = loadPreferences(username);
+  if (prefs.safeMode) {
+    filtered = filtered.filter((s) => !isNsfwSeries(s));
   }
 
   const collectionSet = new Set(loadCollection(username).map((e) => e.seriesId));
@@ -76,6 +83,7 @@ router.get('/continue-reading', (req, res) => {
   const seriesMap = new Map(allSeries.map((s) => [s.id, s]));
   const collection = new Set(loadCollection(username).map((e) => e.seriesId));
   const progress = loadUserProgress(username);
+  const userPrefs = loadPreferences(username);
 
   const results: any[] = [];
   for (const p of progress) {
@@ -83,6 +91,7 @@ router.get('/continue-reading', (req, res) => {
     if (p.currentPage <= 0 || p.isRead || !p.lastReadAt) continue;
     const series = seriesMap.get(p.seriesId);
     if (!series) continue;
+    if (userPrefs.safeMode && isNsfwSeries(series)) continue;
 
     // Get page count from shared comics
     const comics = loadComics(p.seriesId);
@@ -265,10 +274,11 @@ router.get('/me', (req, res) => {
 });
 
 router.patch('/me/preferences', (req, res) => {
-  const prefs = loadPreferences(req.username);
-  if (req.body.theme) prefs.theme = req.body.theme;
-  savePreferences(req.username, prefs);
-  res.json(prefs);
+  const currentPrefs = loadPreferences(req.username);
+  if (req.body.theme) currentPrefs.theme = req.body.theme;
+  if (req.body.safeMode !== undefined) currentPrefs.safeMode = !!req.body.safeMode;
+  savePreferences(req.username, currentPrefs);
+  res.json(currentPrefs);
 });
 
 router.post('/collection/:seriesId', (req, res) => {

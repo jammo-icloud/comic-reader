@@ -178,6 +178,13 @@ export interface UserProgressRecord {
 
 export interface UserPreferences {
   theme: 'dark' | 'light';
+  safeMode: boolean; // filters out adult/NSFW content (default: true)
+}
+
+export const NSFW_TAGS = new Set(['adult', 'hentai', 'nsfw', 'erotica', 'ecchi', 'mature', 'nudity', 'sexual violence', 'smut']);
+
+export function isNsfwSeries(series: SeriesRecord): boolean {
+  return (series.tags || []).some((t) => NSFW_TAGS.has(t.toLowerCase()));
 }
 
 export function userDir(username: string): string {
@@ -281,12 +288,15 @@ function prefsPath(username: string): string {
 
 export function loadPreferences(username: string): UserPreferences {
   const p = prefsPath(username);
-  if (!fs.existsSync(p)) return { theme: 'dark' };
+  if (!fs.existsSync(p)) return { theme: 'dark', safeMode: true };
   try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+    const prefs = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    // Backfill safeMode for existing users who predate this setting
+    if (prefs.safeMode === undefined) prefs.safeMode = true;
+    return prefs;
   } catch {
     console.error(`Corrupt preferences for "${username}", using defaults`);
-    return { theme: 'dark' };
+    return { theme: 'dark', safeMode: true };
   }
 }
 

@@ -136,11 +136,11 @@ export function isImageFolder(dirPath: string): boolean {
  */
 const DATA_DIR = process.env.DATA_DIR || './data';
 const CONVERTED_DIR = path.join(DATA_DIR, 'converted');
-const TASK_DIR = path.join(DATA_DIR, 'conversion-tasks');
+const TASKS_DIR = path.join(DATA_DIR, 'tasks');
 
 // --- Task tracking for crash recovery ---
 
-interface ConversionTask {
+export interface ConversionTask {
   sourcePath: string;
   outputPath: string;
   type: 'cbr' | 'cbz' | 'image-folder';
@@ -150,12 +150,12 @@ interface ConversionTask {
 }
 
 function ensureTaskDir() {
-  if (!fs.existsSync(TASK_DIR)) fs.mkdirSync(TASK_DIR, { recursive: true });
+  if (!fs.existsSync(TASKS_DIR)) fs.mkdirSync(TASKS_DIR, { recursive: true });
 }
 
 function taskPath(sourcePath: string): string {
   const hash = shortHash(sourcePath);
-  return path.join(TASK_DIR, `${hash}.json`);
+  return path.join(TASKS_DIR, `${hash}.conversion.json`);
 }
 
 function saveTask(task: ConversionTask) {
@@ -244,16 +244,63 @@ export async function convertToPdf(sourcePath: string): Promise<string | null> {
 /**
  * Resume any incomplete conversion tasks from a previous run
  */
+/**
+ * Clean up completed/errored conversion tasks and stale converted PDFs.
+ * Converted PDFs are staging files — once copied to the library, they can be removed.
+ */
+export function cleanupConversions(): number {
+  let cleaned = 0;
+
+  // Clean completed/errored conversion task files
+  if (fs.existsSync(TASKS_DIR)) {
+    const files = fs.readdirSync(TASKS_DIR).filter((f) => f.endsWith('.conversion.json'));
+    for (const file of files) {
+      try {
+        const task: ConversionTask = JSON.parse(fs.readFileSync(path.join(TASKS_DIR, file), 'utf-8'));
+        if (task.status === 'complete' || task.status === 'error') {
+          fs.unlinkSync(path.join(TASKS_DIR, file));
+          cleaned++;
+        }
+      } catch {
+        // Corrupt task file — remove it
+        fs.unlinkSync(path.join(TASKS_DIR, file));
+        cleaned++;
+      }
+    }
+  }
+
+  // Clean up converted/ staging directory — these are temp files from CBR/CBZ conversion
+  if (fs.existsSync(CONVERTED_DIR)) {
+    const pdfs = fs.readdirSync(CONVERTED_DIR).filter((f) => f.endsWith('.pdf'));
+    for (const pdf of pdfs) {
+      try {
+        fs.unlinkSync(path.join(CONVERTED_DIR, pdf));
+        cleaned++;
+      } catch {}
+    }
+    // Remove the directory itself if empty
+    try {
+      const remaining = fs.readdirSync(CONVERTED_DIR);
+      if (remaining.length === 0) fs.rmdirSync(CONVERTED_DIR);
+    } catch {}
+  }
+
+  return cleaned;
+}
+
+/**
+ * Resume any incomplete conversion tasks from a previous run
+ */
 export async function resumeConversions(): Promise<number> {
   ensureTaskDir();
-  if (!fs.existsSync(TASK_DIR)) return 0;
+  if (!fs.existsSync(TASKS_DIR)) return 0;
 
-  const files = fs.readdirSync(TASK_DIR).filter((f) => f.endsWith('.json'));
+  const files = fs.readdirSync(TASKS_DIR).filter((f) => f.endsWith('.conversion.json'));
   let resumed = 0;
 
   for (const file of files) {
     try {
-      const task: ConversionTask = JSON.parse(fs.readFileSync(path.join(TASK_DIR, file), 'utf-8'));
+      const task: ConversionTask = JSON.parse(fs.readFileSync(path.join(TASKS_DIR, file), 'utf-8'));
       if (task.status === 'converting' || task.status === 'archiving') {
         console.log(`  Resuming conversion: ${task.sourcePath}`);
         // Clean up partial output and retry

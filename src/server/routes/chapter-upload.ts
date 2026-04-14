@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
-import { slugify, loadAllSeries, saveSeries, loadComics, writeComics, addToCollection, type SeriesRecord, type ComicRecord } from '../data.js';
+import { slugify, loadAllSeries, saveSeries, loadComics, writeComics, addToCollection, NSFW_TAGS, type SeriesRecord, type ComicRecord } from '../data.js';
 import { shortHash } from '../hash.js';
 import { importCrz } from '../crz-handler.js';
 
@@ -237,6 +237,30 @@ router.post('/import/crz', crzUpload.single('file'), async (req, res) => {
   if (!file) {
     res.status(400).json({ error: 'No .crz file uploaded' });
     return;
+  }
+
+  // Peek at manifest to check for NSFW tags before importing
+  if (!req.isAdmin) {
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = await JSZip.loadAsync(file.buffer);
+      const manifestFile = zip.file('manifest.json');
+      if (manifestFile) {
+        const manifest = JSON.parse(await manifestFile.async('string'));
+        const tags: string[] = [...(manifest.tags || [])];
+        // Also check source-based tags
+        const sourceId = manifest.sourceId?.toLowerCase();
+        if (sourceId === 'hentainexus' || sourceId === 'manga18fx' || sourceId === 'omegascans') {
+          tags.push('adult');
+        }
+        if (tags.some((t: string) => NSFW_TAGS.has(t.toLowerCase()))) {
+          res.status(403).json({ error: 'Only admins can import adult content' });
+          return;
+        }
+      }
+    } catch {
+      // If we can't peek, let importCrz handle it
+    }
   }
 
   try {

@@ -234,8 +234,16 @@ function canonicalFilename(sourceFile: string, type: 'comic' | 'magazine'): stri
     const num = extractChapterNumber(sourceFile);
     return `chapter-${num}${ext}`;
   }
-  // Magazines: keep original name but clean it up
+  // Magazines: preserve year/subfolder prefix to avoid collisions
+  // e.g. "1977/hm1.pdf" → "1977-hm1.pdf", "hm1.pdf" → "hm1.pdf"
+  const parts = sourceFile.split(path.sep);
   const basename = path.basename(sourceFile, ext);
+  if (parts.length > 1) {
+    // Prefix with subfolder path (e.g. "1977/hm1.pdf" → "1977-hm1")
+    const prefix = parts.slice(0, -1).join('-');
+    const clean = `${prefix}-${basename}`.replace(/[<>:"|?*]/g, '_').trim();
+    return `${clean}${ext}`;
+  }
   const clean = basename.replace(/[<>:"|?*]/g, '_').trim();
   return `${clean}${ext}`;
 }
@@ -338,7 +346,7 @@ export async function importSeries(config: ImportConfig): Promise<SeriesRecord> 
   return series;
 }
 
-function extractChapterOrder(sourceFile: string): number {
+export function extractChapterOrder(sourceFile: string): number {
   const parts = sourceFile.split(path.sep);
   // Check for year folder
   let yearMultiplier = 0;

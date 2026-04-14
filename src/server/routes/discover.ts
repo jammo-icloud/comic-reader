@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { searchAllSources, getChaptersFromSource, getPageUrlsFromSource, getAllSources, getSource } from '../sources/index.js';
 import { queueDownload, getQueue, removeFromQueue, cancelDownload, onProgress } from '../downloader.js';
-import { loadAllSeries, isInCollection } from '../data.js';
+import { loadAllSeries, isInCollection, NSFW_TAGS } from '../data.js';
 
 const router = Router();
 
@@ -126,6 +126,16 @@ router.post('/discover/download', (req, res) => {
     res.status(400).json({ error: 'mangaDexId, mangaTitle, shelfId, and chapters required' });
     return;
   }
+
+  // Block non-admin from downloading NSFW content
+  if (!req.isAdmin && metadata?.tags) {
+    const hasNsfw = (metadata.tags as string[]).some((t: string) => NSFW_TAGS.has(t.toLowerCase()));
+    if (hasNsfw) {
+      res.status(403).json({ error: 'Only admins can download adult content' });
+      return;
+    }
+  }
+
   const job = queueDownload(mangaDexId, mangaTitle, shelfId, chapters, metadata, req.username);
   res.json(job);
 });

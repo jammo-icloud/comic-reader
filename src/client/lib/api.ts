@@ -17,11 +17,11 @@ function encodePath(p: string): string {
 
 // ==================== User ====================
 
-export function getMe(): Promise<{ username: string; preferences: { theme: 'dark' | 'light' } }> {
+export function getMe(): Promise<{ username: string; preferences: { theme: 'dark' | 'light'; safeMode: boolean } }> {
   return fetchJson('/me');
 }
 
-export function updatePreferences(prefs: { theme?: 'dark' | 'light' }): Promise<any> {
+export function updatePreferences(prefs: { theme?: 'dark' | 'light'; safeMode?: boolean }): Promise<any> {
   return fetchJson('/me/preferences', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -89,6 +89,31 @@ export function getAdminCatalog(): Promise<any[]> {
 
 export function purgeAdminSeries(id: string): Promise<void> {
   return fetchJson(`/admin/catalog/${id}`, { method: 'DELETE' });
+}
+
+export function getAdminSeriesComics(seriesId: string): Promise<Comic[]> {
+  return fetchJson(`/admin/catalog/${seriesId}/comics`);
+}
+
+export function getMergePreview(keepId: string, removeId: string): Promise<any> {
+  return fetchJson('/admin/merge/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keepId, removeId }),
+  });
+}
+
+export function executeMerge(payload: {
+  keepId: string;
+  removeId: string;
+  chapters: { file: string; from: 'keep' | 'remove' }[];
+  metadata: Record<string, 'keep' | 'remove'>;
+}): Promise<{ ok: boolean; chaptersMoved: number; usersUpdated: number }> {
+  return fetchJson('/admin/merge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 }
 
 export function adminEnrich(force = false): Promise<{ found: number; skipped: number; failed: number }> {

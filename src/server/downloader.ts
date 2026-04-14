@@ -49,7 +49,7 @@ function ensureTasksDir() {
 }
 
 function taskPath(id: string): string {
-  return path.join(TASKS_DIR, `${id}.json`);
+  return path.join(TASKS_DIR, `${id}.download.json`);
 }
 
 function loadTask(id: string): DownloadJob | null {
@@ -71,7 +71,7 @@ function deleteTask(id: string) {
 function loadAllTasks(): DownloadJob[] {
   ensureTasksDir();
   return fs.readdirSync(TASKS_DIR)
-    .filter((f) => f.endsWith('.json'))
+    .filter((f) => f.endsWith('.download.json'))
     .map((f) => {
       try { return JSON.parse(fs.readFileSync(path.join(TASKS_DIR, f), 'utf-8')); }
       catch { return null; }
@@ -88,6 +88,21 @@ const cancelledJobs = new Set<string>();
 
 export function removeFromQueue(id: string) {
   deleteTask(id);
+}
+
+/**
+ * Remove completed and errored download tasks.
+ */
+export function cleanupDownloads(): number {
+  const tasks = loadAllTasks();
+  let cleaned = 0;
+  for (const task of tasks) {
+    if (task.status === 'complete' || task.status === 'error') {
+      deleteTask(task.id);
+      cleaned++;
+    }
+  }
+  return cleaned;
 }
 
 export function cancelDownload(id: string): boolean {

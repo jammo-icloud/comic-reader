@@ -30,7 +30,7 @@ export function migrateToMultiUser() {
   if (allSeries.length === 0) {
     // No data to migrate — just ensure the user dir exists
     ensureUserDir(DEFAULT_USER);
-    savePreferences(DEFAULT_USER, { theme: 'dark' });
+    savePreferences(DEFAULT_USER, { theme: 'dark', safeMode: true });
     console.log(`Multi-user: initialized for "${DEFAULT_USER}" (empty library)`);
     return;
   }
@@ -89,7 +89,7 @@ export function migrateToMultiUser() {
   }
 
   // Default preferences
-  savePreferences(DEFAULT_USER, { theme: 'dark' });
+  savePreferences(DEFAULT_USER, { theme: 'dark', safeMode: true });
 
   console.log(`  Migrated ${seriesMigrated} series, ${progressMigrated} progress records → user "${DEFAULT_USER}"`);
   console.log(`  Multi-user migration complete.`);

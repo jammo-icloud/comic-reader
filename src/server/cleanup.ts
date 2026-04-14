@@ -9,6 +9,8 @@ import {
   loadCollection, loadUserProgress, userDir,
   type SeriesRecord, type ComicRecord, type CollectionEntry, type UserProgressRecord,
 } from './data.js';
+import { cleanupDownloads } from './downloader.js';
+import { cleanupConversions } from './converter.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
@@ -25,6 +27,8 @@ export function runCleanup() {
   cleaned += compactSeries();
   cleaned += compactComics();
   cleaned += cleanupUsers();
+  cleaned += cleanupTasks();
+  cleaned += migrateLegacyTaskFolders();
 
   const elapsed = Date.now() - start;
   if (cleaned > 0) {
@@ -180,4 +184,72 @@ function cleanupUsers(): number {
   }
 
   return fixed;
+}
+
+/**
+ * Clean up completed/errored tasks (both downloads and conversions)
+ * and stale converted PDFs from the staging directory
+ */
+function cleanupTasks(): number {
+  let cleaned = 0;
+  cleaned += cleanupDownloads();
+  cleaned += cleanupConversions();
+  if (cleaned > 0) {
+    console.log(`  Cleaned ${cleaned} completed/stale tasks`);
+  }
+  return cleaned;
+}
+
+/**
+ * Migrate legacy task folders to unified data/tasks/ directory.
+ * Moves files from data/conversion-tasks/ and renames old .json files.
+ */
+function migrateLegacyTaskFolders(): number {
+  let migrated = 0;
+  const TASKS_DIR = path.join(DATA_DIR, 'tasks');
+
+  // Migrate data/conversion-tasks/*.json → data/tasks/*.conversion.json
+  const legacyConvDir = path.join(DATA_DIR, 'conversion-tasks');
+  if (fs.existsSync(legacyConvDir)) {
+    if (!fs.existsSync(TASKS_DIR)) fs.mkdirSync(TASKS_DIR, { recursive: true });
+    const files = fs.readdirSync(legacyConvDir).filter((f) => f.endsWith('.json'));
+    for (const file of files) {
+      const src = path.join(legacyConvDir, file);
+      const dest = path.join(TASKS_DIR, file.replace('.json', '.conversion.json'));
+      try {
+        fs.renameSync(src, dest);
+        migrated++;
+      } catch {
+        // If rename fails (cross-device), copy + delete
+        try {
+          fs.copyFileSync(src, dest);
+          fs.unlinkSync(src);
+          migrated++;
+        } catch {}
+      }
+    }
+    // Remove empty legacy dir
+    try {
+      const remaining = fs.readdirSync(legacyConvDir);
+      if (remaining.length === 0) fs.rmdirSync(legacyConvDir);
+    } catch {}
+  }
+
+  // Migrate data/tasks/*.json (old download format) → data/tasks/*.download.json
+  if (fs.existsSync(TASKS_DIR)) {
+    const files = fs.readdirSync(TASKS_DIR).filter((f) => f.endsWith('.json') && !f.includes('.download.') && !f.includes('.conversion.'));
+    for (const file of files) {
+      const src = path.join(TASKS_DIR, file);
+      const dest = path.join(TASKS_DIR, file.replace('.json', '.download.json'));
+      try {
+        fs.renameSync(src, dest);
+        migrated++;
+      } catch {}
+    }
+  }
+
+  if (migrated > 0) {
+    console.log(`  Migrated ${migrated} legacy task files`);
+  }
+  return migrated;
 }

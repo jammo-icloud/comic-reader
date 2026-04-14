@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge } from 'lucide-react';
 import {
   getAdminStats, getAdminTasks, deleteAdminTask, retryAdminTask, cancelAdminTask, clearAdminTasks,
   getAdminCatalog, purgeAdminSeries, adminEnrich, adminRescan, adminCleanup,
@@ -8,6 +8,7 @@ import {
 } from '../lib/api';
 import ThemeToggle from '../components/ThemeToggle';
 import UserMenu from '../components/UserMenu';
+import MergeModal from '../components/MergeModal';
 
 type Tab = 'tasks' | 'library' | 'users';
 
@@ -34,6 +35,9 @@ export default function AdminPage() {
   const [enriching, setEnriching] = useState(false);
   const [rescanning, setRescanning] = useState(false);
   const [cleaning, setCleaning] = useState(false);
+
+  // Merge
+  const [mergeTarget, setMergeTarget] = useState<any | null>(null);
 
   // Users
   const [users, setUsers] = useState<any[]>([]);
@@ -266,7 +270,14 @@ export default function AdminPage() {
                             </div>
                           </td>
                           <td className="px-4 py-2 text-gray-500">{s.malId || '—'}</td>
-                          <td className="px-4 py-2">
+                          <td className="px-4 py-2 flex gap-1">
+                            <button
+                              onClick={() => setMergeTarget(s)}
+                              className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition-colors"
+                              title="Merge with another series"
+                            >
+                              <GitMerge size={13} />
+                            </button>
                             <button
                               onClick={async () => {
                                 if (!confirm(`Permanently delete "${s.name}" and all ${s.count} chapters?`)) return;
@@ -327,6 +338,21 @@ export default function AdminPage() {
           </section>
         )}
       </main>
+
+      {/* Merge Modal */}
+      {mergeTarget && (
+        <MergeModal
+          keepSeries={mergeTarget}
+          catalog={catalog}
+          onClose={() => setMergeTarget(null)}
+          onComplete={() => {
+            setMergeTarget(null);
+            setLoadingCatalog(true);
+            getAdminCatalog().then(setCatalog).finally(() => setLoadingCatalog(false));
+            getAdminStats().then(setStats);
+          }}
+        />
+      )}
     </div>
   );
 }

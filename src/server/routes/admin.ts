@@ -2,10 +2,12 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { loadAllSeries, loadComics, removeSeries, loadCollection, loadUserProgress, userDir } from '../data.js';
-import { getQueue, removeFromQueue, cancelDownload } from '../downloader.js';
+import { getQueue, removeFromQueue, cancelDownload, cleanupDownloads } from '../downloader.js';
+import { cleanupConversions } from '../converter.js';
 import { enrichSeries } from '../enrich.js';
 import { rescanLibrary } from '../scanner.js';
 import { runCleanup } from '../cleanup.js';
+import { buildMergePreview, executeMerge } from '../merge.js';
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -95,8 +97,8 @@ router.post('/admin/tasks/:id/retry', (req, res) => {
   task.progress.pagesTotal = 0;
 
   // Save the updated task
-  const taskPath = path.join(TASKS_DIR, `${task.id}.json`);
-  fs.writeFileSync(taskPath, JSON.stringify(task, null, 2));
+  const taskFilePath = path.join(TASKS_DIR, `${task.id}.download.json`);
+  fs.writeFileSync(taskFilePath, JSON.stringify(task, null, 2));
 
   res.json({ ok: true });
 });
@@ -108,14 +110,9 @@ router.post('/admin/tasks/:id/cancel', (req, res) => {
 });
 
 router.post('/admin/tasks/clear', (_req, res) => {
-  const tasks = getQueue();
   let cleared = 0;
-  for (const task of tasks) {
-    if (task.status === 'complete' || task.status === 'error') {
-      removeFromQueue(task.id);
-      cleared++;
-    }
-  }
+  cleared += cleanupDownloads();
+  cleared += cleanupConversions();
   res.json({ ok: true, cleared });
 });
 
@@ -173,6 +170,39 @@ router.delete('/admin/catalog/:id', (req, res) => {
 
   console.log(`Admin purged: ${series.name} (${seriesId})`);
   res.json({ ok: true });
+});
+
+// --- Merge ---
+
+router.get('/admin/catalog/:id/comics', (req, res) => {
+  const comics = loadComics(req.params.id);
+  res.json(comics);
+});
+
+router.post('/admin/merge/preview', (req, res) => {
+  try {
+    const { keepId, removeId } = req.body;
+    if (!keepId || !removeId) { res.status(400).json({ error: 'keepId and removeId required' }); return; }
+    if (keepId === removeId) { res.status(400).json({ error: 'Cannot merge a series with itself' }); return; }
+    const result = buildMergePreview(keepId, removeId);
+    res.json(result);
+  } catch (err) {
+    res.status(404).json({ error: (err as Error).message });
+  }
+});
+
+router.post('/admin/merge', (req, res) => {
+  try {
+    const { keepId, removeId, chapters, metadata } = req.body;
+    if (!keepId || !removeId || !chapters) {
+      res.status(400).json({ error: 'keepId, removeId, and chapters required' });
+      return;
+    }
+    const result = executeMerge({ keepId, removeId, chapters, metadata: metadata || {} });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 // --- Enrich & Rescan ---
