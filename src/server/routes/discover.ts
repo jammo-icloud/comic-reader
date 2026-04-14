@@ -20,13 +20,21 @@ router.get('/discover/search', async (req, res) => {
 
     // Annotate results with local library matches
     const allSeries = loadAllSeries();
-    // Search dedup — match by title and English title
+    // Search dedup — match by title, English title, and MAL ID
     const byTitle = new Map(allSeries.map((s) => [s.name.toLowerCase(), s.id]));
     const byEnglish = new Map(allSeries.filter((s) => s.englishTitle).map((s) => [s.englishTitle!.toLowerCase(), s.id]));
+    const byMalId = new Map(allSeries.filter((s) => s.malId).map((s) => [s.malId!, s.id]));
     const username = req.username;
 
     const annotated = results.map((r: any) => {
-      const localId = byTitle.get(r.title?.toLowerCase()) || byEnglish.get(r.title?.toLowerCase()) || null;
+      const localId =
+        byTitle.get(r.title?.toLowerCase()) ||
+        byEnglish.get(r.title?.toLowerCase()) ||
+        // Also check if the search result title matches any local series' English title
+        allSeries.find((s) => s.englishTitle?.toLowerCase() === r.title?.toLowerCase())?.id ||
+        // Check local names against this result's title
+        allSeries.find((s) => s.name.toLowerCase() === r.title?.toLowerCase())?.id ||
+        null;
       return {
         ...r,
         localSeriesId: localId,

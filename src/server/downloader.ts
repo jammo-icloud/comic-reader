@@ -283,14 +283,23 @@ async function processQueue() {
 
       const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
       const slugName = job.mangaTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
-      const seriesDir = path.join(LIBRARY_DIR, 'comics', slugName);
-      if (!fs.existsSync(seriesDir)) fs.mkdirSync(seriesDir, { recursive: true });
 
-      // Ensure series record exists (so rescanLibrary can find it)
-      const existing = loadAllSeries().find((s) => s.id === slugName);
+      // Check for existing series by slug, English title, or name match
+      // This prevents duplicates when the same manga is imported under different titles
+      const allExisting = loadAllSeries();
+      const existingBySlug = allExisting.find((s) => s.id === slugName);
+      const existingByEnglish = allExisting.find((s) =>
+        s.englishTitle?.toLowerCase() === job.mangaTitle.toLowerCase() ||
+        s.name.toLowerCase() === job.mangaTitle.toLowerCase()
+      );
+      const existing = existingBySlug || existingByEnglish;
+      const actualSlug = existing ? existing.id : slugName;
+
+      const seriesDir = path.join(LIBRARY_DIR, 'comics', actualSlug);
+      if (!fs.existsSync(seriesDir)) fs.mkdirSync(seriesDir, { recursive: true });
       if (!existing) {
         const newSeries: SeriesRecord = {
-          id: slugName,
+          id: actualSlug,
           type: 'comic',
           name: job.mangaTitle,
           coverFile: null,
@@ -317,11 +326,11 @@ async function processQueue() {
       }
 
       // Add to the downloading user's collection
-      addToCollection(job.username, slugName);
-      console.log(`  Added to ${job.username}'s collection: ${slugName}`);
+      addToCollection(job.username, actualSlug);
+      console.log(`  Added to ${job.username}'s collection: ${actualSlug}`);
 
       // Download cover art if available and series doesn't have one yet
-      const series = loadAllSeries().find((s) => s.id === slugName);
+      const series = loadAllSeries().find((s) => s.id === actualSlug);
       if (series && !series.coverFile && job.metadata?.coverUrl) {
         try {
           const DATA_DIR = process.env.DATA_DIR || './data';
@@ -359,7 +368,7 @@ async function processQueue() {
           if (coverRes.ok) {
             const coverBuffer = Buffer.from(await coverRes.arrayBuffer());
             const { shortHash } = await import('./hash.js');
-            const filename = `${shortHash(slugName)}.jpg`;
+            const filename = `${shortHash(actualSlug)}.jpg`;
             const sharp = (await import('sharp')).default;
             await sharp(coverBuffer).resize(300, 450, { fit: 'cover' }).jpeg({ quality: 85 }).toFile(path.join(coversDir, filename));
             series.coverFile = filename;

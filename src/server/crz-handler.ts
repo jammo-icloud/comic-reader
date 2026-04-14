@@ -67,13 +67,21 @@ export async function importCrz(
 
   if (!manifest.title) throw new Error('Invalid .crz manifest: no title');
 
-  const seriesId = slugify(manifest.title);
+  const defaultSlug = slugify(manifest.title);
+
+  // Check for existing series by slug, name, or English title (prevent duplicates)
+  const allExisting = loadAllSeries();
+  const existingBySlug = allExisting.find((s) => s.id === defaultSlug);
+  const existingByTitle = allExisting.find((s) =>
+    s.name.toLowerCase() === manifest.title.toLowerCase() ||
+    s.englishTitle?.toLowerCase() === manifest.title.toLowerCase()
+  );
+  let series = existingBySlug || existingByTitle || null;
+  const seriesId = series ? series.id : defaultSlug;
+  const merged = !!series;
+
   const seriesDir = path.join(LIBRARY_DIR, 'comics', seriesId);
   if (!fs.existsSync(seriesDir)) fs.mkdirSync(seriesDir, { recursive: true });
-
-  // Check for existing series (merge support)
-  let series = loadAllSeries().find((s) => s.id === seriesId);
-  const merged = !!series;
 
   if (!series) {
     // Build tags from manifest + source auto-tags
