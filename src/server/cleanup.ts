@@ -69,12 +69,9 @@ function compactSeries(): number {
     console.log(`  Removed orphan series: ${id}`);
   }
 
-  // Sort alphabetically by name for consistent ordering
+  // Always sort alphabetically by name for consistent ordering
   const sorted = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
-
-  if (fixed > 0 || sorted.length !== allSeries.length) {
-    writeAllSeries(sorted);
-  }
+  writeAllSeries(sorted);
 
   return fixed;
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge, Wrench } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge, Wrench, Pencil } from 'lucide-react';
 import {
   getAdminStats, getAdminTasks, deleteAdminTask, retryAdminTask, cancelAdminTask, clearAdminTasks,
   getAdminCatalog, purgeAdminSeries, adminEnrich, adminRescan, adminCleanup, adminMaintenance,
@@ -9,6 +9,7 @@ import {
 import ThemeToggle from '../components/ThemeToggle';
 import UserMenu from '../components/UserMenu';
 import MergeModal from '../components/MergeModal';
+import SeriesEditModal from '../components/SeriesEditModal';
 
 type Tab = 'tasks' | 'library' | 'users';
 
@@ -40,6 +41,9 @@ export default function AdminPage() {
   // Merge — select exactly 2 series from the catalog
   const [mergeSelected, setMergeSelected] = useState<Set<string>>(new Set());
   const [mergeTarget, setMergeTarget] = useState<{ a: any; b: any } | null>(null);
+
+  // Edit
+  const [editTarget, setEditTarget] = useState<any | null>(null);
 
 
   // Users
@@ -318,7 +322,14 @@ export default function AdminPage() {
                             </div>
                           </td>
                           <td className="px-4 py-2 text-gray-500">{s.malId || '—'}</td>
-                          <td className="px-4 py-2">
+                          <td className="px-4 py-2 flex gap-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditTarget(s); }}
+                              className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition-colors"
+                              title="Edit series"
+                            >
+                              <Pencil size={13} />
+                            </button>
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation();
@@ -395,6 +406,19 @@ export default function AdminPage() {
             setLoadingCatalog(true);
             getAdminCatalog().then(setCatalog).finally(() => setLoadingCatalog(false));
             getAdminStats().then(setStats);
+          }}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {editTarget && (
+        <SeriesEditModal
+          series={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSave={() => {
+            setEditTarget(null);
+            setLoadingCatalog(true);
+            getAdminCatalog().then(setCatalog).finally(() => setLoadingCatalog(false));
           }}
         />
       )}

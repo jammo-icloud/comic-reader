@@ -132,6 +132,18 @@ export function adminMaintenance(): Promise<{ ok: boolean }> {
   return fetchJson('/admin/maintenance', { method: 'POST' });
 }
 
+export function updateAdminSeries(id: string, updates: Record<string, any>): Promise<any> {
+  return fetchJson(`/admin/catalog/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+}
+
+export function deleteAdminComic(seriesId: string, file: string): Promise<{ ok: boolean; remaining: number }> {
+  return fetchJson(`/admin/catalog/${seriesId}/comics/${encodePath(file)}`, { method: 'DELETE' });
+}
+
 export function getAdminUsers(): Promise<{ username: string; collectionSize: number; progressEntries: number; readChapters: number }[]> {
   return fetchJson('/admin/users');
 }

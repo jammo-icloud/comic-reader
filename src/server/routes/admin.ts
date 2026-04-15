@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { loadAllSeries, loadComics, removeSeries, loadCollection, loadUserProgress, userDir } from '../data.js';
+import { loadAllSeries, loadComics, writeComics, removeSeries, saveSeries, getSeries, loadCollection, loadUserProgress, userDir, type SeriesRecord } from '../data.js';
 import { getQueue, removeFromQueue, cancelDownload, cleanupDownloads } from '../downloader.js';
 import { cleanupConversions } from '../converter.js';
 import { enrichSeries } from '../enrich.js';
@@ -10,6 +10,7 @@ import { runCleanup } from '../cleanup.js';
 import { buildMergePreview, executeMerge } from '../merge.js';
 // PDF optimization runs locally (too CPU-heavy for NAS) — see scripts/optimize-pdf.ts
 import { runMaintenance } from '../maintenance.js';
+import { shortHash } from '../hash.js';
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -172,6 +173,60 @@ router.delete('/admin/catalog/:id', (req, res) => {
 
   console.log(`Admin purged: ${series.name} (${seriesId})`);
   res.json({ ok: true });
+});
+
+// --- Edit Series ---
+
+router.patch('/admin/catalog/:id', (req, res) => {
+  const series = getSeries(req.params.id);
+  if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
+
+  const editable: (keyof SeriesRecord)[] = [
+    'name', 'englishTitle', 'synopsis', 'status', 'year', 'malId', 'mangaDexId', 'type',
+  ];
+
+  for (const field of editable) {
+    if (req.body[field] !== undefined) {
+      (series as any)[field] = req.body[field];
+    }
+  }
+
+  // Tags handled separately (always an array)
+  if (req.body.tags !== undefined) {
+    series.tags = Array.isArray(req.body.tags) ? req.body.tags : [];
+  }
+
+  saveSeries(series);
+  console.log(`Admin edited series: ${series.name} (${series.id})`);
+  res.json(series);
+});
+
+router.delete('/admin/catalog/:id/comics/:file', (req, res) => {
+  const seriesId = req.params.id;
+  const file = decodeURIComponent(req.params.file);
+  const series = getSeries(seriesId);
+  if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
+
+  const comics = loadComics(seriesId);
+  const comic = comics.find((c) => c.file === file);
+  if (!comic) { res.status(404).json({ error: 'Comic not found' }); return; }
+
+  // Delete file from disk
+  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
+  const filePath = path.join(LIBRARY_DIR, typeDir, seriesId, file);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+  // Delete thumbnail
+  const DATA_DIR = process.env.DATA_DIR || './data';
+  const thumbPath = path.join(DATA_DIR, 'thumbnails', `${shortHash(`${seriesId}/${file}`)}.jpg`);
+  if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
+
+  // Remove from comics list
+  const updated = comics.filter((c) => c.file !== file);
+  writeComics(seriesId, updated);
+
+  console.log(`Admin deleted comic: ${file} from ${series.name}`);
+  res.json({ ok: true, remaining: updated.length });
 });
 
 // --- Merge ---
