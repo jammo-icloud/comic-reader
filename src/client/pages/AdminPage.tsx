@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge, Wrench } from 'lucide-react';
 import {
   getAdminStats, getAdminTasks, deleteAdminTask, retryAdminTask, cancelAdminTask, clearAdminTasks,
-  getAdminCatalog, purgeAdminSeries, adminEnrich, adminRescan, adminCleanup,
+  getAdminCatalog, purgeAdminSeries, adminEnrich, adminRescan, adminCleanup, adminMaintenance,
   getAdminUsers,
 } from '../lib/api';
 import ThemeToggle from '../components/ThemeToggle';
@@ -35,6 +35,7 @@ export default function AdminPage() {
   const [enriching, setEnriching] = useState(false);
   const [rescanning, setRescanning] = useState(false);
   const [cleaning, setCleaning] = useState(false);
+  const [maintaining, setMaintaining] = useState(false);
 
   // Merge — select exactly 2 series from the catalog
   const [mergeSelected, setMergeSelected] = useState<Set<string>>(new Set());
@@ -229,6 +230,14 @@ export default function AdminPage() {
                 {mergeSelected.size > 0 && mergeSelected.size < 2 && (
                   <span className="text-[10px] text-gray-400">Select one more to merge</span>
                 )}
+                <button
+                  onClick={async () => { setMaintaining(true); await adminMaintenance().catch(() => {}); setMaintaining(false); }}
+                  disabled={maintaining}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+                  title="Fix page counts and regenerate missing thumbnails"
+                >
+                  {maintaining ? <Loader size={12} className="animate-spin" /> : <Wrench size={12} />} Maintenance
+                </button>
                 <button
                   onClick={async () => { setCleaning(true); await adminCleanup().catch(() => {}); setCleaning(false); getAdminStats().then(setStats).catch(() => {}); setLoadingCatalog(true); getAdminCatalog().then(setCatalog).finally(() => setLoadingCatalog(false)); }}
                   disabled={cleaning}

@@ -9,6 +9,7 @@ import { rescanLibrary } from '../scanner.js';
 import { runCleanup } from '../cleanup.js';
 import { buildMergePreview, executeMerge } from '../merge.js';
 // PDF optimization runs locally (too CPU-heavy for NAS) — see scripts/optimize-pdf.ts
+import { runMaintenance } from '../maintenance.js';
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -233,6 +234,17 @@ router.post('/admin/cleanup', (_req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+router.post('/admin/maintenance', async (_req, res) => {
+  try {
+    // Respond immediately — maintenance runs in background
+    res.json({ ok: true, status: 'started' });
+    const result = await runMaintenance();
+    console.log(`Admin maintenance: ${result.pageCounts} pages fixed, ${result.thumbnails} thumbnails, ${result.errors} errors`);
+  } catch (err) {
+    console.error('Maintenance failed:', (err as Error).message);
   }
 });
 

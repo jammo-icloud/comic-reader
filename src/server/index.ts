@@ -10,6 +10,7 @@ import chapterUploadRoutes from './routes/chapter-upload.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import { resumeIncompleteDownloads } from './downloader.js';
+import { runMaintenance } from './maintenance.js';
 import { userMiddleware, authGuard } from './middleware/user.js';
 import { migrateToMultiUser } from './migrate.js';
 import { runCleanup } from './cleanup.js';
@@ -84,4 +85,7 @@ app.listen(PORT, () => {
 
   // Resume any incomplete downloads from previous session
   resumeIncompleteDownloads();
+
+  // Fix page counts and generate missing thumbnails in background
+  runMaintenance().catch((err) => console.error('Maintenance failed:', err.message));
 });

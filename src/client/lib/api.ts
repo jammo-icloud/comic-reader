@@ -128,6 +128,10 @@ export function adminCleanup(): Promise<{ ok: boolean }> {
   return fetchJson('/admin/cleanup', { method: 'POST' });
 }
 
+export function adminMaintenance(): Promise<{ ok: boolean }> {
+  return fetchJson('/admin/maintenance', { method: 'POST' });
+}
+
 export function getAdminUsers(): Promise<{ username: string; collectionSize: number; progressEntries: number; readChapters: number }[]> {
   return fetchJson('/admin/users');
 }
