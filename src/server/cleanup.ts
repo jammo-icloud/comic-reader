@@ -55,9 +55,21 @@ function compactSeries(): number {
   }
 
   // Remove series whose folder doesn't exist on disk
+  // BUT only if the parent type directory exists — if it doesn't,
+  // the volume may not be mounted and we must NOT delete metadata
+  const comicsDir = path.join(LIBRARY_DIR, 'comics');
+  const magazinesDir = path.join(LIBRARY_DIR, 'magazines');
+  const comicsDirExists = fs.existsSync(comicsDir);
+  const magazinesDirExists = fs.existsSync(magazinesDir);
+
   const toRemove: string[] = [];
   for (const [id, series] of byId) {
     const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
+    const parentExists = typeDir === 'comics' ? comicsDirExists : magazinesDirExists;
+
+    // Only check if the parent directory is accessible
+    if (!parentExists) continue;
+
     const seriesDir = path.join(LIBRARY_DIR, typeDir, id);
     if (!fs.existsSync(seriesDir)) {
       toRemove.push(id);
