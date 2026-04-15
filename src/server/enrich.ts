@@ -1,3 +1,7 @@
+/**
+ * Enrichment via AniList GraphQL API (replaces Jikan/MAL).
+ * AniList is free, no auth required, and cross-references MAL IDs.
+ */
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
@@ -6,8 +10,8 @@ import { shortHash } from './hash.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const COVERS_DIR = path.join(DATA_DIR, 'series-covers');
-const JIKAN_BASE = 'https://api.jikan.moe/v4';
-const RATE_LIMIT_MS = 400;
+const ANILIST_URL = 'https://graphql.anilist.co';
+const RATE_LIMIT_MS = 700; // AniList allows ~90 req/min
 
 function ensureCoversDir() {
   if (!fs.existsSync(COVERS_DIR)) fs.mkdirSync(COVERS_DIR, { recursive: true });
@@ -21,7 +25,8 @@ async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-interface MalResult {
+interface EnrichResult {
+  malId: number | null;
   title: string;
   englishTitle: string | null;
   imageUrl: string;
@@ -29,97 +34,148 @@ interface MalResult {
   synopsis: string | null;
 }
 
-function extractEnglishTitle(titles: any[]): string | null {
-  const english = titles?.find((t: any) => t.type === 'English');
-  return english?.title || null;
+// --- AniList GraphQL queries ---
+
+async function anilistQuery(query: string, variables: Record<string, any>): Promise<any> {
+  const res = await fetch(ANILIST_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  if (res.status === 429) {
+    const retryAfter = parseInt(res.headers.get('Retry-After') || '2', 10);
+    console.log(`  AniList rate limited, waiting ${retryAfter}s...`);
+    await sleep(retryAfter * 1000);
+    return anilistQuery(query, variables);
+  }
+
+  if (!res.ok) {
+    throw new Error(`AniList returned ${res.status}`);
+  }
+
+  const json = await res.json();
+  if (json.errors?.length) {
+    throw new Error(json.errors[0].message);
+  }
+  return json.data;
 }
 
-async function fetchByMalId(malId: number): Promise<MalResult | null> {
-  try {
-    const res = await fetch(`${JIKAN_BASE}/manga/${malId}`);
-    if (res.status === 429) { await sleep(2000); return fetchByMalId(malId); }
-    if (!res.ok) { console.error(`  Jikan returned ${res.status} for MAL ID ${malId}`); return null; }
-    const json = await res.json();
-    const match = json.data;
-    if (!match) return null;
+function parseMedia(media: any): EnrichResult | null {
+  if (!media) return null;
+  return {
+    malId: media.idMal || null,
+    title: media.title?.romaji || media.title?.english || 'Unknown',
+    englishTitle: media.title?.english || null,
+    imageUrl: media.coverImage?.large || media.coverImage?.medium || '',
+    score: media.averageScore ? media.averageScore / 10 : null, // AniList uses 0-100, we want 0-10
+    synopsis: media.description ? media.description.replace(/<[^>]*>/g, '').trim() : null,
+  };
+}
 
-    return {
-      title: match.titles?.[0]?.title || `MAL #${malId}`,
-      englishTitle: extractEnglishTitle(match.titles),
-      imageUrl: match.images?.jpg?.large_image_url || match.images?.jpg?.image_url || '',
-      score: match.score || null,
-      synopsis: match.synopsis || null,
-    };
+const MEDIA_FIELDS = `
+  idMal
+  title { romaji english native }
+  coverImage { large medium }
+  averageScore
+  description(asHtml: false)
+  status
+  startDate { year }
+`;
+
+/**
+ * Fetch by MAL ID via AniList cross-reference
+ */
+async function fetchByMalId(malId: number): Promise<EnrichResult | null> {
+  try {
+    const data = await anilistQuery(`
+      query ($malId: Int) {
+        Media(idMal: $malId, type: MANGA) { ${MEDIA_FIELDS} }
+      }
+    `, { malId });
+    return parseMedia(data?.Media);
   } catch (err) {
-    console.error(`  Fetch MAL ID ${malId} failed:`, (err as Error).message);
+    console.error(`  AniList lookup for MAL ID ${malId} failed:`, (err as Error).message);
     return null;
   }
 }
 
 /**
- * Search MAL by name — returns basic match info for import UI
+ * Search by name via AniList
  */
-export async function searchMalForName(query: string): Promise<{ malId: number; title: string; englishTitle: string | null; score: number | null; synopsis: string | null; imageUrl: string; year: number | null; status: string } | null> {
+async function searchManga(query: string): Promise<EnrichResult | null> {
   try {
-    const res = await fetch(`${JIKAN_BASE}/manga?q=${encodeURIComponent(query)}&limit=5&sfw=true`);
-    if (res.status === 429) { await sleep(2000); return searchMalForName(query); }
-    if (!res.ok) return null;
+    const data = await anilistQuery(`
+      query ($search: String) {
+        Page(perPage: 5) {
+          media(search: $search, type: MANGA, sort: SEARCH_MATCH) { ${MEDIA_FIELDS} }
+        }
+      }
+    `, { search: query });
 
-    const json = await res.json();
-    const results = json.data;
+    const results = data?.Page?.media;
+    if (!results?.length) return null;
+
+    // Try to find a close title match
+    const queryLower = query.toLowerCase();
+    const match = results.find((r: any) => {
+      const titles = [r.title?.romaji, r.title?.english, r.title?.native].filter(Boolean);
+      return titles.some((t: string) => t.toLowerCase().includes(queryLower) || queryLower.includes(t.toLowerCase()));
+    }) || results[0];
+
+    return parseMedia(match);
+  } catch (err) {
+    console.error(`  AniList search failed for "${query}":`, (err as Error).message);
+    return null;
+  }
+}
+
+/**
+ * Search by name — returns match info for the import UI
+ */
+export async function searchMalForName(query: string): Promise<{
+  malId: number; title: string; englishTitle: string | null;
+  score: number | null; synopsis: string | null; imageUrl: string;
+  year: number | null; status: string;
+} | null> {
+  try {
+    const data = await anilistQuery(`
+      query ($search: String) {
+        Page(perPage: 5) {
+          media(search: $search, type: MANGA, sort: SEARCH_MATCH) {
+            ${MEDIA_FIELDS}
+          }
+        }
+      }
+    `, { search: query });
+
+    const results = data?.Page?.media;
     if (!results?.length) return null;
 
     const queryLower = query.toLowerCase();
-    const match = results.find((r: any) =>
-      r.titles?.some((t: any) =>
-        t.title.toLowerCase().includes(queryLower) || queryLower.includes(t.title.toLowerCase())
-      )
-    ) || results[0];
+    const match = results.find((r: any) => {
+      const titles = [r.title?.romaji, r.title?.english, r.title?.native].filter(Boolean);
+      return titles.some((t: string) => t.toLowerCase().includes(queryLower) || queryLower.includes(t.toLowerCase()));
+    }) || results[0];
+
+    if (!match.idMal) return null; // No MAL cross-reference
 
     return {
-      malId: match.mal_id,
-      title: match.titles?.[0]?.title || query,
-      englishTitle: extractEnglishTitle(match.titles),
-      score: match.score || null,
-      synopsis: match.synopsis || null,
-      imageUrl: match.images?.jpg?.large_image_url || match.images?.jpg?.image_url || '',
-      year: match.published?.prop?.from?.year || null,
-      status: match.status || 'unknown',
+      malId: match.idMal,
+      title: match.title?.romaji || match.title?.english || query,
+      englishTitle: match.title?.english || null,
+      score: match.averageScore ? match.averageScore / 10 : null,
+      synopsis: match.description ? match.description.replace(/<[^>]*>/g, '').trim() : null,
+      imageUrl: match.coverImage?.large || match.coverImage?.medium || '',
+      year: match.startDate?.year || null,
+      status: match.status?.toLowerCase() || 'unknown',
     };
   } catch {
     return null;
   }
 }
 
-async function searchManga(query: string): Promise<MalResult | null> {
-  try {
-    const res = await fetch(`${JIKAN_BASE}/manga?q=${encodeURIComponent(query)}&limit=5&sfw=true`);
-    if (res.status === 429) { await sleep(2000); return searchManga(query); }
-    if (!res.ok) return null;
-
-    const json = await res.json();
-    const results = json.data;
-    if (!results?.length) return null;
-
-    const queryLower = query.toLowerCase();
-    const match = results.find((r: any) =>
-      r.titles?.some((t: any) =>
-        t.title.toLowerCase().includes(queryLower) || queryLower.includes(t.title.toLowerCase())
-      )
-    ) || results[0];
-
-    return {
-      title: match.titles?.[0]?.title || query,
-      englishTitle: extractEnglishTitle(match.titles),
-      imageUrl: match.images?.jpg?.large_image_url || match.images?.jpg?.image_url || '',
-      score: match.score || null,
-      synopsis: match.synopsis || null,
-    };
-  } catch (err) {
-    console.error(`  Search failed for "${query}":`, (err as Error).message);
-    return null;
-  }
-}
+// --- Cover download ---
 
 async function downloadCover(imageUrl: string, filename: string): Promise<boolean> {
   try {
@@ -134,7 +190,8 @@ async function downloadCover(imageUrl: string, filename: string): Promise<boolea
   }
 }
 
-// Kept for backward compat with library routes
+// --- Public API ---
+
 export function getSeriesCoverPath(seriesId: string): string | null {
   const filename = coverFilename(seriesId);
   const p = path.join(COVERS_DIR, filename);
@@ -146,17 +203,16 @@ export function loadSeriesMetadata() { return {}; }
 export function saveOverride() {}
 
 /**
- * Enrich all series from MAL/Jikan — updates series records directly
+ * Enrich all series from AniList — updates series records directly
  */
 export async function enrichSeries(force = false): Promise<{ found: number; skipped: number; failed: number }> {
   ensureCoversDir();
   const allSeries = loadAllSeries();
   let found = 0, skipped = 0, failed = 0;
 
-  console.log(`Enriching ${allSeries.length} series from MyAnimeList...`);
+  console.log(`Enriching ${allSeries.length} series from AniList...`);
 
   for (const series of allSeries) {
-    // Skip if already has cover (unless force)
     if (!force && series.coverFile && fs.existsSync(path.join(COVERS_DIR, series.coverFile))) {
       skipped++;
       continue;
@@ -164,7 +220,7 @@ export async function enrichSeries(force = false): Promise<{ found: number; skip
 
     await sleep(RATE_LIMIT_MS);
 
-    let result: MalResult | null;
+    let result: EnrichResult | null;
     if (series.malId) {
       console.log(`  MAL ID ${series.malId}: "${series.name}"`);
       result = await fetchByMalId(series.malId);
@@ -182,12 +238,12 @@ export async function enrichSeries(force = false): Promise<{ found: number; skip
     const filename = coverFilename(series.id);
     const downloaded = await downloadCover(result.imageUrl, filename);
 
-    // Update series record directly — one source of truth
     series.name = result.title;
     series.coverFile = downloaded ? filename : null;
     series.score = result.score;
     series.synopsis = result.synopsis;
     series.englishTitle = result.englishTitle;
+    if (result.malId && !series.malId) series.malId = result.malId;
     saveSeries(series);
 
     found++;
@@ -209,10 +265,9 @@ export async function enrichSingle(seriesId: string, malId: number): Promise<{ s
 
   const result = await fetchByMalId(malId);
   if (!result) {
-    // Still save the MAL ID even if lookup failed — user explicitly set it
     series.malId = malId;
     saveSeries(series);
-    return { series, error: `MAL ID ${malId} not found on MyAnimeList. The ID was saved but no metadata was fetched.` };
+    return { series, error: `MAL ID ${malId} not found on AniList. The ID was saved but no metadata was fetched.` };
   }
 
   const filename = coverFilename(series.id);

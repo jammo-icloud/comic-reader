@@ -70,6 +70,10 @@ export default function PdfViewer({ url, initialPage = 0, onPageChange }: PdfVie
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    // Reset to page 0 (or initialPage) when switching chapters
+    setCurrentPage(initialPage);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
     pdfjsLib.getDocument(url).promise.then((doc) => {
       if (cancelled) return;
       pdfDocRef.current = doc;
@@ -81,7 +85,7 @@ export default function PdfViewer({ url, initialPage = 0, onPageChange }: PdfVie
       pdfDocRef.current?.destroy();
       pdfDocRef.current = null;
     };
-  }, [url]);
+  }, [url, initialPage]);
 
   useEffect(() => {
     if (!loading && pdfDocRef.current) renderPage(currentPage);

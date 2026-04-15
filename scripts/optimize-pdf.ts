@@ -123,11 +123,6 @@ async function optimizeFile(filePath: string): Promise<{ originalSize: number; o
   const originalSize = stat.size;
   const basename = path.basename(filePath);
 
-  if (originalSize < MIN_FILE_SIZE) {
-    if (analyzeOnly) console.log(`  ${basename}: ${(originalSize / 1024 / 1024).toFixed(1)} MB — under threshold, skipping`);
-    return null;
-  }
-
   let pages: PageInfo[];
   try {
     pages = analyzePages(filePath);
@@ -194,6 +189,13 @@ async function optimizeFile(filePath: string): Promise<{ originalSize: number; o
   }
 
   const pdfBytes = await outPdf.save();
+  const optimizedSize = pdfBytes.length;
+
+  // Skip if the "optimized" version is larger than the original
+  if (optimizedSize >= originalSize) {
+    console.log(`${(optimizedSize / 1024 / 1024).toFixed(1)} MB (larger — skipping, keeping original)`);
+    return null;
+  }
 
   if (copyMode) {
     const ext = path.extname(filePath);
@@ -203,10 +205,11 @@ async function optimizeFile(filePath: string): Promise<{ originalSize: number; o
   } else {
     const tmpPath = filePath + '.optimizing';
     fs.writeFileSync(tmpPath, pdfBytes);
+    // unlink original first — direct rename-over fails on macOS with restricted permissions
+    fs.unlinkSync(filePath);
     fs.renameSync(tmpPath, filePath);
   }
 
-  const optimizedSize = pdfBytes.length;
   const saved = ((1 - optimizedSize / originalSize) * 100).toFixed(0);
   console.log(`${(optimizedSize / 1024 / 1024).toFixed(1)} MB (${saved}% smaller, ${pagesResized} resized${coverIndex >= 0 ? ', cover moved' : ''})`);
 
@@ -245,21 +248,30 @@ async function run() {
     console.log(`Settings: max ${MAX_DIM}px, JPEG quality ${QUALITY}${analyzeOnly ? ' (analyze only)' : ''}${copyMode ? ' (copy mode)' : ' (in-place)'}`);
     console.log('');
 
-    let totalOptimized = 0, totalSkipped = 0, totalSaved = 0;
+    let totalOptimized = 0, totalSkipped = 0, totalFailed = 0, totalSaved = 0;
 
     for (let i = 0; i < pdfs.length; i++) {
-      const result = await optimizeFile(pdfs[i]);
-      if (result) {
-        totalOptimized++;
-        totalSaved += result.originalSize - result.optimizedSize;
-      } else {
-        totalSkipped++;
+      try {
+        const result = await optimizeFile(pdfs[i]);
+        if (result) {
+          totalOptimized++;
+          totalSaved += result.originalSize - result.optimizedSize;
+        } else {
+          totalSkipped++;
+        }
+      } catch (err) {
+        const basename = path.basename(pdfs[i]);
+        console.log(`  ${basename}: FAILED — ${(err as Error).message}`);
+        // Clean up orphaned temp file
+        const tmpPath = pdfs[i] + '.optimizing';
+        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+        totalFailed++;
       }
     }
 
     if (!analyzeOnly) {
       console.log('');
-      console.log(`Done! ${totalOptimized} optimized, ${totalSkipped} skipped, ${(totalSaved / 1024 / 1024).toFixed(1)} MB saved`);
+      console.log(`Done! ${totalOptimized} optimized, ${totalSkipped} skipped, ${totalFailed} failed, ${(totalSaved / 1024 / 1024).toFixed(1)} MB saved`);
     }
     return;
   }

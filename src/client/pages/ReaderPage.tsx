@@ -41,6 +41,11 @@ export default function ReaderPage() {
     [seriesId, file]
   );
 
+  // Reset saved-page tracker when chapter changes
+  useEffect(() => {
+    lastSavedPage.current = -1;
+  }, [file]);
+
   const goToChapter = (comic: Comic) => {
     navigate(`/read/${seriesId}/${comic.file}`, { replace: true });
   };
