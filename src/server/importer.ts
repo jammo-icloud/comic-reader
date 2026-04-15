@@ -54,6 +54,7 @@ export interface PendingImport {
   files: string[];          // filenames found
   fileCount: number;
   malMatch: MalMatch | null;
+  existingSeriesId: string | null; // set when folder matches an existing series (merge)
 }
 
 export interface ImportConfig {
@@ -137,8 +138,13 @@ export function scanSourceFolder(sourcePath: string): { count: number } {
     .filter((e) => e.isFile() && !e.name.startsWith('.') && COMIC_EXTENSIONS.has(path.extname(e.name).toLowerCase()))
     .map((e) => e.name);
 
-  // Check for already-imported series
-  const existingSeries = new Set(loadAllSeries().map((s) => s.name));
+  // Check for already-imported series (by name match)
+  const allSeries = loadAllSeries();
+  const existingByName = new Map(allSeries.map((s) => [s.name, s.id]));
+  // Also check by englishTitle
+  for (const s of allSeries) {
+    if (s.englishTitle) existingByName.set(s.englishTitle, s.id);
+  }
 
   pendingImports = [];
   skippedFolders.clear();
@@ -146,9 +152,6 @@ export function scanSourceFolder(sourcePath: string): { count: number } {
   // If no subfolders but has comic files directly, treat path itself as a single series
   if (folders.length === 0 && looseFiles.length > 0) {
     const folderName = path.basename(sourcePath);
-    if (existingSeries.has(folderName)) {
-      skippedFolders.add(sourcePath);
-    }
     pendingImports.push({
       sourceFolder: sourcePath,
       folderName,
@@ -157,6 +160,7 @@ export function scanSourceFolder(sourcePath: string): { count: number } {
       files: looseFiles,
       fileCount: looseFiles.length,
       malMatch: null,
+      existingSeriesId: existingByName.get(folderName) || null,
     });
     return { count: pendingImports.length };
   }
@@ -168,11 +172,6 @@ export function scanSourceFolder(sourcePath: string): { count: number } {
 
     if (files.length === 0) continue;
 
-    // Skip if already imported
-    if (existingSeries.has(folder.name)) {
-      skippedFolders.add(fullPath);
-    }
-
     pendingImports.push({
       sourceFolder: fullPath,
       folderName: folder.name,
@@ -181,6 +180,7 @@ export function scanSourceFolder(sourcePath: string): { count: number } {
       files,
       fileCount: files.length,
       malMatch: null,
+      existingSeriesId: existingByName.get(folder.name) || null,
     });
   }
 
@@ -204,6 +204,7 @@ export function scanSourceFolder(sourcePath: string): { count: number } {
         files: [file],
         fileCount: 1,
         malMatch: null,
+        existingSeriesId: existingByName.get(baseName) || null,
       });
     }
   }

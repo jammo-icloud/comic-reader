@@ -66,6 +66,7 @@ export interface PendingImport {
   files: string[];
   malMatch: MalMatch | null;
   status: 'queued' | 'scanning' | 'ready' | 'confirmed' | 'skipped' | 'error';
+  existingSeriesId: string | null;
 }
 
 // --- Discover (unified across sources) ---

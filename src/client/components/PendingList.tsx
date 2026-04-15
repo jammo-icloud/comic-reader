@@ -329,6 +329,21 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
             </div>
           )}
 
+          {/* Existing series match (from scan) */}
+          {!duplicate && current.existingSeriesId && (
+            <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+              <Merge size={16} className="text-blue-500 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <p className="font-medium text-blue-700 dark:text-blue-300">
+                  Series already exists — new chapters will be merged
+                </p>
+                <p className="text-blue-600 dark:text-blue-400 mt-0.5">
+                  {current.fileCount} files will be added. Existing chapters are kept.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* File count */}
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {current.fileCount} files in <span className="font-mono">{current.folderName}</span>
