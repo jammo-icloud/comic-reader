@@ -244,14 +244,30 @@ router.delete('/series/:id', (req, res) => {
   if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
 
   if (req.query.purge === 'true') {
-    // Full delete — remove files, metadata, and from all collections
+    // Purge requires admin — non-admins can only remove from their collection
+    if (!req.isAdmin) {
+      res.status(403).json({ error: 'Admin access required to purge series' });
+      return;
+    }
+
     const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
     const DATA_DIR = process.env.DATA_DIR || './data';
 
+    // Move to trash instead of hard delete
     const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
     const seriesDir = pathMod.join(LIBRARY_DIR, typeDir, seriesId);
     if (fs.existsSync(seriesDir)) {
-      fs.rmSync(seriesDir, { recursive: true, force: true });
+      const trashDir = pathMod.join(LIBRARY_DIR, '.trash');
+      if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir, { recursive: true });
+      const trashDest = pathMod.join(trashDir, `${typeDir}-${seriesId}`);
+      try {
+        fs.renameSync(seriesDir, trashDest);
+        console.log(`  Moved to trash: ${seriesDir} → ${trashDest}`);
+      } catch {
+        // Cross-device: fall back to hard delete
+        fs.rmSync(seriesDir, { recursive: true, force: true });
+        console.log(`  Hard deleted: ${seriesDir}`);
+      }
     }
 
     if (series.coverFile) {

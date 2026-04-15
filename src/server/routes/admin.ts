@@ -138,11 +138,20 @@ router.delete('/admin/catalog/:id', (req, res) => {
   const series = loadAllSeries().find((s) => s.id === seriesId);
   if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
 
-  // Delete files
+  // Move files to trash instead of hard delete
   const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
   const seriesDir = path.join(LIBRARY_DIR, typeDir, seriesId);
   if (fs.existsSync(seriesDir)) {
-    fs.rmSync(seriesDir, { recursive: true, force: true });
+    const trashDir = path.join(LIBRARY_DIR, '.trash');
+    if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir, { recursive: true });
+    const trashDest = path.join(trashDir, `${typeDir}-${seriesId}`);
+    try {
+      fs.renameSync(seriesDir, trashDest);
+      console.log(`  Moved to trash: ${seriesDir} → ${trashDest}`);
+    } catch {
+      fs.rmSync(seriesDir, { recursive: true, force: true });
+      console.log(`  Hard deleted (cross-device): ${seriesDir}`);
+    }
   }
 
   // Delete cover
