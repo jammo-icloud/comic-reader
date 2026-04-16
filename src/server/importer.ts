@@ -3,7 +3,7 @@ import path from 'path';
 import { slugify, loadAllSeries, loadComics, saveSeries, writeComics, type SeriesRecord, type ComicRecord } from './data.js';
 import { shortHash } from './hash.js';
 import { convertToPdf, isImageFolder } from './converter.js';
-// PDF optimization runs locally (too CPU-heavy for NAS) — see scripts/optimize-pdf.ts
+import { runMaintenance } from './maintenance.js';
 
 /**
  * Read page count directly from PDF metadata — no rendering library needed.
@@ -345,6 +345,10 @@ export async function importSeries(config: ImportConfig): Promise<SeriesRecord> 
   skippedFolders.add(sourceFolder);
 
   console.log(`Imported "${name}" (${type}): ${comics.length} files → ${destDir}`);
+
+  // Kick off maintenance in background to fix page counts and generate thumbnails
+  runMaintenance().catch((err) => console.error('Post-import maintenance failed:', err.message));
+
   return series;
 }
 

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { loadAllSeries, loadComics, writeComics, slugify, resolveComicPath, type ComicRecord } from './data.js';
+import { runMaintenance } from './maintenance.js';
 
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
 
@@ -8,6 +9,7 @@ const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
  * Re-scan the canonical library directories to pick up
  * any new files added directly (not via import wizard).
  * Also removes entries for files that no longer exist.
+ * Triggers maintenance after scan to fix page counts, order, and thumbnails.
  */
 export async function rescanLibrary(): Promise<{ updated: number }> {
   const allSeries = loadAllSeries();
@@ -35,7 +37,7 @@ export async function rescanLibrary(): Promise<{ updated: number }> {
       if (existing) {
         newComics.push(existing);
       } else {
-        // New file found
+        // New file found — order will be fixed by maintenance
         newComics.push({
           file,
           pages: 0,
@@ -55,6 +57,12 @@ export async function rescanLibrary(): Promise<{ updated: number }> {
       writeComics(series.id, newComics);
       updated++;
     }
+  }
+
+  // Run maintenance to fix page counts, sort order, and generate thumbnails
+  if (updated > 0) {
+    console.log(`  Rescan found changes in ${updated} series, running maintenance...`);
+    runMaintenance().catch((err) => console.error('Post-rescan maintenance failed:', err.message));
   }
 
   return { updated };
