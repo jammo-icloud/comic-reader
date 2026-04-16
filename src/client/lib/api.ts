@@ -144,6 +144,17 @@ export function deleteAdminComic(seriesId: string, file: string): Promise<{ ok: 
   return fetchJson(`/admin/catalog/${seriesId}/comics/${encodePath(file)}`, { method: 'DELETE' });
 }
 
+export async function uploadSeriesCover(seriesId: string, file: File): Promise<{ ok: boolean; coverFile: string }> {
+  const formData = new FormData();
+  formData.append('image', file);
+  const res = await fetch(`${BASE}/series/${seriesId}/cover`, { method: 'POST', body: formData });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || `Upload failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export function getAdminUsers(): Promise<{ username: string; collectionSize: number; progressEntries: number; readChapters: number }[]> {
   return fetchJson('/admin/users');
 }

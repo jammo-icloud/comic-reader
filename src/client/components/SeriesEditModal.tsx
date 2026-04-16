@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Loader, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
-import { updateAdminSeries, getAdminSeriesComics, deleteAdminComic } from '../lib/api';
+import { X, Save, Loader, Trash2, ChevronDown, ChevronUp, Upload, Image as ImageIcon } from 'lucide-react';
+import { updateAdminSeries, getAdminSeriesComics, deleteAdminComic, uploadSeriesCover, getSeriesCoverUrl } from '../lib/api';
 
 interface SeriesEditModalProps {
   series: {
@@ -44,6 +44,12 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
   const [loadingComics, setLoadingComics] = useState(true);
   const [showChapters, setShowChapters] = useState(false);
   const [deletingFile, setDeletingFile] = useState<string | null>(null);
+
+  // Cover upload
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [coverVersion, setCoverVersion] = useState(0); // cache-bust after upload
 
   // Save state
   const [saving, setSaving] = useState(false);
@@ -94,6 +100,29 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
     }
   };
 
+  const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCoverFile(file);
+    setCoverPreview(URL.createObjectURL(file));
+  };
+
+  const handleCoverUpload = async () => {
+    if (!coverFile) return;
+    setUploadingCover(true);
+    setError('');
+    try {
+      await uploadSeriesCover(series.id, coverFile);
+      setCoverFile(null);
+      setCoverPreview(null);
+      setCoverVersion((v) => v + 1);
+    } catch (err) {
+      setError(`Cover upload failed: ${(err as Error).message}`);
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
@@ -108,6 +137,53 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
         </div>
 
         <div className="px-6 py-4 space-y-4">
+
+          {/* Cover */}
+          <div className="flex gap-4">
+            <div className="shrink-0">
+              <div className="w-24 h-36 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+                {coverPreview ? (
+                  <img src={coverPreview} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <img
+                    src={`${getSeriesCoverUrl(series.id)}?v=${coverVersion}`}
+                    alt="Cover"
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                )}
+                {!coverPreview && (
+                  <ImageIcon size={24} className="text-gray-300 dark:text-gray-600 absolute" />
+                )}
+              </div>
+            </div>
+            <div className="flex-1 flex flex-col justify-center gap-2">
+              <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Cover Image</label>
+              <label className="inline-flex items-center gap-2 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg cursor-pointer transition-colors w-fit">
+                <input type="file" accept="image/*" className="hidden" onChange={handleCoverSelect} />
+                <Upload size={12} /> Choose image
+              </label>
+              {coverFile && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCoverUpload}
+                    disabled={uploadingCover}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+                  >
+                    {uploadingCover ? <Loader className="animate-spin" size={12} /> : <Save size={12} />}
+                    {uploadingCover ? 'Uploading...' : 'Upload'}
+                  </button>
+                  <button
+                    onClick={() => { setCoverFile(null); setCoverPreview(null); }}
+                    className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              <p className="text-[10px] text-gray-400">Resized to 300×450 JPEG automatically.</p>
+            </div>
+          </div>
 
           {/* Metadata fields */}
           <div className="grid grid-cols-2 gap-4">
