@@ -329,12 +329,18 @@ router.get('/thumbnails/:seriesId/{*file}', async (req, res) => {
     thumbFile = await generateThumbnail(key);
   }
 
-  if (thumbFile) {
-    res.sendFile(pathMod.resolve(thumbFile), (err) => {
-      if (err && !res.headersSent) res.status(404).json({ error: 'Thumbnail not available' });
-    });
-  } else {
+  if (!thumbFile || !fs.existsSync(thumbFile)) {
     res.status(404).json({ error: 'Thumbnail not available' });
+    return;
+  }
+
+  try {
+    const buffer = fs.readFileSync(thumbFile);
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    res.send(buffer);
+  } catch (err) {
+    res.status(404).json({ error: 'Thumbnail read failed' });
   }
 });
 
