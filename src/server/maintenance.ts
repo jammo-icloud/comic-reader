@@ -75,7 +75,12 @@ export async function runMaintenance(): Promise<{
 
   console.log(`Maintenance: scanning ${allSeries.length} series...`);
 
+  let seriesProcessed = 0;
   for (const series of allSeries) {
+    seriesProcessed++;
+    if (seriesProcessed % 10 === 0) {
+      console.log(`  Maintenance progress: ${seriesProcessed}/${allSeries.length} series`);
+    }
     const comics = loadComics(series.id);
     if (comics.length === 0) continue;
 

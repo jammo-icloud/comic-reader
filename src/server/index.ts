@@ -1,3 +1,13 @@
+// Silence mupdf's recoverable-error noise on stderr. mupdf writes warnings
+// directly from WASM for slightly-malformed PDFs it then repairs — useless log spam.
+const origStderrWrite = process.stderr.write.bind(process.stderr);
+const MUPDF_NOISE = /^(warning:|format error:|syntax error:|\+\+\+ |Falling back)/;
+process.stderr.write = ((chunk: any, ...args: any[]) => {
+  const str = typeof chunk === 'string' ? chunk : chunk?.toString?.('utf8') ?? '';
+  if (MUPDF_NOISE.test(str.trimStart())) return true;
+  return origStderrWrite(chunk, ...args);
+}) as typeof process.stderr.write;
+
 import express from 'express';
 import path from 'path';
 import cookieParser from 'cookie-parser';
