@@ -264,7 +264,7 @@ export default function LibraryPage() {
                   >
                     <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
                       <img
-                        src={getSeriesCoverUrl(item.seriesId)}
+                        src={getSeriesCoverUrl(item.seriesId, item.coverFile)}
                         alt={item.seriesName}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                         loading="lazy"
@@ -350,7 +350,7 @@ export default function LibraryPage() {
                 <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 overflow-hidden relative">
                   {s.coverFile ? (
                     <img
-                      src={getSeriesCoverUrl(s.id)}
+                      src={getSeriesCoverUrl(s.id, s.coverFile)}
                       alt={s.name}
                       className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 ${isNsfw ? 'blur-lg group-hover:blur-sm' : ''}`}
                       loading="lazy"

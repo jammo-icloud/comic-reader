@@ -13,7 +13,7 @@ export default function ComicCard({ comic, seriesId, hideSeries }: { comic: Comi
     >
       <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
         <img
-          src={getThumbnailUrl(seriesId, comic.file)}
+          src={getThumbnailUrl(seriesId, comic.file, comic.thumbHash)}
           alt={comic.file}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           loading="lazy"

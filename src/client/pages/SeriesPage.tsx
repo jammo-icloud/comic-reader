@@ -122,7 +122,7 @@ export default function SeriesPage() {
         <section className="max-w-5xl mx-auto px-6 py-5 flex gap-6 items-start">
           <div className="w-36 sm:w-44 shrink-0 rounded-lg overflow-hidden shadow-lg">
             <img
-              src={series.coverFile ? getSeriesCoverUrl(id) : getPlaceholderUrl(series.placeholder)}
+              src={series.coverFile ? getSeriesCoverUrl(id!, series.coverFile) : getPlaceholderUrl(series.placeholder)}
               alt={series.name}
               className={`w-full aspect-[2/3] object-cover ${series.coverFile ? '' : 'opacity-60'}`}
             />

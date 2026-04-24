@@ -214,11 +214,21 @@ export function getPdfUrl(seriesId: string, file: string): string {
   return `${BASE}/comics/read/${seriesId}/${encodePath(file)}`;
 }
 
-export function getThumbnailUrl(seriesId: string, file: string): string {
+/**
+ * Thumbnail URL. Prefers static serving (no Express route) when thumbHash is known.
+ * Falls back to the API route which generates on demand for missing thumbnails.
+ */
+export function getThumbnailUrl(seriesId: string, file: string, thumbHash?: string): string {
+  if (thumbHash) return `/static/thumbnails/${thumbHash}.jpg`;
   return `${BASE}/thumbnails/${seriesId}/${encodePath(file)}`;
 }
 
-export function getSeriesCoverUrl(seriesId: string): string {
+/**
+ * Cover URL. Prefers static serving when coverFile is known.
+ * Falls back to the API route for series without a cover yet.
+ */
+export function getSeriesCoverUrl(seriesId: string, coverFile?: string | null): string {
+  if (coverFile) return `/static/covers/${coverFile}`;
   return `${BASE}/series-cover/${seriesId}`;
 }
 

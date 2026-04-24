@@ -146,7 +146,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
                   <img src={coverPreview} alt="Preview" className="w-full h-full object-cover" />
                 ) : (
                   <img
-                    src={`${getSeriesCoverUrl(series.id)}?v=${coverVersion}`}
+                    src={`${getSeriesCoverUrl(series.id, (series as any).coverFile)}?v=${coverVersion}`}
                     alt="Cover"
                     className="w-full h-full object-cover"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

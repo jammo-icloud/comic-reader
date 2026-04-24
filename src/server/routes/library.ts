@@ -105,6 +105,7 @@ router.get('/continue-reading', (req, res) => {
       pages: comic?.pages || 0,
       lastReadAt: p.lastReadAt,
       thumbHash: shortHash(`${p.seriesId}/${p.file}`),
+      coverFile: series.coverFile,
     });
   }
 

@@ -43,6 +43,7 @@ export interface ContinueReadingItem {
   pages: number;
   lastReadAt: string;
   thumbHash: string;
+  coverFile: string | null;
 }
 
 // --- Pending Import ---
