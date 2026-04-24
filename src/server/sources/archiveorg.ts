@@ -146,11 +146,14 @@ export const archiveorgSource: MangaSource = {
   name: 'Internet Archive',
 
   async search(query: string, limit = 20): Promise<SearchResult[]> {
-    // Title-scoped query gets much more relevant results than full-text.
-    // Quote the phrase so the words have to appear together.
+    // Archive.org's default full-text search matches title/description/subject/creator.
+    // Forcing title: was too restrictive and missed most Japanese-language items whose
+    // titles are romanized. We boost title matches in the ranking instead.
     const phrase = query.trim().replace(/"/g, '');
-    const q = `title:("${phrase}" OR ${phrase}) AND mediatype:texts`;
-    const url = `${API}/advancedsearch.php?q=${encodeURIComponent(q)}&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=date&fl[]=description&sort[]=downloads+desc&rows=${limit}&output=json`;
+    // Boost title matches (^5), quoted exact phrase (^3), and fall back to any field.
+    // mediatype:texts limits to readable items (excludes audio/video).
+    const q = `(title:"${phrase}"^5 OR "${phrase}"^3 OR (${phrase})) AND mediatype:texts`;
+    const url = `${API}/advancedsearch.php?q=${encodeURIComponent(q)}&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=date&fl[]=description&fl[]=language&sort[]=downloads+desc&rows=${limit}&output=json`;
 
     let data;
     try {
@@ -164,6 +167,13 @@ export const archiveorgSource: MangaSource = {
     return docs.map((d: any) => {
       const desc = Array.isArray(d.description) ? d.description[0] : d.description;
       const year = d.date ? parseInt(String(d.date).slice(0, 4), 10) : null;
+      // Language is sometimes a string, sometimes an array
+      const langRaw = Array.isArray(d.language) ? d.language : d.language ? [d.language] : [];
+      const langs = langRaw.map((l: string) => String(l).toLowerCase());
+      const tags: string[] = [];
+      if (langs.some((l: string) => /^jpn|japanese$/.test(l))) tags.push('japanese');
+      if (langs.some((l: string) => /^kor|korean$/.test(l))) tags.push('korean');
+      if (langs.some((l: string) => /^eng|english$/.test(l))) tags.push('english');
       return {
         sourceId: 'archiveorg',
         sourceName: 'Internet Archive',
@@ -173,7 +183,7 @@ export const archiveorgSource: MangaSource = {
         description: typeof desc === 'string' ? desc.replace(/<[^>]+>/g, '').slice(0, 400) : '',
         status: 'completed',
         year: year && year >= 1900 && year <= 2100 ? year : null,
-        tags: [],
+        tags,
       };
     });
   },
