@@ -24,6 +24,7 @@ import { runMaintenance } from './maintenance.js';
 import { userMiddleware, authGuard } from './middleware/user.js';
 import { migrateToMultiUser } from './migrate.js';
 import { runCleanup } from './cleanup.js';
+import { warmCache } from './data.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.SERVER_PORT || '3000', 10);
@@ -86,6 +87,9 @@ process.on('SIGTERM', () => process.exit(0));
 
 // Migrate single-user data to multi-user (runs once)
 migrateToMultiUser();
+
+// Load all series metadata into memory for fast reads
+warmCache();
 
 // Compact and clean up data files
 runCleanup();
