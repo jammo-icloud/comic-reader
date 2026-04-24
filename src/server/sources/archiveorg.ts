@@ -146,13 +146,23 @@ export const archiveorgSource: MangaSource = {
   name: 'Internet Archive',
 
   async search(query: string, limit = 20): Promise<SearchResult[]> {
-    // Archive.org's default full-text search matches title/description/subject/creator.
-    // Forcing title: was too restrictive and missed most Japanese-language items whose
-    // titles are romanized. We boost title matches in the ranking instead.
+    // Constrain to manga/comic collections and subjects so unrelated items
+    // (books, magazines, audio, etc.) don't pollute the results.
+    // Use relevance boosting: title > quoted phrase > any field.
     const phrase = query.trim().replace(/"/g, '');
-    // Boost title matches (^5), quoted exact phrase (^3), and fall back to any field.
-    // mediatype:texts limits to readable items (excludes audio/video).
-    const q = `(title:"${phrase}"^5 OR "${phrase}"^3 OR (${phrase})) AND mediatype:texts`;
+    const scopeFilter = [
+      'collection:comics',
+      'collection:manga_library',
+      'collection:manga_novels',
+      'collection:manga_japanese',
+      'collection:manga_chinese',
+      'collection:manga_korean',
+      'subject:manga',
+      'subject:comics',
+      'subject:doujinshi',
+      'subject:comic',
+    ].join(' OR ');
+    const q = `(title:"${phrase}"^5 OR "${phrase}"^3 OR (${phrase})) AND mediatype:texts AND (${scopeFilter})`;
     const url = `${API}/advancedsearch.php?q=${encodeURIComponent(q)}&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=date&fl[]=description&fl[]=language&sort[]=downloads+desc&rows=${limit}&output=json`;
 
     let data;
