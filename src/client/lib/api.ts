@@ -231,6 +231,53 @@ export function getAvailableSources(): Promise<{ id: string; name: string; color
   return fetchJson('/discover/sources');
 }
 
+// ==================== Translation ====================
+
+export interface TranslatedBubble {
+  order: number;
+  japanese: string;
+  english: string;
+}
+
+export interface PageTranslation {
+  bubbles: TranslatedBubble[];
+  modelUsed: string;
+  translatedAt: string;
+  durationMs: number;
+}
+
+export function getPageTranslation(seriesId: string, file: string, pageNum: number, force = false): Promise<PageTranslation> {
+  const qs = force ? '?force=true' : '';
+  return fetchJson(`/translate/${seriesId}/${pageNum}/${encodePath(file)}${qs}`);
+}
+
+export function getTranslationStatus(seriesId: string, file: string): Promise<{ enabled: boolean; cachedPages: number[] }> {
+  return fetchJson(`/translate/${seriesId}/status/${encodePath(file)}`);
+}
+
+export function translateWholeChapter(seriesId: string, file: string, force = false): Promise<{ ok: boolean; status: string }> {
+  const qs = force ? '?force=true' : '';
+  return fetchJson(`/translate/${seriesId}/chapter/${encodePath(file)}${qs}`, { method: 'POST' });
+}
+
+export interface TranslationConfig {
+  url: string;
+  model: string;
+  prompt: string;
+}
+
+export function getTranslationConfig(): Promise<TranslationConfig> {
+  return fetchJson('/translate/config');
+}
+
+export function updateTranslationConfig(cfg: Partial<TranslationConfig>): Promise<TranslationConfig> {
+  return fetchJson('/translate/config', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg),
+  });
+}
+
 export function searchSource(sourceId: string, query: string): Promise<{
   sourceId: string;
   sourceName: string;

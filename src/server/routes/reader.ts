@@ -3,6 +3,10 @@ import path from 'path';
 import fs from 'fs';
 import { resolveComicPath } from '../scanner.js';
 import { getComic, updateComic, updateUserProgress, addToCollection, isInCollection } from '../data.js';
+import {
+  translatePage, translateChapter, getCachedTranslation, getCachedPageNumbers,
+  getTranslationConfig, saveTranslationConfig, isTranslationEnabled,
+} from '../translate.js';
 
 const router = Router();
 
@@ -94,6 +98,86 @@ router.patch('/comics/progress/:seriesId/{*file}', (req, res) => {
   }
 
   res.json({ ok: true });
+});
+
+// --- Translation ---
+
+// Get or generate a translation for a specific page
+router.get('/translate/:seriesId/:pageNum/{*file}', async (req, res) => {
+  const { seriesId, pageNum } = req.params;
+  const rawFile = req.params.file;
+  const file = Array.isArray(rawFile) ? rawFile.join('/') : rawFile;
+  const pageNumInt = parseInt(pageNum, 10);
+
+  if (!seriesId || !file || isNaN(pageNumInt)) {
+    res.status(400).json({ error: 'Missing or invalid params' });
+    return;
+  }
+
+  if (!isTranslationEnabled()) {
+    res.status(503).json({ error: 'Translation service not configured' });
+    return;
+  }
+
+  try {
+    const force = req.query.force === 'true';
+    const result = await translatePage(seriesId, file, pageNumInt, force);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Get status of translations for a chapter (which pages are cached)
+router.get('/translate/:seriesId/status/{*file}', (req, res) => {
+  const { seriesId } = req.params;
+  const rawFile = req.params.file;
+  const file = Array.isArray(rawFile) ? rawFile.join('/') : rawFile || '';
+  if (!seriesId || !file) { res.status(400).json({ error: 'Missing params' }); return; }
+  const cachedPages = getCachedPageNumbers(seriesId, file);
+  res.json({ enabled: isTranslationEnabled(), cachedPages });
+});
+
+// Translate an entire chapter (runs in background, returns immediately)
+router.post('/translate/:seriesId/chapter/{*file}', (req, res) => {
+  const { seriesId } = req.params;
+  const rawFile = req.params.file;
+  const file = Array.isArray(rawFile) ? rawFile.join('/') : rawFile || '';
+  const force = req.query.force === 'true';
+  if (!seriesId || !file) { res.status(400).json({ error: 'Missing params' }); return; }
+
+  if (!isTranslationEnabled()) {
+    res.status(503).json({ error: 'Translation service not configured' });
+    return;
+  }
+
+  // Respond immediately, run in background
+  res.json({ ok: true, status: 'started' });
+
+  translateChapter(seriesId, file, {
+    force,
+    onProgress: (done, total) => {
+      if (done % 5 === 0 || done === total) {
+        console.log(`  Translate "${seriesId}/${file}": ${done}/${total}`);
+      }
+    },
+  }).then((stats) => {
+    console.log(`  Translate complete: ${stats.translated} new, ${stats.cached} cached, ${stats.failed} failed (${Math.round(stats.totalMs / 1000)}s)`);
+  }).catch((err) => {
+    console.error(`  Translate chapter failed: ${(err as Error).message}`);
+  });
+});
+
+// Admin-only: get or update translation config (Ollama URL, model, prompt)
+router.get('/translate/config', (req, res) => {
+  if (!req.isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+  res.json(getTranslationConfig());
+});
+
+router.patch('/translate/config', (req, res) => {
+  if (!req.isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+  const updated = saveTranslationConfig(req.body);
+  res.json(updated);
 });
 
 export default router;
