@@ -231,6 +231,8 @@ async function assembleChapterFromSource(
     'zjcdn.mangafox.me': 'https://fanfox.net/',
     'fmcdn.mfcdn.net': 'https://fanfox.net/',
     'mfcdn.net': 'https://fanfox.net/',
+    'zjcdn.mangahere.org': 'https://www.mangatown.com/',
+    'mangahere.org': 'https://www.mangatown.com/',
     'bp.blogspot.com': 'https://readallcomics.com/',
     'blogger.googleusercontent.com': 'https://readallcomics.com/',
   };

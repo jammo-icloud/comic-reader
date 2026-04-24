@@ -2,6 +2,7 @@ import type { MangaSource, SearchResult, ChapterResult } from './types.js';
 import { mangadexSource } from './mangadex-source.js';
 import { malSource } from './mal-source.js';
 import { mangafoxSource } from './mangafox.js';
+import { mangatownSource } from './mangatown.js';
 import { readallcomicsSource } from './readallcomics.js';
 // import { mangahubSource } from './mangahub.js'; // Disabled: Cloudflare protected
 
@@ -9,18 +10,33 @@ import { readallcomicsSource } from './readallcomics.js';
 const primarySources: MangaSource[] = [
   mangadexSource,
   mangafoxSource,
+  mangatownSource,
   readallcomicsSource,
 ];
 
 // All sources including metadata-only (MAL)
 const allSources: MangaSource[] = [...primarySources, malSource];
 
+// Display metadata for the client picker
+const sourceMeta: Record<string, { color: string; description: string }> = {
+  mangadex: { color: '#ea580c', description: 'Community-driven scanlations. Largest free manga library.' },
+  mangafox: { color: '#059669', description: 'Long-running manga site. Fast chapter updates.' },
+  mangatown: { color: '#0284c7', description: 'Large manga library. Predictable image URLs for fast downloads.' },
+  readallcomics: { color: '#f59e0b', description: 'Western comics, DC, Marvel, and more.' },
+  mal: { color: '#2e51a2', description: 'MyAnimeList metadata only (no downloads).' },
+};
+
 export function getSource(id: string): MangaSource | undefined {
   return allSources.find((s) => s.id === id);
 }
 
-export function getAllSources(): { id: string; name: string }[] {
-  return allSources.map((s) => ({ id: s.id, name: s.name }));
+export function getAllSources(): { id: string; name: string; color: string; description: string }[] {
+  return allSources.map((s) => ({
+    id: s.id,
+    name: s.name,
+    color: sourceMeta[s.id]?.color || '#64748b',
+    description: sourceMeta[s.id]?.description || '',
+  }));
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
