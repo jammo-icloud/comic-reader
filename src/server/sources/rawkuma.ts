@@ -155,10 +155,11 @@ export const rawkumaSource: MangaSource = {
     // chapterId is "slug/chapter-N.ID"
     const html = await fetchText(`${SITE_URL}/manga/${chapterId}/`);
 
-    // Images are at rcdn.kyut.dev — extract all that match
+    // Images are at rcdn.kyut.dev with a single-letter path prefix
+    // that corresponds to the first letter of the slug (e.g. /o/one-piece/, /j/jujutsu-kaisen/).
     const urls: string[] = [];
     const seen = new Set<string>();
-    const regex = /https:\/\/[^"'\s]+\/o\/[^"'\s]+\/chapter-[^/]+\/\d+\.(?:jpg|jpeg|png|webp)/gi;
+    const regex = /https:\/\/[^"'\s]+\/[a-z0-9]\/[^"'\s/]+\/chapter-[^/]+\/\d+\.(?:jpg|jpeg|png|webp)/gi;
     let match;
     while ((match = regex.exec(html)) !== null) {
       if (!seen.has(match[0])) {
