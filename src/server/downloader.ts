@@ -335,9 +335,15 @@ async function processQueue() {
           mangaDexId: null,
           englishTitle: null,
           placeholder: 'manga.png',
+          // Auto-subscribe to updates from the source we downloaded from
+          syncSource: job.metadata?.sourceId ? { sourceId: job.metadata.sourceId, mangaId: job.mangaDexId } : null,
         };
         saveSeries(newSeries);
-        console.log(`  Created series record: ${job.mangaTitle}`);
+        console.log(`  Created series record: ${job.mangaTitle}${newSeries.syncSource ? ` (sync: ${newSeries.syncSource.sourceId})` : ''}`);
+      } else if (job.metadata?.sourceId && !existing.syncSource) {
+        // Auto-populate sync source on existing series if not already set
+        saveSeries({ ...existing, syncSource: { sourceId: job.metadata.sourceId, mangaId: job.mangaDexId } });
+        console.log(`  Subscribed "${existing.name}" to ${job.metadata.sourceId}`);
       }
 
       // Add to the downloading user's collection

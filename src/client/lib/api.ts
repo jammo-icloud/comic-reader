@@ -182,6 +182,23 @@ export function updateSeriesTags(id: string, tags: string[]): Promise<any> {
   });
 }
 
+// ==================== Subscriptions / Sync ====================
+
+export function syncSeriesNow(id: string): Promise<{ ok: boolean; newChapters: number; error?: string }> {
+  return fetchJson(`/series/${id}/sync`, { method: 'POST' });
+}
+
+export function updateSeriesSyncSource(
+  id: string,
+  source: { sourceId: string; mangaId: string } | null,
+): Promise<{ ok: boolean }> {
+  return fetchJson(`/series/${id}/sync-source`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(source || { sourceId: null }),
+  });
+}
+
 // ==================== Comics (within a series) ====================
 
 export function getComics(seriesId: string): Promise<Comic[]> {

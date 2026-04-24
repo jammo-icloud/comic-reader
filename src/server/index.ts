@@ -25,6 +25,7 @@ import { userMiddleware, authGuard } from './middleware/user.js';
 import { migrateToMultiUser } from './migrate.js';
 import { runCleanup } from './cleanup.js';
 import { warmCache } from './data.js';
+import { startSyncScheduler } from './sync.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.SERVER_PORT || '3000', 10);
@@ -102,4 +103,7 @@ app.listen(PORT, () => {
 
   // Fix page counts and generate missing thumbnails in background
   runMaintenance().catch((err) => console.error('Maintenance failed:', err.message));
+
+  // Subscription scheduler — checks sources for new chapters periodically
+  startSyncScheduler();
 });

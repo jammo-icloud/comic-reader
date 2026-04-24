@@ -13,6 +13,7 @@ import {
 import { shortHash } from '../hash.js';
 import { getThumbnailPath, generateThumbnail } from '../thumbnails.js';
 import { enrichSeries, enrichSingle } from '../enrich.js';
+import { syncSeries, markSeriesSeen } from '../sync.js';
 
 const router = Router();
 
@@ -57,11 +58,49 @@ router.get('/series/:id', (req, res) => {
   const allSeries = loadAllSeries();
   const series = allSeries.find((s) => s.id === req.params.id);
   if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
+
+  // Clear "new chapters" badge when user opens the series
+  if (series.newChapterCount && series.newChapterCount > 0) {
+    markSeriesSeen(series.id);
+  }
+
   res.json({
     ...series,
     ...getSeriesStatsForUser(series.id, req.username),
     inCollection: isInCollection(req.username, series.id),
   });
+});
+
+// Manual sync trigger — check source for new chapters now
+router.post('/series/:id/sync', async (req, res) => {
+  try {
+    const result = await syncSeries(req.params.id, req.username);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Assign or change the sync source for a series
+router.patch('/series/:id/sync-source', (req, res) => {
+  const series = loadAllSeries().find((s) => s.id === req.params.id);
+  if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
+
+  const { sourceId, mangaId } = req.body;
+  if (sourceId === null || sourceId === '') {
+    // Unsubscribe
+    saveSeries({ ...series, syncSource: null });
+    res.json({ ok: true, syncSource: null });
+    return;
+  }
+
+  if (!sourceId || !mangaId) {
+    res.status(400).json({ error: 'sourceId and mangaId required' });
+    return;
+  }
+
+  saveSeries({ ...series, syncSource: { sourceId, mangaId } });
+  res.json({ ok: true, syncSource: { sourceId, mangaId } });
 });
 
 // --- Comics in a series ---

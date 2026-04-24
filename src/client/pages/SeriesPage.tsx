@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, LayoutGrid, List, Star, Pencil } from 'lucide-react';
+import { ArrowLeft, LayoutGrid, List, Star, Pencil, RefreshCw, Loader } from 'lucide-react';
 import type { Series, Comic } from '../lib/types';
-import { getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl, overrideMalId, deleteSeries, getThumbnailUrl, updateSeriesTags } from '../lib/api';
+import { getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl, overrideMalId, deleteSeries, getThumbnailUrl, updateSeriesTags, syncSeriesNow } from '../lib/api';
 import ComicCard from '../components/ComicCard';
 import ComicListItem from '../components/ComicListItem';
 import ThemeToggle from '../components/ThemeToggle';
@@ -31,6 +31,34 @@ export default function SeriesPage() {
   const [showTagEdit, setShowTagEdit] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [savingTags, setSavingTags] = useState(false);
+
+  // Sync
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string>('');
+
+  const handleSyncNow = async () => {
+    if (!id) return;
+    setSyncing(true);
+    setSyncResult('');
+    try {
+      const result = await syncSeriesNow(id);
+      if (result.ok) {
+        setSyncResult(result.newChapters > 0
+          ? `${result.newChapters} new chapter${result.newChapters === 1 ? '' : 's'} queued for download`
+          : 'Up to date — no new chapters');
+      } else {
+        setSyncResult(`Error: ${result.error || 'sync failed'}`);
+      }
+      const updated = await getSeriesDetail(id);
+      setSeries(updated);
+      const c = await getComics(id);
+      setComics(c);
+    } catch (err) {
+      setSyncResult(`Error: ${(err as Error).message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleTagSave = async () => {
     if (!id) return;
@@ -217,6 +245,31 @@ export default function SeriesPage() {
                 >
                   {expandSynopsis ? 'Show less' : 'Show more'}
                 </button>
+              </div>
+            )}
+
+            {/* Sync controls */}
+            {series.syncSource && (
+              <div className="mt-3 flex items-center gap-3 text-[11px]">
+                <button
+                  onClick={handleSyncNow}
+                  disabled={syncing}
+                  className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
+                  title={`Check ${series.syncSource.sourceId} for new chapters`}
+                >
+                  {syncing ? <Loader size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+                  {syncing ? 'Checking...' : 'Check for new chapters'}
+                </button>
+                {series.lastSyncAt && (
+                  <span className="text-gray-400 dark:text-gray-600">
+                    Last checked {new Date(series.lastSyncAt).toLocaleDateString()}
+                  </span>
+                )}
+                {syncResult && (
+                  <span className={`text-[10px] ${syncResult.startsWith('Error') ? 'text-red-500' : 'text-green-500'}`}>
+                    {syncResult}
+                  </span>
+                )}
               </div>
             )}
 

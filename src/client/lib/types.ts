@@ -1,5 +1,10 @@
 // --- Series ---
 
+export interface SyncSource {
+  sourceId: string;
+  mangaId: string;
+}
+
 export interface Series {
   id: string;
   type: 'comic' | 'magazine';
@@ -14,6 +19,10 @@ export interface Series {
   mangaDexId: string | null;
   englishTitle: string | null;
   placeholder: string;
+  // Subscription
+  syncSource?: SyncSource | null;
+  lastSyncAt?: string | null;
+  newChapterCount?: number | null;
   // Stats (from API)
   count: number;
   readCount: number;

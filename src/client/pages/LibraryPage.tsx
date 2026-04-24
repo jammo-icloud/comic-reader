@@ -372,6 +372,11 @@ export default function LibraryPage() {
                       <WifiOff size={9} /> Offline
                     </div>
                   )}
+                  {s.newChapterCount != null && s.newChapterCount > 0 && (
+                    <div className="absolute top-2 right-2 flex items-center gap-1 bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold shadow-lg">
+                      +{s.newChapterCount} NEW
+                    </div>
+                  )}
                 </div>
                 <div className="p-3">
                   <h3 className="text-sm font-medium truncate">{s.name}</h3>

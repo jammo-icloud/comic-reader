@@ -41,6 +41,11 @@ export function slugify(name: string): string {
 
 // --- Types ---
 
+export interface SyncSource {
+  sourceId: string;  // 'mangadex', 'mangafox', etc.
+  mangaId: string;   // the source-specific ID or slug
+}
+
 export interface SeriesRecord {
   id: string;
   type: 'comic' | 'magazine';
@@ -55,6 +60,10 @@ export interface SeriesRecord {
   mangaDexId: string | null;
   englishTitle: string | null;
   placeholder: string;
+  // Subscription fields — optional, absent if not subscribed
+  syncSource?: SyncSource | null;
+  lastSyncAt?: string | null;
+  newChapterCount?: number | null;
 }
 
 export interface ComicRecord {
