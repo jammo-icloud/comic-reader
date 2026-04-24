@@ -41,21 +41,20 @@ interface TranslationConfig {
 
 const CONFIG_FILE = path.join(DATA_DIR, 'translation-config.json');
 
-const DEFAULT_PROMPT = `You are translating Japanese manga pages to English.
+const DEFAULT_PROMPT = `You are translating a manga/manhwa page to English.
 
-For this manga page image:
-1. Identify every piece of Japanese text — speech bubbles, thought bubbles, narration, sound effects, signs.
-2. Determine reading order. Manga reads right-to-left, top-to-bottom.
-3. For each text block, provide:
-   - "order": 1-indexed reading order
-   - "japanese": the original Japanese text (use line breaks if the bubble has multiple lines)
-   - "english": a natural English translation that preserves tone, emotion, and character voice
-   - "type": "speech" | "thought" | "narration" | "sfx" | "sign"
+Identify every piece of text — speech bubbles, thought bubbles, narration, sound effects, signs. For each, provide:
+- "order": 1-indexed reading order (manga reads right-to-left, top-to-bottom; webtoons top-to-bottom)
+- "japanese": the original text (this field holds the original even if it's actually Korean or Chinese — note the language in type if helpful)
+- "english": a natural English translation that preserves tone, emotion, and character voice
+- "type": "speech" | "thought" | "narration" | "sfx" | "sign"
 
-Return STRICT JSON only, no prose, no markdown fences. Example:
+IMPORTANT: For long repeated sound effects (like "あああああ" or "!!!!"), abbreviate to at most 4-5 characters (e.g. "あああ..." or "!!!"). Do not transcribe 30 characters of screaming.
+
+Return STRICT JSON array only — no prose, no markdown fences. Example:
 [{"order":1,"japanese":"こんにちは","english":"Hello","type":"speech"}]
 
-If the page has no Japanese text, return [].`;
+If the page has no text, return [].`;
 
 const DEFAULT_CONFIG: TranslationConfig = {
   url: '',
@@ -169,8 +168,22 @@ async function callOllama(imageBase64: string, cfg: TranslationConfig): Promise<
       prompt: cfg.prompt,
       images: [imageBase64],
       stream: false,
-      format: 'json', // Ollama will enforce JSON response
-      options: { temperature: 0.2 }, // low temp for consistency
+      // NOTE: Removed format:'json' — it caused Qwen2.5-VL to return
+      // empty {} instead of doing the vision work. We parse JSON from
+      // the response text ourselves (with markdown fence fallback).
+      options: {
+        temperature: 0.2,
+        // Reduce from Qwen2.5-VL's default 128k to something sane.
+        // A single manga page + short JSON output needs ~4k at most.
+        // Keeping the default forces Ollama to allocate ~45GB KV cache
+        // which exceeds consumer GPU VRAM and forces CPU fallback.
+        num_ctx: 8192,
+        // Allow enough tokens for a page with many bubbles (default 128 is too small)
+        num_predict: 2048,
+        // Prevent repetition loops ("wow, wow, wow, wow..." from long SFX/screams)
+        repeat_penalty: 1.3,
+        repeat_last_n: 256,
+      },
     }),
   });
 
@@ -179,23 +192,77 @@ async function callOllama(imageBase64: string, cfg: TranslationConfig): Promise<
   }
 
   const json = await res.json();
-  const raw = json.response || '';
+  const raw = (json.response || '').trim();
 
-  // Parse the JSON response. Model sometimes wraps in {"bubbles":[...]} or returns array directly.
+  // Parse the JSON response with progressive fallbacks:
+  // 1. Direct JSON.parse
+  // 2. Strip markdown fences
+  // 3. Extract everything between [ and ]
+  // 4. Recover from truncated arrays (find complete objects inside)
   let parsed: any;
+
+  // Step 1: try direct parse
   try {
     parsed = JSON.parse(raw);
   } catch {
-    // Try to extract JSON from markdown fences or mixed text
-    const match = raw.match(/\[[\s\S]*\]/);
-    if (!match) throw new Error(`Model returned non-JSON: ${raw.slice(0, 200)}`);
-    parsed = JSON.parse(match[0]);
+    // Step 2: strip markdown fences if present
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)```/);
+    let candidate = fenced ? fenced[1].trim() : raw;
+
+    try {
+      parsed = JSON.parse(candidate);
+    } catch {
+      // Step 3: find the start of an array, try to parse it
+      const arrStart = candidate.indexOf('[');
+      if (arrStart >= 0) {
+        // Cut to content starting at [
+        candidate = candidate.slice(arrStart);
+
+        try {
+          // Try as-is (maybe the array is valid)
+          parsed = JSON.parse(candidate);
+        } catch {
+          // Step 4: truncated or malformed — extract complete {...} objects
+          // Use a manual scanner since regex can't handle nested/escaped content well
+          const objects: any[] = [];
+          let depth = 0, start = -1;
+          let inString = false, escape = false;
+          for (let i = 0; i < candidate.length; i++) {
+            const c = candidate[i];
+            if (escape) { escape = false; continue; }
+            if (inString) {
+              if (c === '\\') escape = true;
+              else if (c === '"') inString = false;
+              continue;
+            }
+            if (c === '"') inString = true;
+            else if (c === '{') { if (depth === 0) start = i; depth++; }
+            else if (c === '}') {
+              depth--;
+              if (depth === 0 && start >= 0) {
+                try { objects.push(JSON.parse(candidate.slice(start, i + 1))); } catch {}
+                start = -1;
+              }
+            }
+          }
+          if (objects.length > 0) {
+            parsed = objects;
+            console.warn(`  Translate: recovered ${objects.length} bubbles from truncated response`);
+          } else {
+            throw new Error(`Model returned non-JSON: ${raw.slice(0, 200)}`);
+          }
+        }
+      } else {
+        throw new Error(`Model returned non-JSON: ${raw.slice(0, 200)}`);
+      }
+    }
   }
 
   const bubbles: TranslatedBubble[] = Array.isArray(parsed)
     ? parsed
     : Array.isArray(parsed.bubbles) ? parsed.bubbles
     : Array.isArray(parsed.text) ? parsed.text
+    : parsed && typeof parsed === 'object' && parsed.japanese ? [parsed] // single object
     : [];
 
   return bubbles
