@@ -273,6 +273,8 @@ async function assembleChapterFromSource(
     'mfcdn.net': 'https://fanfox.net/',
     'zjcdn.mangahere.org': 'https://www.mangatown.com/',
     'mangahere.org': 'https://www.mangatown.com/',
+    'rcdn.kyut.dev': 'https://rawkuma.net/',
+    'kyut.dev': 'https://rawkuma.net/',
     'bp.blogspot.com': 'https://readallcomics.com/',
     'blogger.googleusercontent.com': 'https://readallcomics.com/',
   };

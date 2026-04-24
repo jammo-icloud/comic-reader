@@ -6,6 +6,7 @@ import { mangatownSource } from './mangatown.js';
 import { readallcomicsSource } from './readallcomics.js';
 import { readcomicsonlineSource } from './readcomicsonline.js';
 import { archiveorgSource } from './archiveorg.js';
+import { rawkumaSource } from './rawkuma.js';
 // import { mangahubSource } from './mangahub.js'; // Disabled: Cloudflare protected
 
 // Primary sources (have downloadable chapters)
@@ -13,6 +14,7 @@ const primarySources: MangaSource[] = [
   mangadexSource,
   mangafoxSource,
   mangatownSource,
+  rawkumaSource,
   readallcomicsSource,
   readcomicsonlineSource,
   archiveorgSource,
@@ -40,6 +42,12 @@ const sourceMeta: Record<string, { color: string; description: string; url: stri
     description: 'Large manga library. Predictable image URLs for fast downloads.',
     url: 'https://www.mangatown.com',
     favicon: 'https://www.mangatown.com/favicon.ico',
+  },
+  rawkuma: {
+    color: '#7c3aed',
+    description: 'Raw Japanese manga — new chapters often before translations. Pair with Translate.',
+    url: 'https://rawkuma.net',
+    favicon: 'https://rawkuma.net/favicon-32x32.png',
   },
   readallcomics: {
     color: '#f59e0b',
