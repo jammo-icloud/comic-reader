@@ -64,9 +64,8 @@ function extractVolumeNumber(filename: string): number | null {
 
 /**
  * Score a file for "canonical" selection (higher = better).
- * Only renderable formats (PDF/CBZ/CBR) — EPUB excluded, we can't display them.
  * Prefer:
- *   - PDF > CBZ > CBR
+ *   - PDF > CBZ > CBR > EPUB (last resort — text EPUBs produce low-quality output)
  *   - Standard layout over "[Alternative Layout N]"
  *   - Official publishers ([Yen Press], [Kodansha], [Seven Seas]) over fan translations
  *   - Non-"CalibreV1DPC" / non-"[Kobo]" versions (those are e-reader specific)
@@ -76,11 +75,12 @@ function scoreFile(file: ArchiveFile): number {
   const name = file.name.toLowerCase();
   let score = 0;
 
-  // Format preference — only renderable formats
+  // Format preference — image-based formats win, EPUB is fallback
   if (/\.pdf$/i.test(file.name)) score += 1000;
   else if (/\.cbz$/i.test(file.name)) score += 900;
   else if (/\.cbr$/i.test(file.name)) score += 800;
-  else return -1; // unsupported format (EPUB, MOBI, etc.)
+  else if (/\.epub$/i.test(file.name)) score += 300;
+  else return -1; // unsupported format (MOBI, DOCX, etc.)
 
   // Official publisher bonus
   if (/\[yen press\]|\[kodansha\]|\[seven seas\]|\[viz\]|\[dark horse\]/i.test(name)) score += 200;
@@ -102,7 +102,7 @@ function scoreFile(file: ArchiveFile): number {
 function pickCanonicalFiles(files: ArchiveFile[]): { volume: number; name: string }[] {
   // Only consider "original" files (not derivatives) that are renderable formats
   const supported = files.filter((f) =>
-    f.source === 'original' && /\.(pdf|cbz|cbr)$/i.test(f.name)
+    f.source === 'original' && /\.(pdf|cbz|cbr|epub)$/i.test(f.name)
   );
 
   // Group by volume number

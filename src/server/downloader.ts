@@ -224,11 +224,11 @@ async function assembleChapterFromSource(
   }
 
   // File-based source short-circuit (Archive.org, etc.):
-  // If pageUrls is a single URL pointing to a PDF/CBR/CBZ, download the file
-  // directly instead of stitching per-page images.
-  if (pageUrls.length === 1 && /\.(pdf|cbr|cbz)(\?|$)/i.test(pageUrls[0])) {
+  // If pageUrls is a single URL pointing to a complete file (PDF/CBR/CBZ/EPUB),
+  // download the file directly instead of stitching per-page images.
+  if (pageUrls.length === 1 && /\.(pdf|cbr|cbz|epub)(\?|$)/i.test(pageUrls[0])) {
     const fileUrl = pageUrls[0];
-    const ext = fileUrl.match(/\.(pdf|cbr|cbz)(?:\?|$)/i)![1].toLowerCase();
+    const ext = fileUrl.match(/\.(pdf|cbr|cbz|epub)(?:\?|$)/i)![1].toLowerCase();
     console.log(`  File download: ${path.basename(fileUrl)} (${ext.toUpperCase()})`);
 
     const res = await fetch(fileUrl, {
@@ -240,13 +240,20 @@ async function assembleChapterFromSource(
     if (ext === 'pdf') {
       fs.writeFileSync(outputPath, buffer);
     } else {
-      // CBR/CBZ — use the converter to extract images and re-assemble as PDF
-      const { cbrToPdf, cbzToPdf } = await import('./converter.js');
+      // CBR/CBZ/EPUB — extract images and re-assemble as PDF
       const tmpPath = outputPath + `.${ext}`;
       fs.writeFileSync(tmpPath, buffer);
       try {
-        if (ext === 'cbz') await cbzToPdf(tmpPath, outputPath);
-        else await cbrToPdf(tmpPath, outputPath);
+        if (ext === 'cbz') {
+          const { cbzToPdf } = await import('./converter.js');
+          await cbzToPdf(tmpPath, outputPath);
+        } else if (ext === 'cbr') {
+          const { cbrToPdf } = await import('./converter.js');
+          await cbrToPdf(tmpPath, outputPath);
+        } else {
+          const { epubToPdf } = await import('./epub-converter.js');
+          await epubToPdf(tmpPath, outputPath);
+        }
       } finally {
         if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
       }
