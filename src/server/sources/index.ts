@@ -5,6 +5,7 @@ import { mangafoxSource } from './mangafox.js';
 import { mangatownSource } from './mangatown.js';
 import { readallcomicsSource } from './readallcomics.js';
 import { readcomicsonlineSource } from './readcomicsonline.js';
+import { archiveorgSource } from './archiveorg.js';
 // import { mangahubSource } from './mangahub.js'; // Disabled: Cloudflare protected
 
 // Primary sources (have downloadable chapters)
@@ -14,6 +15,7 @@ const primarySources: MangaSource[] = [
   mangatownSource,
   readallcomicsSource,
   readcomicsonlineSource,
+  archiveorgSource,
 ];
 
 // All sources including metadata-only (MAL)
@@ -26,6 +28,7 @@ const sourceMeta: Record<string, { color: string; description: string }> = {
   mangatown: { color: '#0284c7', description: 'Large manga library. Predictable image URLs for fast downloads.' },
   readallcomics: { color: '#f59e0b', description: 'Western comics, DC, Marvel, and more.' },
   readcomicsonline: { color: '#dc2626', description: 'Western comics — DC, Marvel, Image, and more.' },
+  archiveorg: { color: '#8b5cf6', description: 'Internet Archive — public domain comics, magazines, manga collections.' },
   mal: { color: '#2e51a2', description: 'MyAnimeList metadata only (no downloads).' },
 };
 

@@ -223,6 +223,39 @@ async function assembleChapterFromSource(
     return;
   }
 
+  // File-based source short-circuit (Archive.org, etc.):
+  // If pageUrls is a single URL pointing to a PDF/CBR/CBZ, download the file
+  // directly instead of stitching per-page images.
+  if (pageUrls.length === 1 && /\.(pdf|cbr|cbz)(\?|$)/i.test(pageUrls[0])) {
+    const fileUrl = pageUrls[0];
+    const ext = fileUrl.match(/\.(pdf|cbr|cbz)(?:\?|$)/i)![1].toLowerCase();
+    console.log(`  File download: ${path.basename(fileUrl)} (${ext.toUpperCase()})`);
+
+    const res = await fetch(fileUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+    });
+    if (!res.ok) throw new Error(`File download failed: ${res.status}`);
+    const buffer = Buffer.from(await res.arrayBuffer());
+
+    if (ext === 'pdf') {
+      fs.writeFileSync(outputPath, buffer);
+    } else {
+      // CBR/CBZ — use the converter to extract images and re-assemble as PDF
+      const { cbrToPdf, cbzToPdf } = await import('./converter.js');
+      const tmpPath = outputPath + `.${ext}`;
+      fs.writeFileSync(tmpPath, buffer);
+      try {
+        if (ext === 'cbz') await cbzToPdf(tmpPath, outputPath);
+        else await cbrToPdf(tmpPath, outputPath);
+      } finally {
+        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+      }
+    }
+
+    onPageDone?.();
+    return;
+  }
+
   const pdf = await PDFDocument.create();
   const PDF_WIDTH = 800;
 
