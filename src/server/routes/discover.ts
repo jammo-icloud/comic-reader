@@ -13,10 +13,19 @@ router.get('/discover/sources', (_req, res) => {
 // Unified search across all sources
 router.get('/discover/search', async (req, res) => {
   const q = req.query.q as string;
+  const sourceFilter = req.query.source as string | undefined;
   if (!q) { res.status(400).json({ error: 'Query parameter "q" required' }); return; }
 
   try {
-    const results = await searchAllSources(q);
+    let results: any[];
+    if (sourceFilter) {
+      // Single-source search (used by subscription picker)
+      const source = getSource(sourceFilter);
+      if (!source) { res.status(404).json({ error: `Unknown source: ${sourceFilter}` }); return; }
+      results = await source.search(q);
+    } else {
+      results = await searchAllSources(q);
+    }
 
     // Annotate results with local library matches
     const allSeries = loadAllSeries();

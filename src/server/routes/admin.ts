@@ -11,6 +11,7 @@ import { buildMergePreview, executeMerge } from '../merge.js';
 // PDF optimization runs locally (too CPU-heavy for NAS) — see scripts/optimize-pdf.ts
 import { runMaintenance } from '../maintenance.js';
 import { shortHash } from '../hash.js';
+import { syncAll } from '../sync.js';
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -298,6 +299,37 @@ router.post('/admin/cleanup', (_req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// --- Subscriptions ---
+
+router.get('/admin/subscriptions', (_req, res) => {
+  const all = loadAllSeries();
+  const subscribed = all
+    .filter((s) => s.syncSource)
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      englishTitle: s.englishTitle,
+      coverFile: s.coverFile,
+      syncSource: s.syncSource,
+      lastSyncAt: s.lastSyncAt,
+      newChapterCount: s.newChapterCount,
+      chapterCount: loadComics(s.id).length,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  res.json(subscribed);
+});
+
+router.post('/admin/sync-all', async (_req, res) => {
+  // Respond immediately — sync runs in background
+  res.json({ ok: true, status: 'started' });
+  try {
+    const result = await syncAll();
+    console.log(`Admin sync-all: ${result.checked} checked, ${result.updated} updated, ${result.failed} failed`);
+  } catch (err) {
+    console.error('Admin sync-all failed:', (err as Error).message);
   }
 });
 

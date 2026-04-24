@@ -71,6 +71,29 @@ router.get('/series/:id', (req, res) => {
   });
 });
 
+// List series with unseen new chapters for the notification dropdown
+router.get('/subscriptions/new', (req, res) => {
+  const allSeries = loadAllSeries();
+  const collection = new Set(loadCollection(req.username).map((e) => e.seriesId));
+  const prefs = loadPreferences(req.username);
+
+  const result = allSeries
+    .filter((s) => s.newChapterCount && s.newChapterCount > 0)
+    .filter((s) => collection.has(s.id))
+    .filter((s) => !prefs.safeMode || !isNsfwSeries(s))
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      englishTitle: s.englishTitle,
+      coverFile: s.coverFile,
+      newChapterCount: s.newChapterCount,
+      lastSyncAt: s.lastSyncAt,
+    }))
+    .sort((a, b) => (b.lastSyncAt || '').localeCompare(a.lastSyncAt || ''));
+
+  res.json(result);
+});
+
 // Manual sync trigger — check source for new chapters now
 router.post('/series/:id/sync', async (req, res) => {
   try {

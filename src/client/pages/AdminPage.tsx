@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge, Wrench, Pencil } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle, Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge, Wrench, Pencil, BookOpen } from 'lucide-react';
 import {
   getAdminStats, getAdminTasks, deleteAdminTask, retryAdminTask, cancelAdminTask, clearAdminTasks,
   getAdminCatalog, purgeAdminSeries, adminEnrich, adminRescan, adminCleanup, adminMaintenance,
+  getAdminSubscriptions, adminSyncAll, syncSeriesNow, updateSeriesSyncSource,
   getAdminUsers,
 } from '../lib/api';
 import ThemeToggle from '../components/ThemeToggle';
@@ -11,7 +12,7 @@ import UserMenu from '../components/UserMenu';
 import MergeModal from '../components/MergeModal';
 import SeriesEditModal from '../components/SeriesEditModal';
 
-type Tab = 'tasks' | 'library' | 'users';
+type Tab = 'tasks' | 'library' | 'subscriptions' | 'users';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -45,6 +46,11 @@ export default function AdminPage() {
   // Edit
   const [editTarget, setEditTarget] = useState<any | null>(null);
 
+  // Subscriptions
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [loadingSubs, setLoadingSubs] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   // Users
   const [users, setUsers] = useState<any[]>([]);
@@ -63,6 +69,9 @@ export default function AdminPage() {
     } else if (tab === 'library') {
       setLoadingCatalog(true);
       getAdminCatalog().then(setCatalog).finally(() => setLoadingCatalog(false));
+    } else if (tab === 'subscriptions') {
+      setLoadingSubs(true);
+      getAdminSubscriptions().then(setSubscriptions).finally(() => setLoadingSubs(false));
     } else if (tab === 'users') {
       setLoadingUsers(true);
       getAdminUsers().then(setUsers).finally(() => setLoadingUsers(false));
@@ -104,6 +113,7 @@ export default function AdminPage() {
         <div className="max-w-6xl mx-auto px-4 flex gap-0 border-t border-gray-100 dark:border-gray-900">
           <button onClick={() => setTab('tasks')} className={tabClass('tasks')}>Tasks</button>
           <button onClick={() => setTab('library')} className={tabClass('library')}>Library</button>
+          <button onClick={() => setTab('subscriptions')} className={tabClass('subscriptions')}>Subscriptions</button>
           <button onClick={() => setTab('users')} className={tabClass('users')}>Users</button>
         </div>
       </header>
@@ -353,6 +363,119 @@ export default function AdminPage() {
                 <div className="px-4 py-2 text-[10px] text-gray-400 border-t border-gray-100 dark:border-gray-800">
                   {filteredCatalog.length} series
                 </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Subscriptions Tab */}
+        {tab === 'subscriptions' && (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                Subscriptions <span className="text-gray-400 font-normal">({subscriptions.length})</span>
+              </h2>
+              <button
+                onClick={async () => {
+                  setSyncingAll(true);
+                  await adminSyncAll().catch(() => {});
+                  setSyncingAll(false);
+                  // Refresh after a delay so the sync has time to start
+                  setTimeout(() => {
+                    getAdminSubscriptions().then(setSubscriptions);
+                  }, 2000);
+                }}
+                disabled={syncingAll}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors disabled:opacity-50"
+              >
+                {syncingAll ? <Loader size={12} className="animate-spin" /> : <RefreshCw size={12} />} Sync All Now
+              </button>
+            </div>
+
+            {loadingSubs && (
+              <div className="flex justify-center py-8"><Loader size={20} className="animate-spin text-blue-500" /></div>
+            )}
+
+            {!loadingSubs && subscriptions.length === 0 && (
+              <div className="text-center py-12 text-sm text-gray-500 dark:text-gray-400">
+                <BookOpen size={32} className="mx-auto mb-2 opacity-40" />
+                <p>No subscriptions yet.</p>
+                <p className="text-xs mt-1">Series downloaded from a source are auto-subscribed. You can also subscribe manually from a series page.</p>
+              </div>
+            )}
+
+            {!loadingSubs && subscriptions.length > 0 && (
+              <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-800 text-left text-xs text-gray-500 dark:text-gray-400">
+                      <th className="px-4 py-2 font-medium">Series</th>
+                      <th className="px-4 py-2 font-medium">Source</th>
+                      <th className="px-4 py-2 font-medium">Chapters</th>
+                      <th className="px-4 py-2 font-medium">Last Sync</th>
+                      <th className="px-4 py-2 font-medium w-24">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                    {subscriptions.map((s) => (
+                      <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                        <td className="px-4 py-2">
+                          <p className="font-medium truncate max-w-[200px]">{s.name}</p>
+                          {s.englishTitle && s.englishTitle !== s.name && (
+                            <p className="text-[10px] text-gray-400 truncate max-w-[200px]">{s.englishTitle}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className="inline-flex items-center gap-1 text-xs">
+                            <span className="capitalize">{s.syncSource.sourceId}</span>
+                            <span className="text-[10px] text-gray-400 font-mono truncate max-w-[120px]">{s.syncSource.mangaId}</span>
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-gray-500">
+                          {s.chapterCount}
+                          {s.newChapterCount > 0 && (
+                            <span className="ml-1 inline-flex items-center px-1.5 py-0.5 text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">
+                              +{s.newChapterCount}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-500">
+                          {s.lastSyncAt ? new Date(s.lastSyncAt).toLocaleString() : 'Never'}
+                        </td>
+                        <td className="px-4 py-2 flex gap-1">
+                          <button
+                            onClick={async () => {
+                              setSyncingId(s.id);
+                              try {
+                                await syncSeriesNow(s.id);
+                                const updated = await getAdminSubscriptions();
+                                setSubscriptions(updated);
+                              } finally {
+                                setSyncingId(null);
+                              }
+                            }}
+                            disabled={syncingId === s.id}
+                            className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-50"
+                            title="Sync now"
+                          >
+                            {syncingId === s.id ? <Loader size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Unsubscribe "${s.name}" from auto-sync?`)) return;
+                              await updateSeriesSyncSource(s.id, null);
+                              setSubscriptions((prev) => prev.filter((x) => x.id !== s.id));
+                            }}
+                            className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors"
+                            title="Unsubscribe"
+                          >
+                            <X size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>

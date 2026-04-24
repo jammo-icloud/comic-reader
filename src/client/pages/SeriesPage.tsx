@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, LayoutGrid, List, Star, Pencil, RefreshCw, Loader } from 'lucide-react';
 import type { Series, Comic } from '../lib/types';
 import { getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl, overrideMalId, deleteSeries, getThumbnailUrl, updateSeriesTags, syncSeriesNow } from '../lib/api';
+import SyncSourcePicker from '../components/SyncSourcePicker';
 import ComicCard from '../components/ComicCard';
 import ComicListItem from '../components/ComicListItem';
 import ThemeToggle from '../components/ThemeToggle';
@@ -35,6 +36,7 @@ export default function SeriesPage() {
   // Sync
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string>('');
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
 
   const handleSyncNow = async () => {
     if (!id) return;
@@ -249,29 +251,48 @@ export default function SeriesPage() {
             )}
 
             {/* Sync controls */}
-            {series.syncSource && (
-              <div className="mt-3 flex items-center gap-3 text-[11px]">
-                <button
-                  onClick={handleSyncNow}
-                  disabled={syncing}
-                  className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
-                  title={`Check ${series.syncSource.sourceId} for new chapters`}
-                >
-                  {syncing ? <Loader size={11} className="animate-spin" /> : <RefreshCw size={11} />}
-                  {syncing ? 'Checking...' : 'Check for new chapters'}
-                </button>
-                {series.lastSyncAt && (
+            <div className="mt-3 flex items-center gap-3 text-[11px] flex-wrap">
+              {series.syncSource ? (
+                <>
+                  <button
+                    onClick={handleSyncNow}
+                    disabled={syncing}
+                    className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
+                    title={`Check ${series.syncSource.sourceId} for new chapters`}
+                  >
+                    {syncing ? <Loader size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+                    {syncing ? 'Checking...' : 'Check for new chapters'}
+                  </button>
                   <span className="text-gray-400 dark:text-gray-600">
-                    Last checked {new Date(series.lastSyncAt).toLocaleDateString()}
+                    via <span className="capitalize">{series.syncSource.sourceId}</span>
                   </span>
-                )}
-                {syncResult && (
-                  <span className={`text-[10px] ${syncResult.startsWith('Error') ? 'text-red-500' : 'text-green-500'}`}>
-                    {syncResult}
-                  </span>
-                )}
-              </div>
-            )}
+                  <button
+                    onClick={() => setShowSourcePicker(true)}
+                    className="text-gray-400 dark:text-gray-600 hover:text-blue-500 dark:hover:text-blue-400"
+                  >
+                    <Pencil size={11} />
+                  </button>
+                  {series.lastSyncAt && (
+                    <span className="text-gray-400 dark:text-gray-600">
+                      Last checked {new Date(series.lastSyncAt).toLocaleDateString()}
+                    </span>
+                  )}
+                  {syncResult && (
+                    <span className={`text-[10px] ${syncResult.startsWith('Error') ? 'text-red-500' : 'text-green-500'}`}>
+                      {syncResult}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowSourcePicker(true)}
+                  className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                  title="Subscribe to auto-update from a source"
+                >
+                  <RefreshCw size={11} /> Subscribe to updates
+                </button>
+              )}
+            </div>
 
             <div className="mt-3">
               {!confirmDelete ? (
@@ -313,6 +334,20 @@ export default function SeriesPage() {
           )}
         </div>
       </div>
+
+      {showSourcePicker && id && (
+        <SyncSourcePicker
+          seriesId={id}
+          seriesName={series.name}
+          currentSource={series.syncSource}
+          onClose={() => setShowSourcePicker(false)}
+          onSaved={async () => {
+            setShowSourcePicker(false);
+            const updated = await getSeriesDetail(id);
+            setSeries(updated);
+          }}
+        />
+      )}
     </div>
   );
 }

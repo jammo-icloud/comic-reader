@@ -199,6 +199,52 @@ export function updateSeriesSyncSource(
   });
 }
 
+export function getSubscriptionsWithNew(): Promise<{
+  id: string;
+  name: string;
+  englishTitle: string | null;
+  coverFile: string | null;
+  newChapterCount: number;
+  lastSyncAt: string | null;
+}[]> {
+  return fetchJson('/subscriptions/new');
+}
+
+export function getAdminSubscriptions(): Promise<{
+  id: string;
+  name: string;
+  englishTitle: string | null;
+  coverFile: string | null;
+  syncSource: { sourceId: string; mangaId: string };
+  lastSyncAt: string | null;
+  newChapterCount: number | null;
+  chapterCount: number;
+}[]> {
+  return fetchJson('/admin/subscriptions');
+}
+
+export function adminSyncAll(): Promise<{ ok: boolean; status: string }> {
+  return fetchJson('/admin/sync-all', { method: 'POST' });
+}
+
+export function getAvailableSources(): Promise<{ id: string; name: string; color: string; favicon?: string; description?: string }[]> {
+  return fetchJson('/discover/sources');
+}
+
+export function searchSource(sourceId: string, query: string): Promise<{
+  sourceId: string;
+  sourceName: string;
+  mangaId: string;
+  title: string;
+  coverUrl: string | null;
+  description: string;
+  status: string;
+  year: number | null;
+  tags: string[];
+}[]> {
+  return fetchJson(`/discover/search?q=${encodeURIComponent(query)}&source=${sourceId}`);
+}
+
 // ==================== Comics (within a series) ====================
 
 export function getComics(seriesId: string): Promise<Comic[]> {

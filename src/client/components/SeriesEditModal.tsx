@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Loader, Trash2, ChevronDown, ChevronUp, Upload, Image as ImageIcon } from 'lucide-react';
+import { X, Save, Loader, Trash2, ChevronDown, ChevronUp, Upload, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import { updateAdminSeries, getAdminSeriesComics, deleteAdminComic, uploadSeriesCover, getSeriesCoverUrl } from '../lib/api';
+import SyncSourcePicker from './SyncSourcePicker';
 
 interface SeriesEditModalProps {
   series: {
@@ -15,6 +16,7 @@ interface SeriesEditModalProps {
     year?: number | null;
     malId?: number | null;
     mangaDexId?: string | null;
+    syncSource?: { sourceId: string; mangaId: string } | null;
   };
   onClose: () => void;
   onSave: () => void;
@@ -50,6 +52,10 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [coverVersion, setCoverVersion] = useState(0); // cache-bust after upload
+
+  // Sync source
+  const [syncSource, setSyncSource] = useState(series.syncSource);
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
 
   // Save state
   const [saving, setSaving] = useState(false);
@@ -234,6 +240,35 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
             />
           </div>
 
+          {/* Sync Source */}
+          <div>
+            <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">Sync Source</label>
+            <div className="flex items-center gap-2 text-sm">
+              {syncSource ? (
+                <>
+                  <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+                    <RefreshCw size={12} />
+                    <span className="capitalize">{syncSource.sourceId}</span>
+                    <span className="font-mono text-[10px] text-gray-400">{syncSource.mangaId}</span>
+                  </span>
+                  <button
+                    onClick={() => setShowSourcePicker(true)}
+                    className="text-xs text-gray-500 hover:text-blue-500"
+                  >
+                    Change
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowSourcePicker(true)}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
+                >
+                  <RefreshCw size={12} /> Subscribe to updates
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Chapters */}
           <div>
             <button
@@ -309,6 +344,19 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
           </div>
         </div>
       </div>
+
+      {showSourcePicker && (
+        <SyncSourcePicker
+          seriesId={series.id}
+          seriesName={name}
+          currentSource={syncSource}
+          onClose={() => setShowSourcePicker(false)}
+          onSaved={(source) => {
+            setSyncSource(source);
+            setShowSourcePicker(false);
+          }}
+        />
+      )}
     </div>
   );
 }

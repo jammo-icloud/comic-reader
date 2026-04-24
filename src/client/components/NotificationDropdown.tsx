@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Loader, Check, AlertCircle, X, Square, ChevronRight } from 'lucide-react';
-import { getImportCount, getDownloadQueue, cancelDownload, removeDownloadJob, getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
+import { Zap, Loader, Check, AlertCircle, X, Square, ChevronRight, BookOpen } from 'lucide-react';
+import { getImportCount, getDownloadQueue, cancelDownload, removeDownloadJob, getSeriesCoverUrl, getPlaceholderUrl, getSubscriptionsWithNew } from '../lib/api';
 
 interface DownloadJob {
   id: string;
@@ -16,11 +16,20 @@ function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
 }
 
+interface NewChapterItem {
+  id: string;
+  name: string;
+  englishTitle: string | null;
+  coverFile: string | null;
+  newChapterCount: number;
+}
+
 export default function NotificationDropdown() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
+  const [newChapters, setNewChapters] = useState<NewChapterItem[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -28,14 +37,17 @@ export default function NotificationDropdown() {
   useEffect(() => {
     getImportCount().then((r) => setPendingCount(r.count)).catch(() => {});
     getDownloadQueue().then(setJobs).catch(() => {});
+    getSubscriptionsWithNew().then(setNewChapters).catch(() => {});
   }, []);
 
-  // Poll pending count
+  // Poll for subscription updates + pending count
   useEffect(() => {
     const interval = setInterval(async () => {
       const { count } = await getImportCount().catch(() => ({ count: 0 }));
       setPendingCount(count);
-    }, 5000);
+      const newCh = await getSubscriptionsWithNew().catch(() => []);
+      setNewChapters(newCh);
+    }, 30000); // every 30s — not critical to be instant
     return () => clearInterval(interval);
   }, []);
 
@@ -81,8 +93,9 @@ export default function NotificationDropdown() {
 
   const activeJobs = jobs.filter((j) => j.status === 'queued' || j.status === 'downloading');
   const doneJobs = jobs.filter((j) => j.status === 'complete' || j.status === 'error');
-  const badgeCount = pendingCount + activeJobs.length;
-  const hasContent = pendingCount > 0 || jobs.length > 0;
+  const newChaptersTotal = newChapters.reduce((sum, s) => sum + s.newChapterCount, 0);
+  const badgeCount = pendingCount + activeJobs.length + (newChaptersTotal > 0 ? 1 : 0);
+  const hasContent = pendingCount > 0 || jobs.length > 0 || newChapters.length > 0;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -126,6 +139,46 @@ export default function NotificationDropdown() {
               </span>
               <ChevronRight size={16} className="text-amber-500" />
             </button>
+          )}
+
+          {/* New chapters from subscriptions */}
+          {newChapters.length > 0 && (
+            <div className="border-b border-gray-200 dark:border-gray-800">
+              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/10">
+                <BookOpen size={13} className="text-blue-500" />
+                <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
+                  {newChaptersTotal} new chapter{newChaptersTotal !== 1 ? 's' : ''} across {newChapters.length} series
+                </span>
+              </div>
+              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                {newChapters.slice(0, 5).map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => { setOpen(false); navigate(`/series/${s.id}`); }}
+                    className="flex items-center gap-3 w-full px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+                  >
+                    <div className="w-8 h-12 rounded overflow-hidden bg-gray-100 dark:bg-gray-800 shrink-0">
+                      <img
+                        src={getSeriesCoverUrl(s.id, s.coverFile)}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).src = getPlaceholderUrl('manga.png'); }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{s.name}</p>
+                      <p className="text-[11px] text-blue-500">+{s.newChapterCount} new</p>
+                    </div>
+                    <ChevronRight size={14} className="text-gray-400 shrink-0" />
+                  </button>
+                ))}
+                {newChapters.length > 5 && (
+                  <div className="px-4 py-1.5 text-[10px] text-gray-400 text-center">
+                    + {newChapters.length - 5} more
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Download jobs */}
