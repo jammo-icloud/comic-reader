@@ -3,20 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search, Loader, Check, ExternalLink, Eye, X } from 'lucide-react';
 import type { SearchResult, ChapterResult } from '../lib/types';
 import { discoverSearch, discoverChapters, addToCollection, getComics } from '../lib/api';
-import { ALL_SOURCES, HAKUNEKO_SITES, HAKUNEKO_URL, getSourceConfig } from '../lib/browser-sources/registry';
+import { useSources, HAKUNEKO_SITES, HAKUNEKO_URL, getSourceConfig } from '../lib/browser-sources/registry';
 import type { SourceConfig } from '../lib/browser-sources/types';
 import MangaSearchCard from '../components/MangaSearchCard';
 import ChapterPicker from '../components/ChapterPicker';
 import NotificationDropdown from '../components/NotificationDropdown';
 import ThemeToggle from '../components/ThemeToggle';
 
-const colorHex: Record<string, string> = {
-  'bg-orange-600': '#ea580c',
-  'bg-emerald-600': '#059669',
-};
-
 function SourceCard({ source, selected, onClick }: { source: SourceConfig; selected: boolean; onClick: () => void }) {
-  const hex = colorHex[source.color] || '#6b7280';
+  const hex = source.color || '#6b7280';
   return (
     <button
       onClick={onClick}
@@ -59,6 +54,7 @@ function SourceCard({ source, selected, onClick }: { source: SourceConfig; selec
 
 export default function DiscoverPage() {
   const navigate = useNavigate();
+  const sources = useSources();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -189,7 +185,7 @@ export default function DiscoverPage() {
             <div className="hidden sm:flex items-center gap-1">
               {[...selectedSources].map((id) => {
                 const config = getSourceConfig(id);
-                const hex = colorHex[config?.color || ''] || '#6b7280';
+                const hex = config?.color || '#6b7280';
                 return config ? (
                   <span key={id} className="text-white text-[9px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: hex }}>{config.name}</span>
                 ) : null;
@@ -209,7 +205,7 @@ export default function DiscoverPage() {
             <section>
               <h2 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3">Search Sources</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {ALL_SOURCES.map((source) => (
+                {sources.map((source) => (
                   <SourceCard key={source.id} source={source} selected={selectedSources.has(source.id)} onClick={() => toggleSource(source.id)} />
                 ))}
               </div>

@@ -1,20 +1,87 @@
-import type { SearchResult, ChapterResult } from '../types';
-import type { SourceConfig, SourceTier } from './types';
+/**
+ * Source registry — backed by the server's /api/discover/sources endpoint.
+ * Sources are fetched once per session and cached in memory.
+ */
+import { useEffect, useState } from 'react';
+import type { SourceConfig } from './types';
 
-// Working server-side sources
-export const ALL_SOURCES: SourceConfig[] = [
-  { id: 'mangadex', name: 'MangaDex', color: 'bg-orange-600', tier: 'fast', type: 'server',
-    url: 'https://mangadex.org', favicon: 'https://mangadex.org/favicon.ico',
-    description: 'Community-driven scanlations. Largest free manga library.' },
-  { id: 'mangafox', name: 'MangaFox', color: 'bg-emerald-600', tier: 'fast', type: 'server',
-    url: 'https://fanfox.net', favicon: 'https://fanfox.net/favicon.ico',
-    description: 'Long-running manga site. Fast chapter updates.' },
-  { id: 'readallcomics', name: 'ReadAllComics', color: 'bg-amber-500', tier: 'fast', type: 'server',
-    url: 'https://readallcomics.com', favicon: 'https://readallcomics.com/wp-content/uploads/cropped-logo-readallcomic-seo-2-32x32.jpg',
-    description: 'Western comics — DC, Marvel, and more.' },
-];
+let cachedSources: SourceConfig[] | null = null;
+let inflightPromise: Promise<SourceConfig[]> | null = null;
+const listeners = new Set<(sources: SourceConfig[]) => void>();
 
-// Sites known to work in HakuNeko (for reference/linking)
+async function fetchSources(): Promise<SourceConfig[]> {
+  if (cachedSources) return cachedSources;
+  if (inflightPromise) return inflightPromise;
+
+  inflightPromise = fetch('/api/discover/sources')
+    .then((r) => r.json())
+    .then((list: any[]) => {
+      // Normalize shape — server returns hex colors already
+      const sources: SourceConfig[] = list.map((s) => ({
+        id: s.id,
+        name: s.name,
+        color: s.color,
+        description: s.description || '',
+        url: s.url || '',
+        favicon: s.favicon || '',
+        tier: 'fast',
+        type: 'server',
+      }));
+      cachedSources = sources;
+      listeners.forEach((fn) => fn(sources));
+      return sources;
+    })
+    .catch((err) => {
+      console.error('Failed to load sources:', err);
+      cachedSources = [];
+      return [];
+    })
+    .finally(() => {
+      inflightPromise = null;
+    });
+
+  return inflightPromise;
+}
+
+/**
+ * React hook — returns the current list of sources (empty until fetched).
+ */
+export function useSources(): SourceConfig[] {
+  const [sources, setSources] = useState<SourceConfig[]>(cachedSources || []);
+
+  useEffect(() => {
+    if (cachedSources) return;
+    fetchSources().then(setSources);
+    listeners.add(setSources);
+    return () => { listeners.delete(setSources); };
+  }, []);
+
+  return sources;
+}
+
+/**
+ * Synchronous lookup — returns null until sources are loaded.
+ * Use getSourceConfigAsync when you need to guarantee a result.
+ */
+export function getSourceConfig(id: string): SourceConfig | undefined {
+  if (!cachedSources) {
+    // Trigger fetch for next time, but return undefined now
+    fetchSources();
+    return undefined;
+  }
+  return cachedSources.find((s) => s.id === id);
+}
+
+export async function getSourceConfigAsync(id: string): Promise<SourceConfig | undefined> {
+  const sources = await fetchSources();
+  return sources.find((s) => s.id === id);
+}
+
+// Preload at module import time so the first render has data ready
+fetchSources();
+
+// --- HakuNeko reference list (still hardcoded — these are external links, not sources we download from) ---
+
 export const HAKUNEKO_SITES = [
   { name: 'MangaHub', url: 'https://mangahub.io', description: 'Large collection, GraphQL API' },
   { name: 'MangaFire', url: 'https://mangafire.to', description: 'Modern reader, multiple formats' },
@@ -26,20 +93,3 @@ export const HAKUNEKO_SITES = [
 ];
 
 export const HAKUNEKO_URL = 'https://github.com/manga-download/hakuneko';
-
-export function getSourcesByTier(tier: SourceTier): SourceConfig[] {
-  return ALL_SOURCES.filter((s) => s.tier === tier);
-}
-
-export function getSourceConfig(id: string): SourceConfig | undefined {
-  return ALL_SOURCES.find((s) => s.id === id);
-}
-
-// Browser sources removed — all search is server-side now
-export async function searchBrowserSources(): Promise<SearchResult[]> {
-  return [];
-}
-
-export async function getBrowserChapters(): Promise<ChapterResult[]> {
-  return [];
-}

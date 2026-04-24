@@ -9,17 +9,6 @@ const statusColors: Record<string, string> = {
   cancelled: 'bg-red-600',
 };
 
-const colorHex: Record<string, string> = {
-  'bg-orange-600': '#ea580c',
-  'bg-emerald-600': '#059669',
-  'bg-indigo-600': '#4f46e5',
-  'bg-violet-600': '#7c3aed',
-  'bg-purple-600': '#9333ea',
-  'bg-sky-600': '#0284c7',
-  'bg-rose-600': '#e11d48',
-  'bg-blue-700': '#1d4ed8',
-};
-
 export default function MangaSearchCard({
   manga,
   onClick,
@@ -28,7 +17,7 @@ export default function MangaSearchCard({
   onClick: () => void;
 }) {
   const sourceConfig = getSourceConfig(manga.sourceId);
-  const hex = colorHex[sourceConfig?.color || ''] || '#6b7280';
+  const hex = sourceConfig?.color || '#6b7280';
 
   return (
     <button

@@ -22,26 +22,63 @@ const primarySources: MangaSource[] = [
 const allSources: MangaSource[] = [...primarySources, malSource];
 
 // Display metadata for the client picker
-const sourceMeta: Record<string, { color: string; description: string }> = {
-  mangadex: { color: '#ea580c', description: 'Community-driven scanlations. Largest free manga library.' },
-  mangafox: { color: '#059669', description: 'Long-running manga site. Fast chapter updates.' },
-  mangatown: { color: '#0284c7', description: 'Large manga library. Predictable image URLs for fast downloads.' },
-  readallcomics: { color: '#f59e0b', description: 'Western comics, DC, Marvel, and more.' },
-  readcomicsonline: { color: '#dc2626', description: 'Western comics — DC, Marvel, Image, and more.' },
-  archiveorg: { color: '#8b5cf6', description: 'Internet Archive — public domain comics, magazines, manga collections.' },
-  mal: { color: '#2e51a2', description: 'MyAnimeList metadata only (no downloads).' },
+const sourceMeta: Record<string, { color: string; description: string; url: string; favicon: string }> = {
+  mangadex: {
+    color: '#ea580c',
+    description: 'Community-driven scanlations. Largest free manga library.',
+    url: 'https://mangadex.org',
+    favicon: 'https://mangadex.org/favicon.ico',
+  },
+  mangafox: {
+    color: '#059669',
+    description: 'Long-running manga site. Fast chapter updates.',
+    url: 'https://fanfox.net',
+    favicon: 'https://fanfox.net/favicon.ico',
+  },
+  mangatown: {
+    color: '#0284c7',
+    description: 'Large manga library. Predictable image URLs for fast downloads.',
+    url: 'https://www.mangatown.com',
+    favicon: 'https://www.mangatown.com/favicon.ico',
+  },
+  readallcomics: {
+    color: '#f59e0b',
+    description: 'Western comics, DC, Marvel, and more.',
+    url: 'https://readallcomics.com',
+    favicon: 'https://readallcomics.com/wp-content/uploads/cropped-logo-readallcomic-seo-2-32x32.jpg',
+  },
+  readcomicsonline: {
+    color: '#dc2626',
+    description: 'Western comics — DC, Marvel, Image, and more.',
+    url: 'https://readcomicsonline.ru',
+    favicon: 'https://readcomicsonline.ru/favicon.ico',
+  },
+  archiveorg: {
+    color: '#8b5cf6',
+    description: 'Internet Archive — public domain comics, magazines, manga collections.',
+    url: 'https://archive.org',
+    favicon: 'https://archive.org/favicon.ico',
+  },
+  mal: {
+    color: '#2e51a2',
+    description: 'MyAnimeList metadata only (no downloads).',
+    url: 'https://myanimelist.net',
+    favicon: 'https://myanimelist.net/favicon.ico',
+  },
 };
 
 export function getSource(id: string): MangaSource | undefined {
   return allSources.find((s) => s.id === id);
 }
 
-export function getAllSources(): { id: string; name: string; color: string; description: string }[] {
+export function getAllSources(): { id: string; name: string; color: string; description: string; url: string; favicon: string }[] {
   return allSources.map((s) => ({
     id: s.id,
     name: s.name,
     color: sourceMeta[s.id]?.color || '#64748b',
     description: sourceMeta[s.id]?.description || '',
+    url: sourceMeta[s.id]?.url || '',
+    favicon: sourceMeta[s.id]?.favicon || '',
   }));
 }
 
