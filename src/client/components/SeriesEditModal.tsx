@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Loader, Trash2, ChevronDown, ChevronUp, Upload, Image as ImageIcon, RefreshCw } from 'lucide-react';
-import { updateAdminSeries, getAdminSeriesComics, deleteAdminComic, uploadSeriesCover, getSeriesCoverUrl } from '../lib/api';
+import { X, Save, Loader, Trash2, ChevronDown, ChevronUp, Upload, Image as ImageIcon, RefreshCw, Languages } from 'lucide-react';
+import { updateAdminSeries, getAdminSeriesComics, deleteAdminComic, uploadSeriesCover, getSeriesCoverUrl, translateWholeChapter, getTranslationStatus } from '../lib/api';
 import SyncSourcePicker from './SyncSourcePicker';
 
 interface SeriesEditModalProps {
@@ -53,6 +53,10 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
   const [uploadingCover, setUploadingCover] = useState(false);
   const [coverVersion, setCoverVersion] = useState(0); // cache-bust after upload
 
+  // Translation status per file: file -> { translating, cachedPages }
+  const [translationState, setTranslationState] = useState<Record<string, { translating: boolean; cached: number[] }>>({});
+  const [translationEnabled, setTranslationEnabled] = useState(false);
+
   // Sync source
   const [syncSource, setSyncSource] = useState(series.syncSource);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
@@ -64,9 +68,51 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
 
   useEffect(() => {
     getAdminSeriesComics(series.id)
-      .then(setComics)
+      .then(async (chapters) => {
+        setComics(chapters);
+        // Fetch translation cache state for each chapter
+        const state: typeof translationState = {};
+        let enabled = false;
+        for (const c of chapters) {
+          try {
+            const status = await getTranslationStatus(series.id, c.file);
+            enabled = enabled || status.enabled;
+            state[c.file] = { translating: false, cached: status.cachedPages };
+          } catch {
+            state[c.file] = { translating: false, cached: [] };
+          }
+        }
+        setTranslationEnabled(enabled);
+        setTranslationState(state);
+      })
       .finally(() => setLoadingComics(false));
   }, [series.id]);
+
+  const handleTranslateChapter = async (file: string) => {
+    setTranslationState((prev) => ({ ...prev, [file]: { ...prev[file], translating: true } }));
+    try {
+      await translateWholeChapter(series.id, file);
+      // Poll for completion — server runs in background
+      const start = Date.now();
+      const poll = async () => {
+        if (Date.now() - start > 10 * 60 * 1000) return; // 10 min timeout
+        const status = await getTranslationStatus(series.id, file).catch(() => null);
+        if (!status) return;
+        const comic = comics.find((c) => c.file === file);
+        const total = comic?.pages || 0;
+        const stillRunning = total === 0 || status.cachedPages.length < total;
+        setTranslationState((prev) => ({
+          ...prev,
+          [file]: { translating: stillRunning, cached: status.cachedPages },
+        }));
+        if (stillRunning) setTimeout(poll, 3000);
+      };
+      setTimeout(poll, 2000);
+    } catch (err) {
+      alert(`Translation failed: ${(err as Error).message}`);
+      setTranslationState((prev) => ({ ...prev, [file]: { ...prev[file], translating: false } }));
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -292,16 +338,40 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
                         <th className="px-3 py-1.5 text-left font-medium w-12">#</th>
                         <th className="px-3 py-1.5 text-left font-medium">File</th>
                         <th className="px-3 py-1.5 text-left font-medium w-16">Pages</th>
-                        <th className="px-3 py-1.5 w-10"></th>
+                        {translationEnabled && <th className="px-3 py-1.5 text-left font-medium w-20">Translated</th>}
+                        <th className="px-3 py-1.5 w-20"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                      {comics.map((c) => (
+                      {comics.map((c) => {
+                        const t = translationState[c.file] || { translating: false, cached: [] };
+                        const total = c.pages || 0;
+                        const done = t.cached.length;
+                        return (
                         <tr key={c.file} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                           <td className="px-3 py-1.5 text-gray-400 font-mono">{c.order}</td>
                           <td className="px-3 py-1.5 truncate max-w-[250px]">{c.file}</td>
                           <td className="px-3 py-1.5 text-gray-400">{c.pages || '?'}</td>
-                          <td className="px-3 py-1.5">
+                          {translationEnabled && (
+                            <td className="px-3 py-1.5 text-[11px] text-gray-500">
+                              {t.translating
+                                ? <span className="text-blue-500">{done}/{total} ({total ? Math.round((done / total) * 100) : 0}%)</span>
+                                : done > 0
+                                  ? <span className="text-green-600 dark:text-green-500">{done}/{total || '?'}</span>
+                                  : <span className="text-gray-400">—</span>}
+                            </td>
+                          )}
+                          <td className="px-3 py-1.5 flex gap-1">
+                            {translationEnabled && (
+                              <button
+                                onClick={() => handleTranslateChapter(c.file)}
+                                disabled={t.translating}
+                                className="p-0.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-50"
+                                title="Translate this chapter (admin)"
+                              >
+                                {t.translating ? <Loader size={12} className="animate-spin" /> : <Languages size={12} />}
+                              </button>
+                            )}
                             <button
                               onClick={() => handleDeleteComic(c.file)}
                               disabled={deletingFile === c.file}
@@ -312,7 +382,8 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
                             </button>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}

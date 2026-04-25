@@ -231,25 +231,7 @@ export function getAvailableSources(): Promise<{ id: string; name: string; color
   return fetchJson('/discover/sources');
 }
 
-// ==================== Translation ====================
-
-export interface TranslatedBubble {
-  order: number;
-  japanese: string;
-  english: string;
-}
-
-export interface PageTranslation {
-  bubbles: TranslatedBubble[];
-  modelUsed: string;
-  translatedAt: string;
-  durationMs: number;
-}
-
-export function getPageTranslation(seriesId: string, file: string, pageNum: number, force = false): Promise<PageTranslation> {
-  const qs = force ? '?force=true' : '';
-  return fetchJson(`/translate/${seriesId}/${pageNum}/${encodePath(file)}${qs}`);
-}
+// ==================== Translation (admin only) ====================
 
 export function getTranslationStatus(seriesId: string, file: string): Promise<{ enabled: boolean; cachedPages: number[] }> {
   return fetchJson(`/translate/${seriesId}/status/${encodePath(file)}`);

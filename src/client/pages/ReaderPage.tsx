@@ -1,10 +1,9 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Languages } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getPdfUrl, updateProgress, getComics, getSeriesDetail } from '../lib/api';
 import PdfViewer from '../components/PdfViewer';
 import ThemeToggle from '../components/ThemeToggle';
-import TranslationDrawer from '../components/TranslationDrawer';
 import type { Comic, Series } from '../lib/types';
 
 export default function ReaderPage() {
@@ -17,8 +16,6 @@ export default function ReaderPage() {
   const [series, setSeries] = useState<Series | null>(null);
   const [comics, setComics] = useState<Comic[]>([]);
   const lastSavedPage = useRef(-1);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [showTranslation, setShowTranslation] = useState(false);
 
   useEffect(() => {
     if (!seriesId) return;
@@ -36,7 +33,6 @@ export default function ReaderPage() {
 
   const handlePageChange = useCallback(
     (page: number, total: number) => {
-      setCurrentPage(page);
       if (page !== lastSavedPage.current) {
         lastSavedPage.current = page;
         updateProgress(seriesId, file, { currentPage: page, pageCount: total });
@@ -95,17 +91,6 @@ export default function ReaderPage() {
         </button>
 
         <div className="flex-1 min-w-0" />
-        <button
-          onClick={() => setShowTranslation((v) => !v)}
-          className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors shrink-0 ${
-            showTranslation
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200'
-          }`}
-          title="Translate page"
-        >
-          <Languages size={14} /> <span className="hidden sm:inline">Translate</span>
-        </button>
         <span className="hidden sm:block"><ThemeToggle /></span>
       </div>
 
@@ -116,14 +101,6 @@ export default function ReaderPage() {
           onPageChange={handlePageChange}
         />
       </div>
-
-      <TranslationDrawer
-        seriesId={seriesId}
-        file={file}
-        pageNum={currentPage}
-        open={showTranslation}
-        onClose={() => setShowTranslation(false)}
-      />
     </div>
   );
 }
