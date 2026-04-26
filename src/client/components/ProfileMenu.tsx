@@ -117,11 +117,15 @@ export default function ProfileMenu({ sections, triggerVariant = 'header' }: Pro
           a `position: fixed` child and clip the sheet to the header's box). */}
       {open && createPortal(
         <div className="fixed inset-0 z-50">
-          {/* Backdrop */}
+          {/* Backdrop — full dim on mobile (sheet pattern), subtle scrim + blur
+              on desktop. The desktop scrim is light enough to not feel modal,
+              but it frames the popover so it doesn't bleed into the page when
+              surface bg is close to page bg (a real issue in default light
+              theme where both are near-white). */}
           <button
             aria-label="Close menu"
             onClick={() => setOpen(false)}
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm sm:bg-transparent sm:backdrop-blur-none"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm sm:bg-black/10"
           />
 
           <div
