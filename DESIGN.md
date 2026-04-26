@@ -44,12 +44,14 @@ gray: {
 | Theme | `--gray-50` (page) | `--surface` (card) |
 |---|---|---|
 | Default | 249 250 251 (near-white) | 255 255 255 (white) |
-| Latte | 239 241 245 (cool lavender) | 250 251 254 (lifted cool) |
-| Dawn | 250 244 237 (warm parchment) | 255 250 244 (lifted warm) |
-| Alucard | 255 251 235 (aged ivory) | 255 254 245 (lifted ivory) |
-| Gruvbox Sand | 251 241 199 (retro sand) | 255 248 220 (lifted cream) |
-| Tankobon | 237 232 213 (manga paper) | 250 245 230 (lifted cream) |
-| Newsprint | 242 232 201 (comic paper) | 252 245 220 (lifted cream) |
+| Latte | 239 241 245 (cool lavender) | 254 254 255 (near-white, slight cool tint) |
+| Dawn | 250 244 237 (warm parchment) | 255 253 250 (near-white, slight warm tint) |
+| Alucard | 255 251 235 (aged ivory) | 255 255 250 (near-white, slight ivory tint) |
+| Gruvbox Sand | 251 241 199 (retro sand) | 255 253 240 (near-white, slight cream tint) |
+| Tankobon | 237 232 213 (manga paper) | 255 252 241 (near-white, slight cream tint) |
+| Newsprint | 242 232 201 (comic paper) | 255 251 235 (near-white, slight cream tint) |
+
+**Sizing rationale:** earlier values were "1 step lifted from gray-50" — too close to the page bg in warm themes; cards barely separated, popover sheets appeared to bleed through their (transparent on desktop) backdrop. Current values are "near-white with a tiny theme tint" — cards now read as clearly elevated everywhere while still respecting the warm/cool theme character through that subtle tint.
 
 The token only matters in light mode — dark themes use `dark:bg-gray-900` (which is theme-aware via the gray var system, no `--surface` override needed). So the canonical card pattern is:
 

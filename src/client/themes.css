@@ -154,7 +154,7 @@
   --gray-950: 44 48 65;
   --accent: 136 57 239;
   --accent-hover: 114 135 253;
-  --surface: 250 251 254;
+  --surface: 254 254 255;
 }
 
 /* Dawn (Rose Pine) — warm parchment */
@@ -172,7 +172,7 @@
   --gray-950: 32 30 48;
   --accent: 144 122 169;
   --accent-hover: 215 130 126;
-  --surface: 255 250 244;
+  --surface: 255 253 250;
 }
 
 /* Alucard (Dracula Light) — aged ivory */
@@ -190,7 +190,7 @@
   --gray-950: 22 22 22;
   --accent: 100 74 201;
   --accent-hover: 189 147 249;
-  --surface: 255 254 245;
+  --surface: 255 255 250;
 }
 
 /* Gruvbox Sand — retro warm with bold orange */
@@ -208,7 +208,7 @@
   --gray-950: 29 32 33;
   --accent: 214 93 14;
   --accent-hover: 152 151 26;
-  --surface: 255 248 220;
+  --surface: 255 253 240;
 }
 
 /* Tankobon — authentic manga paper */
@@ -226,7 +226,7 @@
   --gray-950: 18 16 14;
   --accent: 230 53 37;
   --accent-hover: 38 67 72;
-  --surface: 250 245 230;
+  --surface: 255 252 241;
 }
 
 /* Newsprint — classic comic book paper */
@@ -244,5 +244,5 @@
   --gray-950: 15 14 12;
   --accent: 226 0 37;
   --accent-hover: 0 96 170;
-  --surface: 252 245 220;
+  --surface: 255 251 235;
 }
