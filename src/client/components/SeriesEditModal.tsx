@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Save, Loader, Trash2, ChevronDown, ChevronUp, Upload, Image as ImageIcon, RefreshCw, Languages } from 'lucide-react';
 import { updateAdminSeries, getAdminSeriesComics, deleteAdminComic, uploadSeriesCover, getSeriesCoverUrl, translateWholeChapter, getTranslationStatus } from '../lib/api';
 import SyncSourcePicker from './SyncSourcePicker';
+import ConfirmSheet from './ConfirmSheet';
 
 interface SeriesEditModalProps {
   series: {
@@ -109,7 +110,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
       };
       setTimeout(poll, 2000);
     } catch (err) {
-      alert(`Translation failed: ${(err as Error).message}`);
+      setError(`Translation failed: ${(err as Error).message}`);
       setTranslationState((prev) => ({ ...prev, [file]: { ...prev[file], translating: false } }));
     }
   };
@@ -139,14 +140,22 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
     }
   };
 
-  const handleDeleteComic = async (file: string) => {
-    if (!confirm(`Delete "${file}"? This removes the file from disk permanently.`)) return;
+  // Two-step delete: clicking the trash icon arms `pendingDelete`, then
+  // ConfirmSheet asks for confirmation before actually calling the API.
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+
+  const requestDeleteComic = (file: string) => setPendingDelete(file);
+
+  const handleDeleteComic = async () => {
+    const file = pendingDelete;
+    if (!file) return;
+    setPendingDelete(null);
     setDeletingFile(file);
     try {
       await deleteAdminComic(series.id, file);
       setComics((prev) => prev.filter((c) => c.file !== file));
     } catch (err) {
-      alert(`Delete failed: ${(err as Error).message}`);
+      setError(`Delete failed: ${(err as Error).message}`);
     } finally {
       setDeletingFile(null);
     }
@@ -373,7 +382,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
                               </button>
                             )}
                             <button
-                              onClick={() => handleDeleteComic(c.file)}
+                              onClick={() => requestDeleteComic(c.file)}
                               disabled={deletingFile === c.file}
                               className="p-0.5 rounded hover:bg-danger/10 text-gray-400 hover:text-danger transition-colors disabled:opacity-50"
                               title="Delete chapter"
@@ -428,6 +437,17 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
           }}
         />
       )}
+
+      <ConfirmSheet
+        open={pendingDelete !== null}
+        title={pendingDelete ? `Delete "${pendingDelete}"?` : ''}
+        message="Removes the file from disk permanently. This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        busy={deletingFile === pendingDelete && deletingFile !== null}
+        onConfirm={handleDeleteComic}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

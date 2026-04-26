@@ -14,6 +14,7 @@ import ComicCard from '../components/ComicCard';
 import ComicListItem from '../components/ComicListItem';
 import ProfileMenu, { type ProfileMenuItem } from '../components/ProfileMenu';
 import ConfirmSheet from '../components/ConfirmSheet';
+import ToolbarIconButton from '../components/ToolbarIconButton';
 
 type ViewMode = 'grid' | 'list';
 type SortMode = 'order-asc' | 'order-desc' | 'recent';
@@ -624,31 +625,6 @@ export default function SeriesPage() {
 }
 
 // ----- Subcomponents -----
-
-function ToolbarIconButton({
-  children, onClick, active, title,
-}: {
-  children: React.ReactNode;
-  onClick: (e: React.MouseEvent) => void;
-  active?: boolean;
-  title: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      aria-pressed={active}
-      className={`p-2 rounded-md transition-colors shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center ${
-        active
-          ? 'bg-accent/20 text-accent'
-          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
 
 function SortItem({ children, active, onClick }: { children: React.ReactNode; active: boolean; onClick: () => void }) {
   return (

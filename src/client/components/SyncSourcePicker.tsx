@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { X, Search, Loader, Check } from 'lucide-react';
 import { getAvailableSources, searchSource, updateSeriesSyncSource } from '../lib/api';
+import ConfirmSheet from './ConfirmSheet';
 
 interface SyncSourcePickerProps {
   seriesId: string;
@@ -76,8 +77,12 @@ export default function SyncSourcePicker({ seriesId, seriesName, currentSource, 
     }
   };
 
+  const [showUnsubscribe, setShowUnsubscribe] = useState(false);
+
+  const requestUnsubscribe = () => setShowUnsubscribe(true);
+
   const handleUnsubscribe = async () => {
-    if (!confirm('Unsubscribe this series from auto-sync?')) return;
+    setShowUnsubscribe(false);
     setSaving(true);
     try {
       await updateSeriesSyncSource(seriesId, null);
@@ -110,7 +115,7 @@ export default function SyncSourcePicker({ seriesId, seriesName, currentSource, 
                 <span className="text-gray-400 ml-2 font-mono">{currentSource.mangaId}</span>
               </span>
               <button
-                onClick={handleUnsubscribe}
+                onClick={requestUnsubscribe}
                 disabled={saving}
                 className="text-danger hover:text-danger hover:underline"
               >
@@ -212,6 +217,16 @@ export default function SyncSourcePicker({ seriesId, seriesName, currentSource, 
           )}
         </div>
       </div>
+
+      <ConfirmSheet
+        open={showUnsubscribe}
+        title="Unsubscribe from auto-sync?"
+        message="New chapters will no longer be auto-downloaded. Existing chapters stay in your library."
+        confirmLabel="Unsubscribe"
+        busy={saving}
+        onConfirm={handleUnsubscribe}
+        onCancel={() => setShowUnsubscribe(false)}
+      />
     </div>
   );
 }

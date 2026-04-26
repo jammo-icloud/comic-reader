@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, GitMerge, Loader, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { getMergePreview, executeMerge } from '../lib/api';
+import ConfirmSheet from './ConfirmSheet';
 
 interface CatalogItem {
   id: string;
@@ -86,10 +87,16 @@ export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: Me
       .finally(() => setLoadingPreview(false));
   }, [seriesA.id, seriesB.id]);
 
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const requestMerge = () => {
+    if (!preview) return;
+    setShowConfirm(true);
+  };
+
   const handleMerge = async () => {
     if (!preview) return;
-    if (!confirm(`Merge these two series? The unchosen series folder and its rejected chapters will be permanently deleted.`)) return;
-
+    setShowConfirm(false);
     setExecuting(true);
     setError('');
     try {
@@ -313,7 +320,7 @@ export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: Me
                   {keepCount} from {seriesA.name.length > 20 ? 'left' : seriesA.name} + {removeCount} from {seriesB.name.length > 20 ? 'right' : seriesB.name} = {totalChapters} chapters
                 </p>
                 <button
-                  onClick={handleMerge}
+                  onClick={requestMerge}
                   disabled={executing || totalChapters === 0}
                   className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
                 >
@@ -325,6 +332,17 @@ export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: Me
           )}
         </div>
       </div>
+
+      <ConfirmSheet
+        open={showConfirm}
+        title="Merge these two series?"
+        message="The unchosen series folder and its rejected chapters will be permanently deleted. This cannot be undone."
+        confirmLabel="Merge"
+        destructive
+        busy={executing}
+        onConfirm={handleMerge}
+        onCancel={() => setShowConfirm(false)}
+      />
     </div>
   );
 }

@@ -448,7 +448,7 @@ Tracked tech debt — fix opportunistically.
 - ❌ `bg-blue-N` / `text-blue-N` for accent — use `accent` tokens
 - ❌ `bg-red-N` / `text-red-N` / `bg-green-N` / `bg-amber-N` for semantic intent — use `success`, `warning`, `danger` tokens
 - ❌ `100vh` / `min-h-screen` — use `100dvh` / `min-h-[100dvh]`
-- ❌ `window.confirm()` / `window.alert()` — use `<ConfirmSheet>` or inline error banner
+- ❌ `window.confirm()` / `window.alert()` — use `<ConfirmSheet>` for confirmation, or inline error banner (set `error` state, render in a styled `<div className="bg-danger/10 border border-danger/30 …">` near the action)
 - ❌ Modal `<div>` inside a backdrop-filter ancestor — portal to `document.body`
 - ❌ `<button>` containing another `<button>` — use `<div role="button" tabIndex={0}>` for the outer
 - ❌ `accent-blue-500` on `<input type="range">` — use `accent-accent` (Tailwind utility for CSS `accent-color` + our color named `accent`)
