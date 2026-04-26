@@ -126,7 +126,7 @@ export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: Me
 
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-t-xl">
-          <GitMerge size={18} className="text-blue-500" />
+          <GitMerge size={18} className="text-accent" />
           <h2 className="text-lg font-semibold flex-1">Merge Series</h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400">
             <X size={18} />
@@ -137,7 +137,7 @@ export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: Me
 
           {/* Instructions */}
           <div className="flex items-start gap-3 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-4 py-3">
-            <Info size={16} className="shrink-0 mt-0.5 text-blue-400" />
+            <Info size={16} className="shrink-0 mt-0.5 text-accent" />
             <div>
               <p>Click a cell to select which value to keep for each row. <strong className="text-gray-700 dark:text-gray-200">Highlighted cells are kept</strong>, unhighlighted cells are discarded.</p>
               <p className="mt-1 text-xs text-gray-400">Merging <strong>{seriesA.name}</strong> ({seriesA.count} ch.) with <strong>{seriesB.name}</strong> ({seriesB.count} ch.). The unchosen series folder will be deleted.</p>
@@ -191,7 +191,7 @@ export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: Me
                               <td
                                 className={`px-3 py-1.5 text-xs cursor-pointer truncate max-w-[200px] ${
                                   choice === 'keep'
-                                    ? 'bg-blue-50 dark:bg-blue-900/20 font-medium'
+                                    ? 'bg-accent/10 font-medium'
                                     : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                                 }`}
                                 onClick={() => setMetaChoices((prev) => new Map(prev).set(key, 'keep'))}
@@ -202,7 +202,7 @@ export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: Me
                               <td
                                 className={`px-3 py-1.5 text-xs cursor-pointer truncate max-w-[200px] ${
                                   choice === 'remove'
-                                    ? 'bg-blue-50 dark:bg-blue-900/20 font-medium'
+                                    ? 'bg-accent/10 font-medium'
                                     : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                                 }`}
                                 onClick={() => setMetaChoices((prev) => new Map(prev).set(key, 'remove'))}
@@ -270,7 +270,7 @@ export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: Me
                                 !slot.keepChapter
                                   ? 'text-gray-300 dark:text-gray-700'
                                   : choice === 'keep'
-                                    ? 'bg-blue-50 dark:bg-blue-900/20 font-medium cursor-pointer'
+                                    ? 'bg-accent/10 font-medium cursor-pointer'
                                     : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800'
                               }`}
                               onClick={() => slot.keepChapter && setChapterChoices((prev) => new Map(prev).set(slot.order, 'keep'))}
@@ -287,7 +287,7 @@ export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: Me
                                 !slot.removeChapter
                                   ? 'text-gray-300 dark:text-gray-700'
                                   : choice === 'remove'
-                                    ? 'bg-blue-50 dark:bg-blue-900/20 font-medium cursor-pointer'
+                                    ? 'bg-accent/10 font-medium cursor-pointer'
                                     : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800'
                               }`}
                               onClick={() => slot.removeChapter && setChapterChoices((prev) => new Map(prev).set(slot.order, 'remove'))}
@@ -315,7 +315,7 @@ export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: Me
                 <button
                   onClick={handleMerge}
                   disabled={executing || totalChapters === 0}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   {executing ? <Loader className="animate-spin" size={14} /> : <GitMerge size={14} />}
                   {executing ? 'Merging...' : 'Merge Series'}

@@ -47,7 +47,7 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setPath(e.target.value)}
                 placeholder="/mnt/incoming/manga"
                 autoFocus
-                className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-gray-500 font-mono"
+                className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent placeholder-gray-400 dark:placeholder-gray-500 font-mono"
               />
             </div>
             <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
@@ -75,7 +75,7 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
               <button
                 type="submit"
                 disabled={scanning || !path.trim()}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg disabled:opacity-50"
               >
                 {scanning ? <Loader size={16} className="animate-spin" /> : <Search size={16} />}
                 Scan Folder

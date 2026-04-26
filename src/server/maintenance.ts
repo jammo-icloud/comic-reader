@@ -1,10 +1,15 @@
 /**
- * Library maintenance — fixes page counts, sort order, and thumbnails.
+ * Library maintenance — fixes page counts, sort order, thumbnails,
+ * and removes orphaned cover/thumbnail files no longer referenced by any series.
  * Runs on startup, after downloads, after rescan, and via admin button.
  *
  * Page count: reads 10KB from PDF tail (fast, no rendering).
  * Sort order: re-extracts from filename so comics are always correctly ordered.
  * Thumbnails: renders page 1 at 300px via mupdf (only for missing ones).
+ * Orphan covers: deletes files in series-covers/ whose name isn't referenced
+ *   by any series.coverFile in the catalog.
+ * Orphan thumbnails: deletes files in thumbnails/ whose name doesn't match
+ *   shortHash(seriesId/file) for any chapter currently in the catalog.
  */
 import fs from 'fs';
 import path from 'path';
@@ -12,6 +17,10 @@ import { loadAllSeries, loadComics, writeComics } from './data.js';
 import { resolveComicPath } from './scanner.js';
 import { generateThumbnail, getThumbnailPath } from './thumbnails.js';
 import { shortHash } from './hash.js';
+
+const DATA_DIR = process.env.DATA_DIR || './data';
+const COVERS_DIR = path.join(DATA_DIR, 'series-covers');
+const THUMB_DIR = path.join(DATA_DIR, 'thumbnails');
 
 /**
  * Read page count from the tail of a PDF file (fast — no rendering).
@@ -59,12 +68,85 @@ function extractOrder(filename: string): number {
 }
 
 /**
- * Run full library maintenance. Fixes page counts, sort order, and thumbnails.
+ * Delete cover-art files in series-covers/ that no series in the catalog
+ * references via its `coverFile` field.
+ *
+ * Safety: skips entirely if the catalog is empty. We'd rather leave stale
+ * files than risk wiping every cover when data hasn't loaded properly.
+ */
+function cleanupOrphanedCovers(allSeries: ReturnType<typeof loadAllSeries>): number {
+  if (allSeries.length === 0) return 0;
+  if (!fs.existsSync(COVERS_DIR)) return 0;
+
+  const referenced = new Set<string>();
+  for (const s of allSeries) {
+    if (s.coverFile) referenced.add(s.coverFile);
+  }
+
+  let removed = 0;
+  for (const file of fs.readdirSync(COVERS_DIR)) {
+    // Hidden / system files — skip
+    if (file.startsWith('.')) continue;
+    if (!referenced.has(file)) {
+      try {
+        fs.unlinkSync(path.join(COVERS_DIR, file));
+        removed++;
+      } catch (err) {
+        console.error(`  Failed to remove orphan cover ${file}: ${(err as Error).message}`);
+      }
+    }
+  }
+  return removed;
+}
+
+/**
+ * Delete thumbnail files in thumbnails/ that don't correspond to any
+ * `shortHash(seriesId/file)` pair currently in the catalog.
+ *
+ * Safety: skips if the valid-hash set is empty (no series at all).
+ */
+function cleanupOrphanedThumbnails(allSeries: ReturnType<typeof loadAllSeries>): number {
+  if (allSeries.length === 0) return 0;
+  if (!fs.existsSync(THUMB_DIR)) return 0;
+
+  const valid = new Set<string>();
+  for (const series of allSeries) {
+    const comics = loadComics(series.id);
+    for (const comic of comics) {
+      valid.add(shortHash(`${series.id}/${comic.file}`));
+    }
+  }
+
+  // No comics anywhere? Same defensive skip — don't nuke everything.
+  if (valid.size === 0) return 0;
+
+  let removed = 0;
+  for (const file of fs.readdirSync(THUMB_DIR)) {
+    if (file.startsWith('.')) continue;
+    if (!file.endsWith('.jpg')) continue;
+    const hash = file.slice(0, -4); // strip '.jpg'
+    if (!valid.has(hash)) {
+      try {
+        fs.unlinkSync(path.join(THUMB_DIR, file));
+        removed++;
+      } catch (err) {
+        console.error(`  Failed to remove orphan thumbnail ${file}: ${(err as Error).message}`);
+      }
+    }
+  }
+  return removed;
+}
+
+/**
+ * Run full library maintenance. Fixes page counts, sort order, thumbnails,
+ * and removes orphaned cover/thumbnail files.
  */
 export async function runMaintenance(): Promise<{
   pageCounts: number;
   reordered: number;
   thumbnails: number;
+  coversOrphaned: number;
+  thumbnailsOrphaned: number;
   errors: number;
 }> {
   const allSeries = loadAllSeries();
@@ -131,12 +213,19 @@ export async function runMaintenance(): Promise<{
     }
   }
 
+  // Sweep orphaned assets after the per-series pass — anything not referenced
+  // by the canonical catalog is safe to remove now.
+  const coversOrphaned = cleanupOrphanedCovers(allSeries);
+  const thumbnailsOrphaned = cleanupOrphanedThumbnails(allSeries);
+
   const parts = [];
   if (pageCounts > 0) parts.push(`${pageCounts} page counts`);
   if (reordered > 0) parts.push(`${reordered} reordered`);
   if (thumbnails > 0) parts.push(`${thumbnails} thumbnails`);
+  if (coversOrphaned > 0) parts.push(`${coversOrphaned} orphan covers removed`);
+  if (thumbnailsOrphaned > 0) parts.push(`${thumbnailsOrphaned} orphan thumbnails removed`);
   if (errors > 0) parts.push(`${errors} errors`);
   console.log(`Maintenance: ${parts.length > 0 ? parts.join(', ') : 'all clean'}`);
 
-  return { pageCounts, reordered, thumbnails, errors };
+  return { pageCounts, reordered, thumbnails, coversOrphaned, thumbnailsOrphaned, errors };
 }

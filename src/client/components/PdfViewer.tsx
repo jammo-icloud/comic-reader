@@ -1,41 +1,78 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
-type ViewMode = 'fit' | 'scroll';
+export type ViewMode = 'fit' | 'scroll';
+export type ReadingDirection = 'ltr' | 'rtl';
+
+export interface PdfViewerHandle {
+  prevPage: () => void;
+  nextPage: () => void;
+  goToPage: (n: number) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetZoom: () => void;
+  totalPages: number;
+}
 
 interface PdfViewerProps {
   url: string;
   initialPage?: number;
+  viewMode: ViewMode;
+  readingDirection?: ReadingDirection;
   onPageChange?: (page: number, totalPages: number) => void;
+  onTotalPagesChange?: (total: number) => void;
 }
 
-export default function PdfViewer({ url, initialPage = 0, onPageChange }: PdfViewerProps) {
+/**
+ * Reading model:
+ *   - The page surface is for viewing only — pinch zooms, one-finger drag pans
+ *     when zoomed, **double-tap toggles zoom-to-point ↔ zoomed-out**.
+ *     Single taps do nothing (page nav lives in the footer toolbar).
+ *   - Page navigation lives entirely in the footer toolbar (and arrow keys
+ *     on desktop). The toolbar's drawer chevron is the only way to show/hide it.
+ *   - On every page change we reset zoom/pan, cancel any in-flight render,
+ *     and clear the canvas so the new page lands clean — no leftover transform
+ *     from the previous page's pan state.
+ *   - Reading direction flips the keyboard arrow mapping (←/→) for RTL manga.
+ */
+
+const DOUBLE_TAP_MS = 300;
+const DOUBLE_TAP_DIST = 40;
+const DOUBLE_TAP_ZOOM = 2.5;
+
+const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer(
+  { url, initialPage = 0, viewMode, readingDirection = 'ltr', onPageChange, onTotalPagesChange },
+  ref,
+) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
+  const renderTaskRef = useRef<ReturnType<pdfjsLib.PDFPageProxy['render']> | null>(null);
 
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [totalPages, setTotalPages] = useState(0);
-  const [viewMode, setViewMode] = useState<ViewMode>('fit');
   const [loading, setLoading] = useState(true);
 
+  // Zoom and pan
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const isPanning = useRef(false);
-  const panStart = useRef({ x: 0, y: 0 });
-  const panOffset = useRef({ x: 0, y: 0 });
-  const baseScaleRef = useRef(1);
 
+  // ----- Render -----
   const renderPage = useCallback(
     async (pageNum: number) => {
       const doc = pdfDocRef.current;
       const canvas = canvasRef.current;
       const container = containerRef.current;
       if (!doc || !canvas || !container) return;
+
+      // Cancel any in-flight render from a previous page so its painting
+      // can't leak onto the current canvas.
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch { /* already settled */ }
+        renderTaskRef.current = null;
+      }
 
       const page = await doc.getPage(pageNum + 1);
       const viewport = page.getViewport({ scale: 1.0 });
@@ -45,10 +82,8 @@ export default function PdfViewer({ url, initialPage = 0, onPageChange }: PdfVie
         const scaleW = container.clientWidth / viewport.width;
         const scaleH = container.clientHeight / viewport.height;
         scale = Math.min(scaleW, scaleH);
-        baseScaleRef.current = scale;
       } else {
         scale = container.clientWidth / viewport.width;
-        baseScaleRef.current = scale;
       }
 
       const effectiveScale = viewMode === 'fit' ? scale * zoom : scale;
@@ -62,15 +97,26 @@ export default function PdfViewer({ url, initialPage = 0, onPageChange }: PdfVie
 
       const ctx = canvas.getContext('2d')!;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+
+      const task = page.render({ canvasContext: ctx, viewport: scaledViewport });
+      renderTaskRef.current = task;
+      try {
+        await task.promise;
+      } catch (err) {
+        // Cancellation is expected when changing pages quickly — ignore it.
+        if ((err as { name?: string })?.name !== 'RenderingCancelledException') throw err;
+      } finally {
+        if (renderTaskRef.current === task) renderTaskRef.current = null;
+      }
     },
-    [viewMode, zoom]
+    [viewMode, zoom],
   );
+
+  // ----- Effects: load doc, render, react to changes -----
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    // Reset to page 0 (or initialPage) when switching chapters
     setCurrentPage(initialPage);
     setZoom(1);
     setPan({ x: 0, y: 0 });
@@ -78,6 +124,7 @@ export default function PdfViewer({ url, initialPage = 0, onPageChange }: PdfVie
       if (cancelled) return;
       pdfDocRef.current = doc;
       setTotalPages(doc.numPages);
+      onTotalPagesChange?.(doc.numPages);
       setLoading(false);
     });
     return () => {
@@ -85,7 +132,7 @@ export default function PdfViewer({ url, initialPage = 0, onPageChange }: PdfVie
       pdfDocRef.current?.destroy();
       pdfDocRef.current = null;
     };
-  }, [url, initialPage]);
+  }, [url, initialPage, onTotalPagesChange]);
 
   useEffect(() => {
     if (!loading && pdfDocRef.current) renderPage(currentPage);
@@ -99,21 +146,70 @@ export default function PdfViewer({ url, initialPage = 0, onPageChange }: PdfVie
     return () => window.removeEventListener('resize', handleResize);
   }, [currentPage, loading, renderPage]);
 
+  // Reset zoom/pan on view-mode change (page-change resets happen synchronously inside goToPage below)
   useEffect(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
-  }, [currentPage, viewMode]);
+  }, [viewMode]);
 
+  // Notify parent of page changes
   useEffect(() => {
     if (totalPages > 0) onPageChange?.(currentPage, totalPages);
   }, [currentPage, totalPages, onPageChange]);
 
+  // ----- Navigation -----
+
+  /**
+   * Synchronous page change: clears the canvas, cancels any in-flight render,
+   * resets zoom/pan, then sets the new page. All state updates batch in one
+   * React render so the new page is rendered cleanly at zoom 1, pan 0 — no
+   * stale transform from the previous page.
+   */
   const goToPage = useCallback(
-    (page: number) => setCurrentPage(Math.max(0, Math.min(page, totalPages - 1))),
-    [totalPages]
+    (page: number) => {
+      const clamped = Math.max(0, Math.min(page, totalPages - 1));
+      if (clamped === currentPage) return;
+
+      // Stop the previous render from painting onto the new canvas
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch { /* already settled */ }
+        renderTaskRef.current = null;
+      }
+
+      // Wipe the canvas so the previous page doesn't bleed through during the
+      // brief window before the new render finishes.
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+
+      setCurrentPage(clamped);
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+    },
+    [currentPage, totalPages],
   );
-  const nextPage = useCallback(() => goToPage(currentPage + 1), [currentPage, goToPage]);
-  const prevPage = useCallback(() => goToPage(currentPage - 1), [currentPage, goToPage]);
+
+  const nextPage = useCallback(() => goToPage(currentPage + 1), [goToPage, currentPage]);
+  const prevPage = useCallback(() => goToPage(currentPage - 1), [goToPage, currentPage]);
+
+  // Imperative API for parent toolbar
+  useImperativeHandle(
+    ref,
+    () => ({
+      prevPage,
+      nextPage,
+      goToPage,
+      zoomIn: () => setZoom((z) => Math.min(5, z + 0.25)),
+      zoomOut: () => setZoom((z) => Math.max(0.5, z - 0.25)),
+      resetZoom: () => { setZoom(1); setPan({ x: 0, y: 0 }); },
+      totalPages,
+    }),
+    [prevPage, nextPage, goToPage, totalPages],
+  );
+
+  // ----- Keyboard (page-level nav only) -----
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -121,9 +217,15 @@ export default function PdfViewer({ url, initialPage = 0, onPageChange }: PdfVie
       switch (e.key) {
         case 'ArrowRight':
         case ' ':
-          e.preventDefault(); nextPage(); break;
+          e.preventDefault();
+          if (readingDirection === 'rtl') prevPage();
+          else nextPage();
+          break;
         case 'ArrowLeft':
-          e.preventDefault(); prevPage(); break;
+          e.preventDefault();
+          if (readingDirection === 'rtl') nextPage();
+          else prevPage();
+          break;
         case '+': case '=':
           e.preventDefault(); if (viewMode === 'fit') setZoom((z) => Math.min(z + 0.25, 5)); break;
         case '-':
@@ -134,12 +236,15 @@ export default function PdfViewer({ url, initialPage = 0, onPageChange }: PdfVie
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [nextPage, prevPage, viewMode]);
+  }, [nextPage, prevPage, readingDirection, viewMode]);
+
+  // ----- Wheel zoom (desktop) -----
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container || viewMode !== 'fit') return;
     const handleWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return; // require ctrl/cmd to zoom (otherwise scroll)
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
       setZoom((z) => Math.max(0.5, Math.min(5, z + delta)));
@@ -148,44 +253,171 @@ export default function PdfViewer({ url, initialPage = 0, onPageChange }: PdfVie
     return () => container.removeEventListener('wheel', handleWheel);
   }, [viewMode]);
 
+  // ----- Touch gestures: pinch (zoom), pan when zoomed, double-tap zoom-to-point -----
+
+  const gesture = useRef<{
+    mode: 'idle' | 'touch' | 'pan' | 'pinch';
+    startX: number;
+    startY: number;
+    startTime: number;
+    panStartX: number;
+    panStartY: number;
+    pinchStartDist: number;
+    pinchStartZoom: number;
+  }>({ mode: 'idle', startX: 0, startY: 0, startTime: 0, panStartX: 0, panStartY: 0, pinchStartDist: 0, pinchStartZoom: 1 });
+
+  // Last tap that didn't promote to pan/pinch — used for double-tap detection
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+
+  const distance = (a: { clientX: number; clientY: number }, b: { clientX: number; clientY: number }) => {
+    const dx = b.clientX - a.clientX;
+    const dy = b.clientY - a.clientY;
+    return Math.hypot(dx, dy);
+  };
+
+  /**
+   * Zoom toggle centered on (vx, vy) in viewport coordinates.
+   * If currently zoomed: zoom out to 1x, reset pan.
+   * If currently at 1x: zoom in to DOUBLE_TAP_ZOOM, computing pan so the
+   * tapped pixel stays under the user's finger.
+   */
+  const toggleZoomAtPoint = useCallback((vx: number, vy: number) => {
+    const c = containerRef.current;
+    if (!c) return;
+    if (zoom > 1) {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+    const rect = c.getBoundingClientRect();
+    const localX = vx - rect.left;
+    const localY = vy - rect.top;
+    const ratio = DOUBLE_TAP_ZOOM; // since current zoom is 1
+    setZoom(DOUBLE_TAP_ZOOM);
+    setPan({
+      x: (1 - ratio) * (localX - rect.width / 2),
+      y: (1 - ratio) * (localY - rect.height / 2),
+    });
+  }, [zoom]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (viewMode !== 'fit') return;
+    if (e.touches.length === 2) {
+      gesture.current.mode = 'pinch';
+      gesture.current.pinchStartDist = distance(e.touches[0], e.touches[1]);
+      gesture.current.pinchStartZoom = zoom;
+      // A pinch invalidates any pending tap — clear it so a stray tap from
+      // before the pinch doesn't get paired with a future single tap.
+      lastTapRef.current = null;
+    } else if (e.touches.length === 1) {
+      const t = e.touches[0];
+      gesture.current.mode = 'touch';
+      gesture.current.startX = t.clientX;
+      gesture.current.startY = t.clientY;
+      gesture.current.startTime = Date.now();
+      gesture.current.panStartX = pan.x;
+      gesture.current.panStartY = pan.y;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (viewMode !== 'fit') return;
+
+    // Note: no e.preventDefault() — React attaches synthetic touch handlers as
+    // passive listeners, so preventDefault is a no-op here and just emits a
+    // console warning. We don't need it: the container has `touch-action: none`
+    // (Tailwind's `touch-none`) which disables browser scroll, pinch-zoom, and
+    // double-tap-zoom on this element, and the page's viewport meta sets
+    // `user-scalable=no, maximum-scale=1` as a backstop.
+
+    if (e.touches.length === 2 && gesture.current.mode === 'pinch') {
+      const d = distance(e.touches[0], e.touches[1]);
+      if (gesture.current.pinchStartDist > 0) {
+        const ratio = d / gesture.current.pinchStartDist;
+        const newZoom = Math.max(0.5, Math.min(5, gesture.current.pinchStartZoom * ratio));
+        setZoom(newZoom);
+      }
+      return;
+    }
+
+    if (e.touches.length === 1 && (gesture.current.mode === 'touch' || gesture.current.mode === 'pan')) {
+      const t = e.touches[0];
+      const dx = t.clientX - gesture.current.startX;
+      const dy = t.clientY - gesture.current.startY;
+      // Promote to pan only when zoomed (otherwise the page fits, nothing to pan)
+      if (gesture.current.mode === 'touch' && Math.hypot(dx, dy) > 10 && zoom > 1) {
+        gesture.current.mode = 'pan';
+      }
+      if (gesture.current.mode === 'pan') {
+        setPan({
+          x: gesture.current.panStartX + dx,
+          y: gesture.current.panStartY + dy,
+        });
+      }
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    // Only consider double-tap if this gesture was a stationary tap (didn't promote to pan/pinch)
+    if (
+      gesture.current.mode === 'touch'
+      && e.changedTouches.length === 1
+    ) {
+      const t = e.changedTouches[0];
+      const dx = t.clientX - gesture.current.startX;
+      const dy = t.clientY - gesture.current.startY;
+      const dt = Date.now() - gesture.current.startTime;
+      const wasShortStationaryTap = Math.hypot(dx, dy) < 12 && dt < 350;
+
+      if (wasShortStationaryTap) {
+        const now = Date.now();
+        const last = lastTapRef.current;
+        const isDouble = !!last
+          && (now - last.time) < DOUBLE_TAP_MS
+          && Math.hypot(t.clientX - last.x, t.clientY - last.y) < DOUBLE_TAP_DIST;
+        if (isDouble) {
+          lastTapRef.current = null;
+          toggleZoomAtPoint(t.clientX, t.clientY);
+        } else {
+          lastTapRef.current = { time: now, x: t.clientX, y: t.clientY };
+        }
+      } else {
+        lastTapRef.current = null;
+      }
+    } else {
+      // Pan or pinch ended — clear any pending single-tap so it can't pair
+      // with a future tap.
+      lastTapRef.current = null;
+    }
+    gesture.current.mode = 'idle';
+  };
+
+  // ----- Mouse: drag-pan when zoomed; double-click toggles zoom-to-point -----
+  const mouseDown = useRef<{ x: number; y: number; panStartX: number; panStartY: number; pannable: boolean } | null>(null);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if (viewMode !== 'fit' || zoom <= 1) return;
-    isPanning.current = true;
-    panStart.current = { x: e.clientX, y: e.clientY };
-    panOffset.current = { ...pan };
-    e.preventDefault();
+    mouseDown.current = {
+      x: e.clientX, y: e.clientY,
+      panStartX: pan.x, panStartY: pan.y,
+      pannable: true,
+    };
   };
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isPanning.current) return;
+    if (!mouseDown.current?.pannable) return;
+    const dx = e.clientX - mouseDown.current.x;
+    const dy = e.clientY - mouseDown.current.y;
     setPan({
-      x: panOffset.current.x + (e.clientX - panStart.current.x),
-      y: panOffset.current.y + (e.clientY - panStart.current.y),
+      x: mouseDown.current.panStartX + dx,
+      y: mouseDown.current.panStartY + dy,
     });
   };
-  const handleMouseUp = () => { isPanning.current = false; };
-
-  const handleClick = (e: React.MouseEvent) => {
-    if (viewMode !== 'fit' || zoom > 1 || isPanning.current) return;
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    if (x < 0.3) prevPage();
-    else if (x > 0.7) nextPage();
+  const handleMouseUp = () => {
+    mouseDown.current = null;
   };
-
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (viewMode !== 'fit' || zoom > 1) return;
-    const touch = e.touches[0];
-    touchStart.current = { x: touch.clientX, y: touch.clientY };
-  };
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStart.current || viewMode !== 'fit' || zoom > 1) return;
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - touchStart.current.x;
-    if (Math.abs(dx) > 50) {
-      if (dx < 0) nextPage(); else prevPage();
-    }
-    touchStart.current = null;
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (viewMode !== 'fit') return;
+    toggleZoomAtPoint(e.clientX, e.clientY);
   };
 
   if (loading) {
@@ -193,108 +425,36 @@ export default function PdfViewer({ url, initialPage = 0, onPageChange }: PdfVie
   }
 
   return (
-    <div ref={containerRef} className="relative w-full h-full flex flex-col bg-gray-200 dark:bg-black select-none transition-colors">
+    <div
+      ref={containerRef}
+      className={`relative w-full h-full bg-gray-200 dark:bg-black select-none overflow-hidden touch-none`}
+      style={{ cursor: viewMode === 'fit' && zoom > 1 ? 'grab' : 'auto' }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onDoubleClick={handleDoubleClick}
+    >
       <div
-        ref={scrollAreaRef}
-        className={`flex-1 ${viewMode === 'scroll' ? 'overflow-y-auto overflow-x-hidden' : 'overflow-hidden'} flex items-center justify-center`}
-        style={viewMode === 'fit' ? { cursor: zoom > 1 ? 'grab' : 'pointer' } : undefined}
-        onClick={handleClick}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
+        className={`w-full h-full flex items-center justify-center ${viewMode === 'scroll' ? 'overflow-y-auto overflow-x-hidden no-scrollbar' : ''}`}
       >
         <canvas
           ref={canvasRef}
+          // No CSS transition on transform — a stale pan state from a previous
+          // page would otherwise animate during the page swap and look broken.
+          // Double-tap zoom snaps; pinch/pan are already direct-manipulation.
           style={
             viewMode === 'fit'
-              ? { transform: `translate(${pan.x}px, ${pan.y}px)`, transition: isPanning.current ? 'none' : 'transform 0.1s' }
+              ? { transform: `translate(${pan.x}px, ${pan.y}px)` }
               : undefined
           }
         />
       </div>
-
-      {/* Bottom controls */}
-      <div className="shrink-0 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 px-2 sm:px-4 py-2 flex items-center gap-2 sm:gap-3 transition-colors">
-        <button
-          onClick={prevPage}
-          disabled={currentPage === 0}
-          className="p-1 sm:p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-20 transition-colors"
-          title="Previous page (←)"
-        >
-          <ChevronLeft size={20} />
-        </button>
-
-        <input
-          type="range"
-          min={0}
-          max={totalPages - 1}
-          value={currentPage}
-          onChange={(e) => goToPage(parseInt(e.target.value, 10))}
-          className="flex-1 h-1 accent-blue-500 cursor-pointer"
-        />
-
-        <button
-          onClick={nextPage}
-          disabled={currentPage >= totalPages - 1}
-          className="p-1 sm:p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-20 transition-colors"
-          title="Next page (→)"
-        >
-          <ChevronRight size={20} />
-        </button>
-
-        <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap text-center">
-          {currentPage + 1}/{totalPages}
-        </span>
-
-        {/* Fit/Scroll toggle — always visible */}
-        <div className="flex bg-gray-100 dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-700 text-xs">
-          <button
-            onClick={() => setViewMode('fit')}
-            className={`px-2 sm:px-2.5 py-1 rounded-l transition-colors ${viewMode === 'fit' ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-            title="Fit to screen"
-          >
-            Fit
-          </button>
-          <button
-            onClick={() => setViewMode('scroll')}
-            className={`px-2 sm:px-2.5 py-1 rounded-r transition-colors ${viewMode === 'scroll' ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-            title="Scroll mode"
-          >
-            Scroll
-          </button>
-        </div>
-
-        {/* Zoom controls — desktop only */}
-        {viewMode === 'fit' && (
-          <div className="hidden sm:flex items-center gap-1">
-            <div className="w-px h-5 bg-gray-300 dark:bg-gray-700" />
-            <button
-              onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))}
-              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 text-sm"
-            >
-              −
-            </button>
-            <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums min-w-[3rem] text-center">
-              {Math.round(zoom * 100)}%
-            </span>
-            <button
-              onClick={() => setZoom((z) => Math.min(5, z + 0.25))}
-              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 text-sm"
-            >
-              +
-            </button>
-            <button
-              onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
-              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs"
-            >
-              Reset
-            </button>
-          </div>
-        )}
-      </div>
     </div>
   );
-}
+});
+
+export default PdfViewer;

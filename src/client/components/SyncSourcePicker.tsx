@@ -104,7 +104,7 @@ export default function SyncSourcePicker({ seriesId, seriesName, currentSource, 
         <div className="px-6 py-4 space-y-4">
 
           {currentSource && (
-            <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 text-xs">
+            <div className="flex items-center justify-between bg-accent/10 border border-accent/30 rounded-lg px-3 py-2 text-xs">
               <span>
                 Currently syncing from <strong className="capitalize">{currentSource.sourceId}</strong>
                 <span className="text-gray-400 ml-2 font-mono">{currentSource.mangaId}</span>
@@ -129,7 +129,7 @@ export default function SyncSourcePicker({ seriesId, seriesName, currentSource, 
                   onClick={() => { setSelectedSource(s.id); setResults([]); }}
                   className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors ${
                     selectedSource === s.id
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                      ? 'border-accent bg-accent/10 text-accent'
                       : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
                 >
@@ -152,12 +152,12 @@ export default function SyncSourcePicker({ seriesId, seriesName, currentSource, 
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   placeholder="Manga title..."
                   autoFocus
-                  className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
                 />
                 <button
                   onClick={handleSearch}
                   disabled={searching || !query.trim()}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-accent hover:bg-accent-hover disabled:bg-gray-400 text-white rounded-lg transition-colors"
                 >
                   {searching ? <Loader className="animate-spin" size={14} /> : <Search size={14} />}
                   Search

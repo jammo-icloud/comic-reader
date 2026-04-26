@@ -103,7 +103,7 @@ export default function NotificationDropdown() {
         onClick={() => setOpen(!open)}
         className={`relative p-2 rounded-lg transition-colors ${
           activeJobs.length > 0
-            ? 'text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+            ? 'text-accent hover:bg-accent/15 dark:hover:bg-accent/20'
             : badgeCount > 0
               ? 'text-amber-600 dark:text-amber-400 hover:bg-gray-200 dark:hover:bg-gray-800'
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800'
@@ -113,7 +113,7 @@ export default function NotificationDropdown() {
         <Zap size={18} className={activeJobs.length > 0 ? 'animate-pulse' : ''} />
         {badgeCount > 0 && (
           <span className={`absolute -top-0.5 -right-0.5 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1 ${
-            activeJobs.length > 0 ? 'bg-blue-500' : 'bg-amber-500'
+            activeJobs.length > 0 ? 'bg-accent' : 'bg-amber-500'
           }`}>
             {badgeCount}
           </span>
@@ -144,9 +144,9 @@ export default function NotificationDropdown() {
           {/* New chapters from subscriptions */}
           {newChapters.length > 0 && (
             <div className="border-b border-gray-200 dark:border-gray-800">
-              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/10">
-                <BookOpen size={13} className="text-blue-500" />
-                <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
+              <div className="flex items-center gap-2 px-4 py-2 bg-accent/10 dark:bg-accent/10">
+                <BookOpen size={13} className="text-accent" />
+                <span className="text-xs font-medium text-accent">
                   {newChaptersTotal} new chapter{newChaptersTotal !== 1 ? 's' : ''} across {newChapters.length} series
                 </span>
               </div>
@@ -167,7 +167,7 @@ export default function NotificationDropdown() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{s.name}</p>
-                      <p className="text-[11px] text-blue-500">+{s.newChapterCount} new</p>
+                      <p className="text-[11px] text-accent">+{s.newChapterCount} new</p>
                     </div>
                     <ChevronRight size={14} className="text-gray-400 shrink-0" />
                   </button>
@@ -203,7 +203,7 @@ export default function NotificationDropdown() {
                         {job.status === 'queued' ? 'Queued...' : `Ch. ${job.progress.currentChapter || '...'} — ${job.progress.current}/${job.progress.total}`}
                       </p>
                       <div className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full mt-1 overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
                     <button

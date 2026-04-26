@@ -18,6 +18,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
   const [brandImagePreview, setBrandImagePreview] = useState<string | null>(null);
 
   const [polling, setPolling] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const loadPending = async () => {
     setLoading(true);
@@ -73,6 +74,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
   const handleConfirm = async () => {
     if (!current) return;
     setImporting(current.sourceFolder);
+    setImportError(null);
     try {
       await confirmImport(
         current.sourceFolder,
@@ -93,7 +95,9 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
       if (remaining.length > 0) prefill(remaining[0]);
       onUpdate?.();
     } catch (err) {
-      alert((err as Error).message);
+      // Surface the error inline (was a window.alert) so the user can fix the
+      // input and retry without losing context.
+      setImportError((err as Error).message || 'Import failed');
     } finally {
       setImporting(null);
     }
@@ -113,7 +117,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
       <div className="fixed inset-0 z-50 flex items-center justify-center">
         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
         <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-8">
-          <Loader size={24} className="animate-spin text-blue-500" />
+          <Loader size={24} className="animate-spin text-accent" />
         </div>
       </div>
     );
@@ -126,7 +130,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
         <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-8 text-center max-w-sm mx-4">
           {polling ? (
             <>
-              <Loader size={32} className="mx-auto text-blue-500 mb-3 animate-spin" />
+              <Loader size={32} className="mx-auto text-accent mb-3 animate-spin" />
               <h2 className="text-lg font-semibold">Scanning folders...</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Searching MAL for each series. Items will appear here shortly.</p>
               <button onClick={onClose} className="mt-4 px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Cancel</button>
@@ -136,7 +140,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
               <Check size={32} className="mx-auto text-green-500 mb-3" />
               <h2 className="text-lg font-semibold">All caught up!</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">No pending imports.</p>
-              <button onClick={onClose} className="mt-4 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg">Done</button>
+              <button onClick={onClose} className="mt-4 px-4 py-2 text-sm bg-accent text-white rounded-lg">Done</button>
             </>
           )}
         </div>
@@ -176,7 +180,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
               type="text"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
 
@@ -188,7 +192,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
                 onClick={() => setEditType('comic')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                   editType === 'comic'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                    ? 'border-accent bg-accent/10 text-accent'
                     : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'
                 }`}
               >
@@ -198,7 +202,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
                 onClick={() => setEditType('magazine')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                   editType === 'magazine'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                    ? 'border-accent bg-accent/10 text-accent'
                     : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'
                 }`}
               >
@@ -233,7 +237,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
                   </div>
                   <button
                     onClick={() => setShowMalEdit(true)}
-                    className="shrink-0 p-1 text-gray-400 hover:text-blue-500"
+                    className="shrink-0 p-1 text-gray-400 hover:text-accent"
                     title="Change MAL ID"
                   >
                     <Pencil size={13} />
@@ -246,7 +250,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
                     value={editMalId}
                     onChange={(e) => setEditMalId(e.target.value)}
                     placeholder={mal ? `Current: ${mal.malId}` : 'MAL ID (optional)'}
-                    className="flex-1 px-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="flex-1 px-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-accent"
                   />
                   {showMalEdit && (
                     <button onClick={() => setShowMalEdit(false)} className="text-xs text-gray-400">Cancel</button>
@@ -331,13 +335,13 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
 
           {/* Existing series match (from scan) */}
           {!duplicate && current.existingSeriesId && (
-            <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
-              <Merge size={16} className="text-blue-500 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 bg-accent/10 border border-accent/30 rounded-lg px-3 py-2">
+              <Merge size={16} className="text-accent shrink-0 mt-0.5" />
               <div className="text-xs">
-                <p className="font-medium text-blue-700 dark:text-blue-300">
+                <p className="font-medium text-accent">
                   Series already exists — new chapters will be merged
                 </p>
-                <p className="text-blue-600 dark:text-blue-400 mt-0.5">
+                <p className="text-accent mt-0.5">
                   {current.fileCount} files will be added. Existing chapters are kept.
                 </p>
               </div>
@@ -348,6 +352,24 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {current.fileCount} files in <span className="font-mono">{current.folderName}</span>
           </p>
+
+          {/* Import error — shown inline instead of window.alert */}
+          {importError && (
+            <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 rounded-lg px-3 py-2">
+              <AlertTriangle size={14} className="text-red-500 shrink-0 mt-0.5" />
+              <div className="flex-1 text-xs">
+                <p className="font-medium text-red-700 dark:text-red-300">Import failed</p>
+                <p className="text-red-600 dark:text-red-400 mt-0.5">{importError}</p>
+              </div>
+              <button
+                onClick={() => setImportError(null)}
+                className="shrink-0 text-red-400 hover:text-red-600 dark:hover:text-red-200"
+                aria-label="Dismiss error"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -361,7 +383,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
           <button
             onClick={handleConfirm}
             disabled={!!importing || !editName.trim()}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg disabled:opacity-50 transition-colors"
           >
             {importing ? <Loader size={16} className="animate-spin" /> : <Check size={16} />}
             Import

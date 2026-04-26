@@ -208,7 +208,7 @@ export default function SettingsPage() {
                   value={transConfig.url}
                   onChange={(e) => setTransConfig({ ...transConfig, url: e.target.value })}
                   placeholder="http://5090-box.local:11434"
-                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent font-mono"
                 />
               </div>
               <div>
@@ -220,7 +220,7 @@ export default function SettingsPage() {
                   value={transConfig.model}
                   onChange={(e) => setTransConfig({ ...transConfig, model: e.target.value })}
                   placeholder="qwen2.5vl:7b"
-                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent font-mono"
                 />
                 <p className="text-[10px] text-gray-400 mt-1">
                   Suggested: <code>qwen2.5vl:7b</code> (fast) or <code>qwen2.5vl:32b</code> (higher quality)
@@ -234,14 +234,14 @@ export default function SettingsPage() {
                   value={transConfig.prompt}
                   onChange={(e) => setTransConfig({ ...transConfig, prompt: e.target.value })}
                   rows={6}
-                  className="w-full px-3 py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono resize-y"
+                  className="w-full px-3 py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent font-mono resize-y"
                 />
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={saveTransConfig}
                   disabled={savingTrans}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs bg-accent hover:bg-accent-hover disabled:bg-gray-400 text-white rounded-lg transition-colors"
                 >
                   {savingTrans ? <Loader size={12} className="animate-spin" /> : <Save size={12} />}
                   Save

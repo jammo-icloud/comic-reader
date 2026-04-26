@@ -23,3 +23,7 @@ body {
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--gray-500));
 }
+
+/* No scrollbar — used in the reader's scroll view */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }

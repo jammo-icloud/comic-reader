@@ -338,7 +338,7 @@ router.post('/admin/maintenance', async (_req, res) => {
     // Respond immediately — maintenance runs in background
     res.json({ ok: true, status: 'started' });
     const result = await runMaintenance();
-    console.log(`Admin maintenance: ${result.pageCounts} pages fixed, ${result.thumbnails} thumbnails, ${result.errors} errors`);
+    console.log(`Admin maintenance: ${result.pageCounts} pages fixed, ${result.thumbnails} thumbnails generated, ${result.coversOrphaned} orphan covers removed, ${result.thumbnailsOrphaned} orphan thumbnails removed, ${result.errors} errors`);
   } catch (err) {
     console.error('Maintenance failed:', (err as Error).message);
   }

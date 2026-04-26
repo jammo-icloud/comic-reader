@@ -80,7 +80,7 @@ export default function ChapterPicker({ manga, chapters, loading, localChapterNu
               {newChapters.length > 0 && newChapters.length < chapters.length && (
                 <button onClick={selectNew} className="text-green-600 dark:text-green-400 hover:underline text-xs">New only</button>
               )}
-              <button onClick={selectAll} className="text-blue-600 dark:text-blue-400 hover:underline text-xs">All</button>
+              <button onClick={selectAll} className="text-accent hover:underline text-xs">All</button>
               <button onClick={selectNone} className="text-gray-400 hover:underline text-xs">None</button>
               <span className="ml-auto text-gray-500 dark:text-gray-400 text-xs">{selected.size} selected</span>
             </>
@@ -90,7 +90,7 @@ export default function ChapterPicker({ manga, chapters, loading, localChapterNu
         {/* Chapter list */}
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="flex items-center justify-center py-12"><Loader size={20} className="animate-spin text-blue-500" /></div>
+            <div className="flex items-center justify-center py-12"><Loader size={20} className="animate-spin text-accent" /></div>
           ) : chapters.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
               <p className="text-sm text-gray-500 dark:text-gray-400">No downloadable chapters available</p>
@@ -116,7 +116,7 @@ export default function ChapterPicker({ manga, chapters, loading, localChapterNu
                       downloaded
                         ? 'bg-green-600 border-green-600 text-white'
                         : selected.has(ch.chapterId)
-                          ? 'bg-blue-600 border-blue-600 text-white'
+                          ? 'bg-accent border-accent text-white'
                           : 'border-gray-300 dark:border-gray-600'
                     }`}>
                       {(downloaded || selected.has(ch.chapterId)) && <Check size={12} strokeWidth={3} />}
@@ -143,7 +143,7 @@ export default function ChapterPicker({ manga, chapters, loading, localChapterNu
         <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 dark:border-gray-800 shrink-0">
           {error && <span className="text-xs text-red-500 mr-2">{error}</span>}
           <button onClick={onClose} className="text-sm text-gray-500">Cancel</button>
-          <button onClick={handleDownload} disabled={selected.size === 0 || downloading} className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50">
+          <button onClick={handleDownload} disabled={selected.size === 0 || downloading} className="flex items-center gap-2 px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg disabled:opacity-50">
             {downloading ? <Loader size={16} className="animate-spin" /> : <Download size={16} />}
             Download {selected.size} chapter{selected.size !== 1 ? 's' : ''}
           </button>

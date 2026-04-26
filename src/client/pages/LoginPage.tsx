@@ -93,7 +93,7 @@ export default function LoginPage() {
                 autoFocus={!otpRequired}
                 autoComplete="username"
                 disabled={otpRequired}
-                className="w-full px-4 py-3 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/30 transition-all disabled:opacity-50"
+                className="w-full px-4 py-3 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent/30 transition-all disabled:opacity-50"
               />
             </div>
             <div>
@@ -104,15 +104,15 @@ export default function LoginPage() {
                 placeholder="Password"
                 autoComplete="current-password"
                 disabled={otpRequired}
-                className="w-full px-4 py-3 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/30 transition-all disabled:opacity-50"
+                className="w-full px-4 py-3 text-sm bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent/30 transition-all disabled:opacity-50"
               />
             </div>
 
             {otpRequired && (
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <ShieldCheck size={14} className="text-blue-400" />
-                  <span className="text-xs text-blue-400">Two-factor authentication</span>
+                  <ShieldCheck size={14} className="text-accent" />
+                  <span className="text-xs text-accent">Two-factor authentication</span>
                 </div>
                 <input
                   ref={otpRef}
@@ -122,7 +122,7 @@ export default function LoginPage() {
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="6-digit code"
                   autoComplete="one-time-code"
-                  className="w-full px-4 py-3 text-sm bg-white/5 border border-blue-500/30 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-center text-lg tracking-widest font-mono"
+                  className="w-full px-4 py-3 text-sm bg-white/5 border border-accent/30 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all text-center text-lg tracking-widest font-mono"
                 />
               </div>
             )}
@@ -137,7 +137,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || !username.trim() || !password.trim() || (otpRequired && !otpCode.trim())}
-              className="w-full py-3 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-xl disabled:opacity-40 disabled:hover:bg-blue-600 transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 text-sm font-medium bg-accent hover:bg-accent text-white rounded-xl disabled:opacity-40 disabled:hover:bg-accent transition-all flex items-center justify-center gap-2"
             >
               {loading ? <Loader size={16} className="animate-spin" /> : null}
               {loading ? 'Signing in...' : otpRequired ? 'Verify' : 'Sign In'}

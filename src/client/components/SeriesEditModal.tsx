@@ -220,7 +220,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
                   <button
                     onClick={handleCoverUpload}
                     disabled={uploadingCover}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-accent hover:bg-accent-hover disabled:bg-gray-400 text-white rounded-lg transition-colors"
                   >
                     {uploadingCover ? <Loader className="animate-spin" size={12} /> : <Save size={12} />}
                     {uploadingCover ? 'Uploading...' : 'Upload'}
@@ -249,7 +249,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
               >
                 <option value="comic">Comic</option>
                 <option value="magazine">Magazine</option>
@@ -271,7 +271,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
               type="text"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
               placeholder="manga, action, shounen..."
             />
           </div>
@@ -282,7 +282,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
               value={synopsis}
               onChange={(e) => setSynopsis(e.target.value)}
               rows={3}
-              className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+              className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent resize-y"
             />
           </div>
 
@@ -292,14 +292,14 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
             <div className="flex items-center gap-2 text-sm">
               {syncSource ? (
                 <>
-                  <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+                  <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-accent/10 text-accent">
                     <RefreshCw size={12} />
                     <span className="capitalize">{syncSource.sourceId}</span>
                     <span className="font-mono text-[10px] text-gray-400">{syncSource.mangaId}</span>
                   </span>
                   <button
                     onClick={() => setShowSourcePicker(true)}
-                    className="text-xs text-gray-500 hover:text-blue-500"
+                    className="text-xs text-gray-500 hover:text-accent"
                   >
                     Change
                   </button>
@@ -355,7 +355,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
                           {translationEnabled && (
                             <td className="px-3 py-1.5 text-[11px] text-gray-500">
                               {t.translating
-                                ? <span className="text-blue-500">{done}/{total} ({total ? Math.round((done / total) * 100) : 0}%)</span>
+                                ? <span className="text-accent">{done}/{total} ({total ? Math.round((done / total) * 100) : 0}%)</span>
                                 : done > 0
                                   ? <span className="text-green-600 dark:text-green-500">{done}/{total || '?'}</span>
                                   : <span className="text-gray-400">—</span>}
@@ -366,7 +366,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
                               <button
                                 onClick={() => handleTranslateChapter(c.file)}
                                 disabled={t.translating}
-                                className="p-0.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-50"
+                                className="p-0.5 rounded hover:bg-accent/10 text-gray-400 hover:text-accent transition-colors disabled:opacity-50"
                                 title="Translate this chapter (admin)"
                               >
                                 {t.translating ? <Loader size={12} className="animate-spin" /> : <Languages size={12} />}
@@ -407,7 +407,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
             <button
               onClick={handleSave}
               disabled={saving || !name.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
             >
               {saving ? <Loader className="animate-spin" size={14} /> : saved ? '✓' : <Save size={14} />}
               {saving ? 'Saving...' : saved ? 'Saved' : 'Save Changes'}
@@ -443,7 +443,7 @@ function Field({ label, value, onChange, type = 'text', placeholder }: {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
       />
     </div>
   );

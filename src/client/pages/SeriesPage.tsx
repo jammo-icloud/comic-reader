@@ -1,42 +1,105 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, LayoutGrid, List, Star, Pencil, RefreshCw, Loader } from 'lucide-react';
+import {
+  ArrowLeft, LayoutGrid, List, Star, RefreshCw, Loader,
+  Play, Search, ArrowUpDown, BookOpen, Pencil, Bell, BellOff, Trash2, X,
+  Download, CheckCircle,
+} from 'lucide-react';
 import type { Series, Comic } from '../lib/types';
-import { getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl, overrideMalId, deleteSeries, getThumbnailUrl, updateSeriesTags, syncSeriesNow } from '../lib/api';
+import { getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl, deleteSeries, syncSeriesNow } from '../lib/api';
+import { useAuth } from '../App';
 import SyncSourcePicker from '../components/SyncSourcePicker';
+import SeriesEditModal from '../components/SeriesEditModal';
 import ComicCard from '../components/ComicCard';
 import ComicListItem from '../components/ComicListItem';
-import ThemeToggle from '../components/ThemeToggle';
-import OfflineButton from '../components/OfflineButton';
+import ProfileMenu, { type ProfileMenuItem } from '../components/ProfileMenu';
+import ConfirmSheet from '../components/ConfirmSheet';
 
 type ViewMode = 'grid' | 'list';
+type SortMode = 'order-asc' | 'order-desc' | 'recent';
 
 export default function SeriesPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
+
   const [series, setSeries] = useState<Series | null>(null);
   const [comics, setComics] = useState<Comic[]>([]);
+
+  // View prefs (persisted)
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
-    (localStorage.getItem('comic-reader-series-view') as ViewMode) || 'list'
+    (localStorage.getItem('comic-reader-series-view') as ViewMode) || 'list',
+  );
+  const [sortMode, setSortMode] = useState<SortMode>(() =>
+    (localStorage.getItem('comic-reader-series-sort') as SortMode) || 'order-asc',
   );
 
-  // MAL override
-  const [showOverride, setShowOverride] = useState(false);
-  const [malIdInput, setMalIdInput] = useState('');
-  const [overriding, setOverriding] = useState(false);
+  // Filter state
+  const [search, setSearch] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [showSortMenu, setShowSortMenu] = useState(false);
 
-  // Synopsis toggle
+  // Synopsis expand
   const [expandSynopsis, setExpandSynopsis] = useState(false);
 
-  // Tag editing
-  const [showTagEdit, setShowTagEdit] = useState(false);
-  const [tagInput, setTagInput] = useState('');
-  const [savingTags, setSavingTags] = useState(false);
+  // Sticky toolbar pinned state (driven by IntersectionObserver on a sentinel)
+  const [pinned, setPinned] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Sync
+  // Modals + admin actions
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Sync state
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string>('');
-  const [showSourcePicker, setShowSourcePicker] = useState(false);
+
+  // Offline-save state (admin menu)
+  const [offlineState, setOfflineState] = useState<'idle' | 'saving' | 'done'>('idle');
+  const [offlineProgress, setOfflineProgress] = useState({ done: 0, total: 0 });
+
+  // ----- Data load -----
+
+  const refresh = useCallback(async () => {
+    if (!id) return;
+    const [s, c] = await Promise.all([getSeriesDetail(id), getComics(id)]);
+    setSeries(s);
+    setComics(c);
+  }, [id]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  // ----- Persist prefs -----
+
+  useEffect(() => { localStorage.setItem('comic-reader-series-view', viewMode); }, [viewMode]);
+  useEffect(() => { localStorage.setItem('comic-reader-series-sort', sortMode); }, [sortMode]);
+
+  // ----- Sticky toolbar pinned state -----
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setPinned(!entry.isIntersecting),
+      { threshold: 0, rootMargin: '0px 0px 0px 0px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  // ----- Close sort menu on outside click -----
+
+  useEffect(() => {
+    if (!showSortMenu) return;
+    const handler = () => setShowSortMenu(false);
+    // setTimeout so the click that opened the menu doesn't immediately close it
+    const t = setTimeout(() => window.addEventListener('click', handler), 0);
+    return () => { clearTimeout(t); window.removeEventListener('click', handler); };
+  }, [showSortMenu]);
+
+  // ----- Handlers -----
 
   const handleSyncNow = async () => {
     if (!id) return;
@@ -46,61 +109,18 @@ export default function SeriesPage() {
       const result = await syncSeriesNow(id);
       if (result.ok) {
         setSyncResult(result.newChapters > 0
-          ? `${result.newChapters} new chapter${result.newChapters === 1 ? '' : 's'} queued for download`
-          : 'Up to date — no new chapters');
+          ? `${result.newChapters} new chapter${result.newChapters === 1 ? '' : 's'} queued`
+          : 'Up to date');
       } else {
         setSyncResult(`Error: ${result.error || 'sync failed'}`);
       }
-      const updated = await getSeriesDetail(id);
-      setSeries(updated);
-      const c = await getComics(id);
-      setComics(c);
+      await refresh();
     } catch (err) {
       setSyncResult(`Error: ${(err as Error).message}`);
     } finally {
       setSyncing(false);
-    }
-  };
-
-  const handleTagSave = async () => {
-    if (!id) return;
-    setSavingTags(true);
-    const tags = tagInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
-    try {
-      await updateSeriesTags(id, tags);
-      const updated = await getSeriesDetail(id);
-      setSeries(updated);
-      setShowTagEdit(false);
-    } finally {
-      setSavingTags(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!id) return;
-    getSeriesDetail(id).then(setSeries);
-    getComics(id).then(setComics);
-  }, [id]);
-
-  useEffect(() => {
-    localStorage.setItem('comic-reader-series-view', viewMode);
-  }, [viewMode]);
-
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const handleOverrideSubmit = async () => {
-    if (!id) return;
-    const malId = parseInt(malIdInput.trim(), 10);
-    if (isNaN(malId)) return;
-    setOverriding(true);
-    try {
-      await overrideMalId(id, malId);
-      const updated = await getSeriesDetail(id);
-      setSeries(updated);
-      setShowOverride(false);
-      setMalIdInput('');
-    } finally {
-      setOverriding(false);
+      // Auto-clear the result after a few seconds
+      setTimeout(() => setSyncResult(''), 4000);
     }
   };
 
@@ -110,9 +130,31 @@ export default function SeriesPage() {
     navigate('/');
   };
 
+  const handleSaveOffline = async () => {
+    if (!id || typeof caches === 'undefined' || comics.length === 0) return;
+    setOfflineState('saving');
+    setOfflineProgress({ done: 0, total: comics.length });
+    const cache = await caches.open('pdf-cache');
+    for (let i = 0; i < comics.length; i++) {
+      const url = `/api/comics/read/${id}/${comics[i].file}`;
+      try {
+        const existing = await cache.match(url);
+        if (!existing) {
+          const response = await fetch(url);
+          if (response.ok) await cache.put(url, response);
+        }
+      } catch { /* skip failures, keep going */ }
+      setOfflineProgress({ done: i + 1, total: comics.length });
+    }
+    setOfflineState('done');
+    setTimeout(() => setOfflineState('idle'), 4000);
+  };
+
   const handleToggleRead = (file: string, isRead: boolean) => {
     setComics((prev) => prev.map((c) => c.file === file ? { ...c, isRead } : c));
   };
+
+  // ----- Derived data -----
 
   const chapterRange = useMemo(() => {
     if (comics.length === 0) return null;
@@ -120,220 +162,443 @@ export default function SeriesPage() {
     if (orders.length === 0) return null;
     const fmt = (n: number) => Number.isInteger(n) ? String(n) : n.toFixed(1);
     const min = orders[0], max = orders[orders.length - 1];
-    return min === max ? `Ch. ${fmt(min)}` : `Ch. ${fmt(min)} – ${fmt(max)}`;
+    return min === max ? `Ch. ${fmt(min)}` : `Ch. ${fmt(min)}–${fmt(max)}`;
   }, [comics]);
 
   const readCount = comics.filter((c) => c.isRead).length;
   const inProgress = comics.filter((c) => c.currentPage > 0 && !c.isRead).length;
 
+  // Continue-reading target: most recently read in-progress chapter, else first unread
+  const continueTarget = useMemo<Comic | null>(() => {
+    const inP = comics.filter((c) => c.currentPage > 0 && !c.isRead);
+    if (inP.length > 0) {
+      return inP.slice().sort((a, b) => {
+        const ta = a.lastReadAt ? new Date(a.lastReadAt).getTime() : 0;
+        const tb = b.lastReadAt ? new Date(b.lastReadAt).getTime() : 0;
+        return tb - ta;
+      })[0];
+    }
+    const ordered = comics.slice().sort((a, b) => a.order - b.order);
+    const firstUnread = ordered.find((c) => !c.isRead);
+    return firstUnread || ordered[0] || null;
+  }, [comics]);
+
+  const continueLabel = useMemo(() => {
+    if (!continueTarget) return null;
+    const inP = continueTarget.currentPage > 0 && !continueTarget.isRead;
+    const allRead = comics.length > 0 && readCount === comics.length;
+    if (allRead) return 'Re-read from start';
+    if (inP) {
+      const ord = continueTarget.order > 0 ? `Ch. ${continueTarget.order}` : 'Continue';
+      return `${ord} · p. ${continueTarget.currentPage + 1}`;
+    }
+    return continueTarget.order > 0 ? `Start Ch. ${continueTarget.order}` : 'Start reading';
+  }, [continueTarget, comics.length, readCount]);
+
+  const filteredSorted = useMemo(() => {
+    let list = comics;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((c) => c.file.toLowerCase().includes(q));
+    }
+    if (unreadOnly) list = list.filter((c) => !c.isRead);
+
+    const sorted = list.slice();
+    if (sortMode === 'order-asc') sorted.sort((a, b) => a.order - b.order);
+    else if (sortMode === 'order-desc') sorted.sort((a, b) => b.order - a.order);
+    else if (sortMode === 'recent') sorted.sort((a, b) => {
+      const ta = a.lastReadAt ? new Date(a.lastReadAt).getTime() : 0;
+      const tb = b.lastReadAt ? new Date(b.lastReadAt).getTime() : 0;
+      return tb - ta;
+    });
+    return sorted;
+  }, [comics, search, unreadOnly, sortMode]);
+
   if (!series || !id) return null;
 
+  const coverUrl = series.coverFile ? getSeriesCoverUrl(id, series.coverFile) : getPlaceholderUrl(series.placeholder);
+  const hasCover = !!series.coverFile;
+
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
-      <div className="shrink-0">
-        <header className="bg-white/95 dark:bg-gray-950/95 backdrop-blur border-b border-gray-200 dark:border-gray-800 px-6 py-3">
-          <div className="max-w-5xl mx-auto flex items-center gap-4">
-            <Link to="/" className="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm">
-              <ArrowLeft size={16} /> Library
-            </Link>
-            <div className="flex-1" />
-            <div className="flex bg-gray-100 dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-700">
-              <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-l transition-colors ${viewMode === 'grid' ? 'bg-gray-200 dark:bg-gray-700' : ''}`} title="Grid view">
-                <LayoutGrid size={16} />
-              </button>
-              <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-r transition-colors ${viewMode === 'list' ? 'bg-gray-200 dark:bg-gray-700' : ''}`} title="List view">
-                <List size={16} />
-              </button>
-            </div>
-            <ThemeToggle />
-          </div>
-        </header>
+    <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
 
-        <section className="max-w-5xl mx-auto px-6 py-5 flex gap-6 items-start">
-          <div className="w-36 sm:w-44 shrink-0 rounded-lg overflow-hidden shadow-lg">
-            <img
-              src={series.coverFile ? getSeriesCoverUrl(id!, series.coverFile) : getPlaceholderUrl(series.placeholder)}
-              alt={series.name}
-              className={`w-full aspect-[2/3] object-cover ${series.coverFile ? '' : 'opacity-60'}`}
-            />
-          </div>
+      {/* ===== Floating top corner buttons (mirror Reader page) ===== */}
+      <Link
+        to="/"
+        aria-label="Back to library"
+        className="fixed top-3 left-3 z-40 p-2.5 rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors shadow-lg"
+        title="Library"
+      >
+        <ArrowLeft size={18} />
+      </Link>
 
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold leading-tight">{series.name}</h1>
-            {series.englishTitle && series.englishTitle.toLowerCase() !== series.name.toLowerCase() && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{series.englishTitle}</p>
-            )}
-
-            <div className="flex items-center gap-1.5 mt-1">
-              {!showOverride ? (
-                <>
-                  {series.malId ? (
-                    <a href={`https://myanimelist.net/manga/${series.malId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500 transition-colors font-mono">
-                      MAL #{series.malId}
-                    </a>
-                  ) : (
-                    <span className="text-xs text-gray-500 dark:text-gray-600">No MAL link</span>
-                  )}
-                  <button onClick={() => setShowOverride(true)} className="text-gray-400 dark:text-gray-600 hover:text-blue-500 dark:hover:text-blue-400 transition-colors" title="Edit MAL ID">
-                    <Pencil size={11} />
-                  </button>
-                </>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-gray-500">MAL #</span>
-                  <input type="number" value={malIdInput} onChange={(e) => setMalIdInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleOverrideSubmit()} placeholder={series.malId ? String(series.malId) : 'ID'} autoFocus className="w-20 px-2 py-0.5 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono" />
-                  <button onClick={handleOverrideSubmit} disabled={overriding || !malIdInput.trim()} className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded disabled:opacity-50">{overriding ? '...' : 'Go'}</button>
-                  <button onClick={() => { setShowOverride(false); setMalIdInput(''); }} className="text-xs text-gray-400">Cancel</button>
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 mt-3">
-              {series.score != null && series.score > 0 && (
-                <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-600 dark:text-amber-400">
-                  <Star size={14} fill="currentColor" /> {series.score.toFixed(1)}
-                </span>
-              )}
-              <span className="text-sm text-gray-500 dark:text-gray-400">{comics.length} chapter{comics.length !== 1 ? 's' : ''}</span>
-              {chapterRange && <span className="text-sm text-gray-500 dark:text-gray-400">{chapterRange}</span>}
-              {series.year && <span className="text-sm text-gray-500 dark:text-gray-400">{series.year}</span>}
-              {series.status && (
-                <span className={`text-xs px-1.5 py-0.5 rounded capitalize ${
-                  series.status === 'completed' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
-                  series.status === 'ongoing' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                  'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                }`}>{series.status}</span>
-              )}
-              {readCount > 0 && <span className="text-sm text-green-600 dark:text-green-400">{readCount} read</span>}
-              {inProgress > 0 && <span className="text-sm text-blue-600 dark:text-blue-400">{inProgress} in progress</span>}
-              <OfflineButton comics={comics.map((c) => ({ ...c, path: `${id}/${c.file}` }))} label={`Save all ${comics.length} offline`} />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5 mt-3">
-              {series.tags.map((tag) => (
-                <span key={tag} className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-full capitalize">{tag}</span>
-              ))}
-              {!showTagEdit ? (
-                <button
-                  onClick={() => { setShowTagEdit(true); setTagInput(series.tags.join(', ')); }}
-                  className="text-gray-400 dark:text-gray-600 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                  title="Edit tags"
-                >
-                  <Pencil size={11} />
-                </button>
-              ) : (
-                <div className="flex items-center gap-1.5 w-full mt-1">
-                  <input
-                    type="text"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleTagSave()}
-                    placeholder="action, comedy, manga..."
-                    autoFocus
-                    className="flex-1 px-2 py-1 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                  <button onClick={handleTagSave} disabled={savingTags} className="px-2 py-1 text-xs bg-blue-600 text-white rounded disabled:opacity-50">{savingTags ? '...' : 'Save'}</button>
-                  <button onClick={() => setShowTagEdit(false)} className="text-xs text-gray-400">Cancel</button>
-                </div>
-              )}
-            </div>
-
-            {series.synopsis && (
-              <div className="mt-3">
-                <p className={`text-sm text-gray-600 dark:text-gray-400 leading-relaxed ${expandSynopsis ? '' : 'line-clamp-2'}`}>{series.synopsis}</p>
-                <button
-                  onClick={() => setExpandSynopsis(!expandSynopsis)}
-                  className="text-[11px] text-gray-400 hover:text-blue-500 mt-0.5 transition-colors"
-                >
-                  {expandSynopsis ? 'Show less' : 'Show more'}
-                </button>
-              </div>
-            )}
-
-            {/* Sync controls */}
-            <div className="mt-3 flex items-center gap-3 text-[11px] flex-wrap">
-              {series.syncSource ? (
-                <>
-                  <button
-                    onClick={handleSyncNow}
-                    disabled={syncing}
-                    className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
-                    title={`Check ${series.syncSource.sourceId} for new chapters`}
-                  >
-                    {syncing ? <Loader size={11} className="animate-spin" /> : <RefreshCw size={11} />}
-                    {syncing ? 'Checking...' : 'Check for new chapters'}
-                  </button>
-                  <span className="text-gray-400 dark:text-gray-600">
-                    via <span className="capitalize">{series.syncSource.sourceId}</span>
-                  </span>
-                  <button
-                    onClick={() => setShowSourcePicker(true)}
-                    className="text-gray-400 dark:text-gray-600 hover:text-blue-500 dark:hover:text-blue-400"
-                  >
-                    <Pencil size={11} />
-                  </button>
-                  {series.lastSyncAt && (
-                    <span className="text-gray-400 dark:text-gray-600">
-                      Last checked {new Date(series.lastSyncAt).toLocaleDateString()}
-                    </span>
-                  )}
-                  {syncResult && (
-                    <span className={`text-[10px] ${syncResult.startsWith('Error') ? 'text-red-500' : 'text-green-500'}`}>
-                      {syncResult}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <button
-                  onClick={() => setShowSourcePicker(true)}
-                  className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                  title="Subscribe to auto-update from a source"
-                >
-                  <RefreshCw size={11} /> Subscribe to updates
-                </button>
-              )}
-            </div>
-
-            <div className="mt-3">
-              {!confirmDelete ? (
-                <button
-                  onClick={() => setConfirmDelete(true)}
-                  className="text-[11px] text-gray-400 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                >
-                  Delete series
-                </button>
-              ) : (
-                <span className="inline-flex items-center gap-2 text-[11px]">
-                  <span className="text-red-500">Delete all {comics.length} chapters?</span>
-                  <button onClick={handleDelete} className="text-red-500 hover:text-red-400 font-medium">Yes, delete</button>
-                  <button onClick={() => setConfirmDelete(false)} className="text-gray-400 hover:text-gray-300">Cancel</button>
-                </span>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <hr className="border-gray-200 dark:border-gray-800 max-w-5xl mx-auto" />
+      {/* Floating ProfileMenu (top-right) — series admin actions injected as a section.
+          Identity / nav / theme / settings / sign-out all come from ProfileMenu itself. */}
+      <div className="fixed top-3 right-3 z-40">
+        <ProfileMenu
+          triggerVariant="floating"
+          sections={isAdmin ? [{
+            title: 'This series',
+            items: ((): ProfileMenuItem[] => {
+              const items: ProfileMenuItem[] = [
+                {
+                  icon: <Pencil size={15} />,
+                  label: 'Edit metadata',
+                  onClick: () => setShowEditModal(true),
+                },
+              ];
+              if (typeof caches !== 'undefined' && comics.length > 0) {
+                items.push({
+                  icon: offlineState === 'saving'
+                    ? <Loader size={15} className="animate-spin" />
+                    : offlineState === 'done'
+                      ? <CheckCircle size={15} className="text-green-500" />
+                      : <Download size={15} />,
+                  label: offlineState === 'saving'
+                    ? `Saving ${offlineProgress.done}/${offlineProgress.total}…`
+                    : offlineState === 'done'
+                      ? 'Saved offline'
+                      : `Save all ${comics.length} offline`,
+                  onClick: () => { if (offlineState === 'idle') handleSaveOffline(); },
+                  disabled: offlineState !== 'idle',
+                  keepOpen: true,
+                });
+              }
+              items.push({
+                icon: syncing ? <Loader size={15} className="animate-spin" /> : <RefreshCw size={15} />,
+                label: series.syncSource ? 'Check for new chapters' : 'Set up auto-sync',
+                hint: series.syncSource ? `via ${series.syncSource.sourceId}` : undefined,
+                onClick: series.syncSource
+                  ? handleSyncNow
+                  : () => setShowSourcePicker(true),
+                disabled: syncing,
+              });
+              if (series.syncSource) {
+                items.push({
+                  icon: <BellOff size={15} />,
+                  label: 'Change sync source',
+                  onClick: () => setShowSourcePicker(true),
+                });
+              }
+              items.push({
+                icon: <Trash2 size={15} />,
+                label: 'Delete series',
+                onClick: () => setConfirmDelete(true),
+                destructive: true,
+              });
+              return items;
+            })(),
+          }] : undefined}
+        />
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-6 py-4">
-          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Chapters</h2>
-          {viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 pb-6">
-              {comics.map((comic) => (
-                <ComicCard key={comic.file} comic={comic} seriesId={id} hideSeries />
-              ))}
+      {/* ===== HERO ===== */}
+      <header className="relative">
+        {/* Blurred backdrop */}
+        <div className="absolute inset-0 overflow-hidden -z-0">
+          <img
+            src={coverUrl}
+            alt=""
+            aria-hidden="true"
+            className={`absolute inset-0 w-full h-full object-cover scale-110 ${hasCover ? 'opacity-30 blur-2xl' : 'opacity-10 blur-3xl'}`}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-gray-50/40 via-gray-50/80 to-gray-50 dark:from-gray-950/40 dark:via-gray-950/80 dark:to-gray-950" />
+        </div>
+
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-16 sm:pt-20 pb-5">
+          <div className="flex gap-4 sm:gap-6 items-start">
+            {/* Cover */}
+            <div className="w-24 sm:w-32 md:w-44 shrink-0 rounded-lg overflow-hidden shadow-2xl ring-1 ring-black/10 dark:ring-white/10">
+              <img
+                src={coverUrl}
+                alt={series.name}
+                className={`w-full aspect-[2/3] object-cover ${hasCover ? '' : 'opacity-60'}`}
+              />
             </div>
-          ) : (
-            <div className="flex flex-col gap-1.5 pb-6">
-              {comics.map((comic) => (
-                <ComicListItem key={comic.file} comic={comic} seriesId={id} onToggleRead={handleToggleRead} />
-              ))}
+
+            {/* Title block */}
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold leading-tight break-words">{series.name}</h1>
+              {series.englishTitle && series.englishTitle.toLowerCase() !== series.name.toLowerCase() && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 break-words">{series.englishTitle}</p>
+              )}
+
+              {/* Meta strip */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 sm:mt-3 text-sm text-gray-600 dark:text-gray-400">
+                {series.score != null && series.score > 0 && (
+                  <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+                    <Star size={14} fill="currentColor" /> {series.score.toFixed(1)}
+                  </span>
+                )}
+                <span>{comics.length} ch{comics.length !== 1 ? 's' : ''}</span>
+                {chapterRange && <span className="hidden sm:inline">{chapterRange}</span>}
+                {series.year && <span>{series.year}</span>}
+                {series.status && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded capitalize ${
+                    series.status === 'completed' ? 'bg-accent/15 text-accent' :
+                    series.status === 'ongoing' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                    'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                  }`}>{series.status}</span>
+                )}
+                {series.malId && (
+                  <a
+                    href={`https://myanimelist.net/manga/${series.malId}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-gray-400 dark:text-gray-500 hover:text-accent transition-colors font-mono"
+                  >
+                    MAL #{series.malId}
+                  </a>
+                )}
+              </div>
+
+              {/* Read-state strip — only when meaningful */}
+              {(readCount > 0 || inProgress > 0) && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs">
+                  {readCount > 0 && <span className="text-green-600 dark:text-green-400">{readCount} read</span>}
+                  {inProgress > 0 && <span className="text-accent">{inProgress} in progress</span>}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ===== Primary action row ===== */}
+          <div className="flex items-center gap-2 mt-5">
+            {continueTarget && (
+              <Link
+                to={`/read/${id}/${continueTarget.file}`}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-accent hover:bg-accent-hover text-white font-medium text-sm shadow-md transition-colors min-h-[44px]"
+              >
+                <Play size={16} fill="currentColor" />
+                <span>{continueLabel}</span>
+              </Link>
+            )}
+
+            {/* Subscribe quick action — admin only since updating sync source is admin-only */}
+            {isAdmin && !series.syncSource && (
+              <button
+                onClick={() => setShowSourcePicker(true)}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-accent hover:text-accent text-sm transition-colors min-h-[44px]"
+                title="Subscribe to updates from a source"
+              >
+                <Bell size={15} />
+                <span className="hidden sm:inline">Subscribe</span>
+              </button>
+            )}
+            {isAdmin && series.syncSource && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-accent/10 text-accent text-xs">
+                <Bell size={13} />
+                <span className="capitalize">{series.syncSource.sourceId}</span>
+              </span>
+            )}
+          </div>
+
+          {/* Sync result toast */}
+          {syncResult && (
+            <p className={`text-xs mt-2 ${syncResult.startsWith('Error') ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
+              {syncResult}
+            </p>
+          )}
+
+          {/* ===== Synopsis ===== */}
+          {series.synopsis && (
+            <div className="mt-5">
+              <p className={`text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line ${expandSynopsis ? '' : 'line-clamp-3'}`}>
+                {series.synopsis}
+              </p>
+              <button
+                onClick={() => setExpandSynopsis((v) => !v)}
+                className="text-sm text-accent hover:underline mt-1 font-medium"
+              >
+                {expandSynopsis ? 'Show less' : 'Show more'}
+              </button>
             </div>
           )}
+
+          {/* ===== Tags — horizontal scroll on mobile, wrap on tablet+ ===== */}
+          {series.tags.length > 0 && (
+            <div className="mt-4 -mx-4 sm:mx-0">
+              <div className="flex sm:flex-wrap gap-1.5 overflow-x-auto sm:overflow-visible no-scrollbar px-4 sm:px-0">
+                {series.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="shrink-0 text-xs px-2.5 py-1 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm text-gray-600 dark:text-gray-400 rounded-full capitalize border border-gray-200 dark:border-gray-700"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Last sync line — small, only if there is a source */}
+          {series.syncSource && series.lastSyncAt && (
+            <p className="text-[11px] text-gray-400 dark:text-gray-600 mt-4">
+              Last checked {new Date(series.lastSyncAt).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+      </header>
+
+      {/* ===== Sentinel just above the sticky toolbar ===== */}
+      <div ref={sentinelRef} className="h-px" />
+
+      {/* ===== Sticky chapter toolbar ===== */}
+      <div className={`sticky top-0 z-20 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md transition-shadow ${pinned ? 'shadow-md border-b border-gray-200 dark:border-gray-800' : 'border-b border-gray-200/60 dark:border-gray-800/60'}`}>
+        {/* When pinned, reserve space on each side so the floating Back / ⋯ buttons
+            (fixed at top-3 left/right) don't cover the toolbar's content. */}
+        <div className={`max-w-5xl mx-auto py-2.5 flex items-center gap-2 transition-[padding] ${
+          pinned
+            ? `pl-14 ${isAdmin ? 'pr-14' : 'pr-4 sm:pr-6'}`
+            : 'px-4 sm:px-6'
+        }`}>
+          {/* When pinned, show series name as context */}
+          {pinned && (
+            <span className="text-sm font-medium truncate max-w-[40%] sm:max-w-[50%] text-gray-700 dark:text-gray-300" title={series.name}>
+              {series.name}
+            </span>
+          )}
+          {pinned && <span className="text-gray-300 dark:text-gray-700">·</span>}
+
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 shrink-0">
+            {pinned ? comics.length : `Chapters (${comics.length})`}
+          </h2>
+
+          <div className="flex-1 min-w-0">
+            {showSearch && (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search chapters…"
+                  autoFocus
+                  className="w-full pl-7 pr-7 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Search toggle */}
+          <ToolbarIconButton
+            active={showSearch}
+            title="Search chapters"
+            onClick={() => { setShowSearch((v) => !v); if (showSearch) setSearch(''); }}
+          >
+            <Search size={16} />
+          </ToolbarIconButton>
+
+          {/* Unread-only filter */}
+          <ToolbarIconButton
+            active={unreadOnly}
+            title="Unread only"
+            onClick={() => setUnreadOnly((v) => !v)}
+          >
+            <BookOpen size={16} />
+          </ToolbarIconButton>
+
+          {/* Sort */}
+          <div className="relative">
+            <ToolbarIconButton
+              active={showSortMenu}
+              title="Sort"
+              onClick={(e) => { e.stopPropagation(); setShowSortMenu((v) => !v); }}
+            >
+              <ArrowUpDown size={16} />
+            </ToolbarIconButton>
+            {showSortMenu && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-10 min-w-[10rem] bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden text-sm z-30"
+              >
+                <SortItem active={sortMode === 'order-asc'} onClick={() => { setSortMode('order-asc'); setShowSortMenu(false); }}>
+                  Chapter ↑ (1→N)
+                </SortItem>
+                <SortItem active={sortMode === 'order-desc'} onClick={() => { setSortMode('order-desc'); setShowSortMenu(false); }}>
+                  Chapter ↓ (N→1)
+                </SortItem>
+                <SortItem active={sortMode === 'recent'} onClick={() => { setSortMode('recent'); setShowSortMenu(false); }}>
+                  Recently read
+                </SortItem>
+              </div>
+            )}
+          </div>
+
+          {/* Grid / list */}
+          <div className="hidden sm:flex bg-gray-100 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 rounded-l transition-colors ${viewMode === 'list' ? 'bg-gray-200 dark:bg-gray-700' : ''}`}
+              title="List view"
+            >
+              <List size={16} />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-1.5 rounded-r transition-colors ${viewMode === 'grid' ? 'bg-gray-200 dark:bg-gray-700' : ''}`}
+              title="Grid view"
+            >
+              <LayoutGrid size={16} />
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* ===== Chapter list ===== */}
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-4 pb-12">
+        {filteredSorted.length === 0 ? (
+          <p className="text-center text-sm text-gray-400 dark:text-gray-600 py-12">
+            {comics.length === 0 ? 'No chapters yet.' : 'No chapters match.'}
+          </p>
+        ) : viewMode === 'grid' ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {filteredSorted.map((comic) => (
+              <ComicCard key={comic.file} comic={comic} seriesId={id} hideSeries />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {filteredSorted.map((comic) => (
+              <ComicListItem
+                key={comic.file}
+                comic={comic}
+                seriesId={id}
+                onToggleRead={handleToggleRead}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* ===== Modals ===== */}
+      {showEditModal && (
+        <SeriesEditModal
+          series={{
+            id,
+            name: series.name,
+            englishTitle: series.englishTitle,
+            type: series.type,
+            score: series.score,
+            synopsis: series.synopsis,
+            tags: series.tags,
+            status: series.status,
+            year: series.year,
+            malId: series.malId,
+            mangaDexId: series.mangaDexId,
+            syncSource: series.syncSource,
+          }}
+          onClose={() => setShowEditModal(false)}
+          onSave={async () => { setShowEditModal(false); await refresh(); }}
+        />
+      )}
 
       {showSourcePicker && id && (
         <SyncSourcePicker
@@ -341,13 +606,62 @@ export default function SeriesPage() {
           seriesName={series.name}
           currentSource={series.syncSource}
           onClose={() => setShowSourcePicker(false)}
-          onSaved={async () => {
-            setShowSourcePicker(false);
-            const updated = await getSeriesDetail(id);
-            setSeries(updated);
-          }}
+          onSaved={async () => { setShowSourcePicker(false); await refresh(); }}
         />
       )}
+
+      <ConfirmSheet
+        open={confirmDelete}
+        title={`Delete "${series.name}"?`}
+        message={`Permanently removes ${comics.length} chapter${comics.length === 1 ? '' : 's'} and the series metadata.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   );
 }
+
+// ----- Subcomponents -----
+
+function ToolbarIconButton({
+  children, onClick, active, title,
+}: {
+  children: React.ReactNode;
+  onClick: (e: React.MouseEvent) => void;
+  active?: boolean;
+  title: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      aria-pressed={active}
+      className={`p-2 rounded-md transition-colors shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center ${
+        active
+          ? 'bg-accent/20 text-accent'
+          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SortItem({ children, active, onClick }: { children: React.ReactNode; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+        active
+          ? 'bg-accent/10 dark:bg-accent/20 text-accent font-medium'
+          : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+

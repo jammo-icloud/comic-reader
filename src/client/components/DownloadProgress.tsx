@@ -62,7 +62,7 @@ export default function DownloadProgress() {
 
         {activeJobs.map((job) => (
           <div key={job.id} className="flex items-center gap-3 text-sm">
-            <Loader size={14} className="animate-spin text-blue-500 shrink-0" />
+            <Loader size={14} className="animate-spin text-accent shrink-0" />
             <div className="flex-1 min-w-0">
               <span className="font-medium truncate">{job.mangaTitle}</span>
               <span className="text-gray-500 dark:text-gray-400 ml-2">
@@ -76,7 +76,7 @@ export default function DownloadProgress() {
             </div>
             <div className="w-24 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden shrink-0">
               <div
-                className="h-full bg-blue-500 rounded-full transition-all"
+                className="h-full bg-accent rounded-full transition-all"
                 style={{ width: `${job.progress.total > 0 ? (job.progress.current / job.progress.total) * 100 : 0}%` }}
               />
             </div>

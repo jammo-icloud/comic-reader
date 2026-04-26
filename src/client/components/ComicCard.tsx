@@ -9,7 +9,7 @@ export default function ComicCard({ comic, seriesId, hideSeries }: { comic: Comi
   return (
     <Link
       to={`/read/${seriesId}/${comic.file}`}
-      className="group block bg-white dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
+      className="group block bg-white dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
     >
       <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
         <img
@@ -25,13 +25,13 @@ export default function ComicCard({ comic, seriesId, hideSeries }: { comic: Comi
           </div>
         )}
         {!comic.isRead && comic.currentPage > 0 && (
-          <div className="absolute top-2 right-2 bg-blue-600/90 text-white text-xs px-1.5 py-0.5 rounded">
+          <div className="absolute top-2 right-2 bg-accent/90 text-white text-xs px-1.5 py-0.5 rounded">
             p.{comic.currentPage + 1}/{comic.pages}
           </div>
         )}
         {!comic.isRead && comic.currentPage > 0 && (
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/30">
-            <div className="h-full bg-blue-500" style={{ width: `${progress}%` }} />
+            <div className="h-full bg-accent" style={{ width: `${progress}%` }} />
           </div>
         )}
         {comic.isRead && <div className="absolute bottom-0 left-0 right-0 h-1 bg-green-500" />}

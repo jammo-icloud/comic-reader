@@ -1,22 +1,49 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  ChevronUp, ChevronDown, Maximize2, ScrollText, Sun, Moon,
+} from 'lucide-react';
 import { getPdfUrl, updateProgress, getComics, getSeriesDetail } from '../lib/api';
-import PdfViewer from '../components/PdfViewer';
-import ThemeToggle from '../components/ThemeToggle';
+import PdfViewer, { type PdfViewerHandle, type ViewMode, type ReadingDirection } from '../components/PdfViewer';
+import { useTheme } from '../lib/theme';
 import type { Comic, Series } from '../lib/types';
 
 export default function ReaderPage() {
   const params = useParams();
   const navigate = useNavigate();
+  const { isDark, toggleDarkLight } = useTheme();
   const seriesId = params.id || '';
-  // Everything after /read/:id/ is the filename
   const file = params['*'] || '';
 
   const [series, setSeries] = useState<Series | null>(null);
   const [comics, setComics] = useState<Comic[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [viewMode, setViewMode] = useState<ViewMode>('fit');
+  // Toolbar is up by default — without it the user has no way to flip pages.
+  // The tray chevron lets them collapse it for a distraction-free view.
+  const [uiVisible, setUiVisible] = useState(true);
   const lastSavedPage = useRef(-1);
+  const viewerRef = useRef<PdfViewerHandle | null>(null);
 
+  // Auto-detect reading direction from series tags
+  const readingDirection: ReadingDirection = useMemo(() => {
+    const tags = (series?.tags || []).map((t) => t.toLowerCase());
+    return tags.some((t) => ['manga', 'manhwa', 'doujinshi', 'japanese'].includes(t)) ? 'rtl' : 'ltr';
+  }, [series]);
+
+  // ----- Lock viewport meta — disable browser pinch zoom while reading -----
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    const original = meta?.getAttribute('content') || '';
+    meta?.setAttribute('content', 'width=device-width, initial-scale=1, user-scalable=no, maximum-scale=1');
+    return () => {
+      if (meta) meta.setAttribute('content', original || 'width=device-width, initial-scale=1');
+    };
+  }, []);
+
+  // ----- Load series + comics -----
   useEffect(() => {
     if (!seriesId) return;
     getSeriesDetail(seriesId).then(setSeries);
@@ -25,31 +52,40 @@ export default function ReaderPage() {
 
   const currentIndex = useMemo(
     () => comics.findIndex((c) => c.file === file),
-    [comics, file]
+    [comics, file],
   );
   const prevChapter = currentIndex > 0 ? comics[currentIndex - 1] : null;
   const nextChapter = currentIndex < comics.length - 1 ? comics[currentIndex + 1] : null;
   const currentComic = currentIndex >= 0 ? comics[currentIndex] : null;
 
+  // ----- Progress tracking -----
   const handlePageChange = useCallback(
     (page: number, total: number) => {
+      setCurrentPage(page);
+      setTotalPages(total);
       if (page !== lastSavedPage.current) {
         lastSavedPage.current = page;
         updateProgress(seriesId, file, { currentPage: page, pageCount: total });
       }
     },
-    [seriesId, file]
+    [seriesId, file],
   );
 
-  // Reset saved-page tracker when chapter changes
   useEffect(() => {
     lastSavedPage.current = -1;
   }, [file]);
 
+  // ----- UI toggle (drawer chevron on the toolbar is the only way to show/hide) -----
+  const toggleUi = useCallback(() => {
+    setUiVisible((v) => !v);
+  }, []);
+
+  // ----- Chapter nav -----
   const goToChapter = (comic: Comic) => {
     navigate(`/read/${seriesId}/${comic.file}`, { replace: true });
   };
 
+  // ----- ESC closes -----
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') navigate(`/series/${seriesId}`);
@@ -59,47 +95,138 @@ export default function ReaderPage() {
   }, [navigate, seriesId]);
 
   return (
-    <div className="h-screen w-screen bg-white dark:bg-black flex flex-col transition-colors">
-      <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shrink-0">
-        <button
-          onClick={() => navigate(`/series/${seriesId}`)}
-          className="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm shrink-0"
-        >
-          <ArrowLeft size={16} /> <span className="hidden sm:inline">{series?.name || 'Back'}</span>
-        </button>
-
-        <div className="flex-1 min-w-0" />
-
-        <button
-          onClick={() => prevChapter && goToChapter(prevChapter)}
-          disabled={!prevChapter}
-          className="flex items-center gap-0.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-20 shrink-0 px-1.5 sm:px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
-        >
-          <ChevronLeft size={14} /> <span className="hidden sm:inline">Prev</span>
-        </button>
-
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 shrink-0 truncate max-w-[10rem] sm:max-w-none">
-          {file.replace('.pdf', '')}
-        </span>
-
-        <button
-          onClick={() => nextChapter && goToChapter(nextChapter)}
-          disabled={!nextChapter}
-          className="flex items-center gap-0.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-20 shrink-0 px-1.5 sm:px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
-        >
-          <span className="hidden sm:inline">Next</span> <ChevronRight size={14} />
-        </button>
-
-        <div className="flex-1 min-w-0" />
-        <span className="hidden sm:block"><ThemeToggle /></span>
-      </div>
-
-      <div className="flex-1 overflow-hidden">
+    <div className="h-screen w-screen bg-white dark:bg-black overflow-hidden relative">
+      {/* PDF Viewer fills the screen */}
+      <div className="absolute inset-0">
         <PdfViewer
+          ref={viewerRef}
           url={getPdfUrl(seriesId, file)}
           initialPage={currentComic?.currentPage || 0}
+          viewMode={viewMode}
+          readingDirection={readingDirection}
           onPageChange={handlePageChange}
+          onTotalPagesChange={setTotalPages}
         />
+      </div>
+
+      {/* Floating top-left back button — always visible, primary escape hatch */}
+      <button
+        onClick={() => navigate(`/series/${seriesId}`)}
+        className="absolute top-3 left-3 z-30 p-2 rounded-full bg-black/40 backdrop-blur-sm text-white hover:bg-black/60 transition-all"
+        title={series?.name || 'Back'}
+      >
+        <ArrowLeft size={18} />
+      </button>
+
+      {/* Persistent tray toggle — always visible, toggles toolbar.
+          Sits centered just above the bottom safe area so it never overlaps the toolbar's first row. */}
+      <button
+        onClick={toggleUi}
+        className={`absolute left-1/2 -translate-x-1/2 z-40 px-3 py-2 rounded-t-md bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition-all ${uiVisible ? 'opacity-60' : 'opacity-90'}`}
+        style={{
+          // When toolbar is up: sit on top of the toolbar (toolbar is ~4.5rem tall + safe area).
+          // When down: float just above the iOS home-indicator gesture zone with a small buffer.
+          bottom: uiVisible
+            ? 'calc(env(safe-area-inset-bottom) + 4.5rem)'
+            : 'calc(env(safe-area-inset-bottom) + 0.75rem)',
+        }}
+        title={uiVisible ? 'Hide controls' : 'Show controls'}
+        aria-label={uiVisible ? 'Hide controls' : 'Show controls'}
+      >
+        {uiVisible ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+      </button>
+
+      {/* Floating bottom toolbar — single row. Slider flexes; everything else is shrink-0.
+          Toggled by the tray chevron. */}
+      <div
+        className={`absolute left-0 right-0 bottom-0 z-30 px-2 sm:px-3 pt-3 bg-gray-900/90 dark:bg-black/90 backdrop-blur-md border-t border-white/10 transition-all text-white ${uiVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}
+        // Add real space below the controls so iOS Safari's home-indicator / app-switcher
+        // gesture zone (env(safe-area-inset-bottom)) doesn't sit right against the buttons.
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.875rem)' }}
+      >
+        <div className="flex items-center gap-1 sm:gap-1.5">
+          {/* Prev chapter */}
+          <button
+            onClick={() => prevChapter && goToChapter(prevChapter)}
+            disabled={!prevChapter}
+            className="p-2.5 rounded hover:bg-white/10 disabled:opacity-20 transition-colors shrink-0"
+            title="Previous chapter"
+          >
+            <ChevronsLeft size={20} />
+          </button>
+
+          {/* Prev page */}
+          <button
+            onClick={() => viewerRef.current?.prevPage()}
+            disabled={currentPage === 0}
+            className="p-2.5 rounded hover:bg-white/10 disabled:opacity-20 transition-colors shrink-0"
+            title="Previous page"
+          >
+            <ChevronLeft size={20} />
+          </button>
+
+          {/* Slider takes all remaining space */}
+          <input
+            type="range"
+            min={0}
+            max={Math.max(0, totalPages - 1)}
+            value={currentPage}
+            onChange={(e) => viewerRef.current?.goToPage(parseInt(e.target.value, 10))}
+            className="flex-1 h-1 accent-accent cursor-pointer min-w-0"
+          />
+
+          {/* Page count */}
+          <span className="text-[11px] sm:text-xs tabular-nums whitespace-nowrap shrink-0 px-0.5">
+            {totalPages > 0 ? `${currentPage + 1}/${totalPages}` : '—'}
+          </span>
+
+          {/* Next page */}
+          <button
+            onClick={() => viewerRef.current?.nextPage()}
+            disabled={currentPage >= totalPages - 1}
+            className="p-2.5 rounded hover:bg-white/10 disabled:opacity-20 transition-colors shrink-0"
+            title="Next page"
+          >
+            <ChevronRight size={20} />
+          </button>
+
+          {/* Next chapter */}
+          <button
+            onClick={() => nextChapter && goToChapter(nextChapter)}
+            disabled={!nextChapter}
+            className="p-2.5 rounded hover:bg-white/10 disabled:opacity-20 transition-colors shrink-0"
+            title="Next chapter"
+          >
+            <ChevronsRight size={20} />
+          </button>
+
+          {/* Fit / Scroll toggle */}
+          <div className="flex bg-white/10 rounded text-xs shrink-0 ml-0.5">
+            <button
+              onClick={() => setViewMode('fit')}
+              className={`p-2 rounded-l transition-colors ${viewMode === 'fit' ? 'bg-accent' : 'hover:bg-white/10'}`}
+              title="Fit to screen"
+            >
+              <Maximize2 size={16} />
+            </button>
+            <button
+              onClick={() => setViewMode('scroll')}
+              className={`p-2 rounded-r transition-colors ${viewMode === 'scroll' ? 'bg-accent' : 'hover:bg-white/10'}`}
+              title="Scroll"
+            >
+              <ScrollText size={16} />
+            </button>
+          </div>
+
+          {/* Theme toggle (desktop only — small mobile is too cramped) */}
+          <button
+            onClick={toggleDarkLight}
+            className="hidden sm:block p-2.5 rounded hover:bg-white/10 transition-colors shrink-0"
+            title="Toggle theme"
+          >
+            {isDark ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+        </div>
       </div>
     </div>
   );
