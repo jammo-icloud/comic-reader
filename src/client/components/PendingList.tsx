@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check, SkipForward, BookOpen, Newspaper, Star, Loader, Pencil, AlertTriangle, Merge } from 'lucide-react';
 import type { PendingImport, Series } from '../lib/types';
 import { getImportReady, getLocalReady, confirmImport, skipImport, skipLocalImport, getSeries } from '../lib/api';
+import { useEscapeKey } from '../lib/useEscapeKey';
 
 export default function PendingList({ onClose, onUpdate, useLocal = false }: { onClose: () => void; onUpdate?: () => void; useLocal?: boolean }) {
+  const titleId = useId();
+  useEscapeKey(onClose);
   const [pending, setPending] = useState<PendingImport[]>([]);
   const [existingSeries, setExistingSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
@@ -164,13 +167,23 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-lg mx-4 overflow-hidden">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-lg mx-4 overflow-hidden"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-800">
-          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400">
+          <h2 id={titleId} className="text-sm font-semibold text-gray-500 dark:text-gray-400">
             Import {pending.length} remaining
           </h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            title="Close"
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
             <X size={18} />
           </button>
         </div>

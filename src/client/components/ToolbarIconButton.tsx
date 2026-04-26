@@ -17,16 +17,16 @@ interface ToolbarIconButtonProps {
 export default function ToolbarIconButton({
   children, onClick, active, disabled, title, label, variant = 'default',
 }: ToolbarIconButtonProps) {
-  const base = 'rounded-md transition-colors shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center disabled:opacity-50';
+  const base = 'rounded-md transition-colors shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-gray-50 dark:focus-visible:ring-offset-gray-950';
   const padding = label ? 'px-2.5 sm:px-3 gap-1.5' : 'p-2';
 
   const palette = (() => {
     if (active) {
       if (variant === 'primary') return 'bg-accent text-white';
-      if (variant === 'destructive') return 'bg-danger/15 dark:bg-danger/30/40 text-danger';
+      if (variant === 'destructive') return 'bg-danger/15 dark:bg-danger/30 text-danger';
       return 'bg-accent/20 text-accent';
     }
-    if (variant === 'primary') return 'bg-accent hover:bg-accent text-white';
+    if (variant === 'primary') return 'bg-accent hover:bg-accent-hover text-white';
     if (variant === 'destructive') return 'text-danger hover:bg-danger/10';
     return 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800';
   })();

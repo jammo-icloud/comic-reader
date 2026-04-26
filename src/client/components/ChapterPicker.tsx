@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useId } from 'react';
 import { X, Download, Check, Loader } from 'lucide-react';
 import type { MangaDexManga, MangaDexChapter } from '../lib/types';
 import { startDownload } from '../lib/api';
+import { useEscapeKey } from '../lib/useEscapeKey';
 
 interface ChapterPickerProps {
   manga: MangaDexManga;
@@ -55,19 +56,34 @@ export default function ChapterPicker({ manga, chapters, loading, localChapterNu
     }
   };
 
+  const titleId = useId();
+  useEscapeKey(onClose);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col overflow-hidden">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col overflow-hidden"
+      >
         {/* Header */}
         <div className="flex items-start gap-4 px-6 py-4 border-b border-gray-200 dark:border-gray-800 shrink-0">
           {manga.coverUrl && <img src={manga.coverUrl} alt="" className="w-16 h-24 object-cover rounded shrink-0" />}
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-semibold">{manga.title}</h2>
+            <h2 id={titleId} className="text-lg font-semibold">{manga.title}</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 capitalize">{manga.status}</p>
             {manga.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{manga.description}</p>}
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 shrink-0"><X size={18} /></button>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            title="Close"
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Toolbar */}

@@ -333,6 +333,25 @@ For interactive cards: add `hover:ring-2 hover:ring-accent transition-all`.
 
 Bottom-sheet on mobile, centered modal at `sm:+`, both portaled to `document.body`. Includes drag handle on mobile, safe-area padding, ESC to close, click-backdrop to dismiss. See `ConfirmSheet.tsx` and `ProfileMenu.tsx` for canonical implementations.
 
+**Required a11y attributes for any modal:**
+```tsx
+const titleId = useId();
+useEscapeKey(onClose); // from src/client/lib/useEscapeKey.ts
+
+<div
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby={titleId}
+>
+  <h2 id={titleId}>{title}</h2>
+  <button onClick={onClose} aria-label="Close" title="Close" className="… focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+    <X size={18} />
+  </button>
+</div>
+```
+
+If a confirmation child (e.g. a ConfirmSheet inside the modal) is open, suppress the parent's Esc handler with `useEscapeKey(onClose, !showInnerConfirm)` so Esc dismisses the inner first.
+
 ### 8.6 Reader drawer chevron
 
 A horizontal pill that rides on top of the Reader's bottom toolbar when expanded, and floats just above the iOS gesture zone when collapsed. The single affordance for showing/hiding the toolbar.
@@ -375,6 +394,7 @@ Shared, reusable components in `src/client/components/`:
 | `SeriesAdminRow.tsx` | Admin Library catalog row (card → grid-row morph) |
 | `MangaSearchCard.tsx` | Discover result card (favicon + cover + title + tags) |
 | `ProgressBar.tsx` | Themed thin progress bar (uses `bg-accent`) |
+| `lib/useEscapeKey.ts` | Hook: `useEscapeKey(onClose, enabled?)` — wires `Escape` key to a handler. Pair with `aria-modal` on every modal/sheet/popover. |
 | `NotificationDropdown.tsx` | Header bell with unread badge |
 | `SeriesEditModal.tsx`, `MergeModal.tsx`, `SyncSourcePicker.tsx`, `ChapterPicker.tsx`, `ImportModal.tsx`, `PendingList.tsx`, `DownloadProgress.tsx` | Domain-specific modals |
 | `ThemeToggle.tsx` | *(legacy — now embedded inside ProfileMenu, no longer rendered standalone)* |
@@ -451,6 +471,9 @@ Tracked tech debt — fix opportunistically.
 - ❌ `window.confirm()` / `window.alert()` — use `<ConfirmSheet>` for confirmation, or inline error banner (set `error` state, render in a styled `<div className="bg-danger/10 border border-danger/30 …">` near the action)
 - ❌ Modal `<div>` inside a backdrop-filter ancestor — portal to `document.body`
 - ❌ `<button>` containing another `<button>` — use `<div role="button" tabIndex={0}>` for the outer
+- ❌ Icon-only buttons without `aria-label` — screen readers hear only "button". Always pair `aria-label` and `title` (the latter for hover tooltip).
+- ❌ Modal containers without `role="dialog"` + `aria-modal="true"` + `aria-labelledby={titleId}` — every modal/sheet/popover needs all three. See §8.5.
+- ❌ `outline: none` (or `focus:outline-none`) without a `focus-visible:ring-2 focus-visible:ring-accent` replacement — keyboard users need a visible focus indicator.
 - ❌ `accent-blue-500` on `<input type="range">` — use `accent-accent` (Tailwind utility for CSS `accent-color` + our color named `accent`)
 - ❌ Inline JS hover effects (`onMouseEnter` setting `style.boxShadow`) — use Tailwind `hover:` classes
 - ❌ Custom font sizes via `text-[Npx]` for sizes ≥ 12px — use the named scale (`text-xs` and up)

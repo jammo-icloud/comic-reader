@@ -3,10 +3,11 @@
  * User picks a source, types a search query (pre-filled with the series name),
  * picks a matching manga from the results. Saves to /series/:id/sync-source.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { X, Search, Loader, Check } from 'lucide-react';
 import { getAvailableSources, searchSource, updateSeriesSyncSource } from '../lib/api';
 import ConfirmSheet from './ConfirmSheet';
+import { useEscapeKey } from '../lib/useEscapeKey';
 
 interface SyncSourcePickerProps {
   seriesId: string;
@@ -93,15 +94,28 @@ export default function SyncSourcePicker({ seriesId, seriesName, currentSource, 
     }
   };
 
+  const titleId = useId();
+  useEscapeKey(onClose, !showUnsubscribe);
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl mx-4 max-h-full overflow-y-auto">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl mx-4 max-h-full overflow-y-auto"
+      >
 
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-t-xl">
-          <h2 className="text-lg font-semibold flex-1 truncate">Sync source for "{seriesName}"</h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400">
+          <h2 id={titleId} className="text-lg font-semibold flex-1 truncate">Sync source for "{seriesName}"</h2>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            title="Close"
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
             <X size={18} />
           </button>
         </div>

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { X, Save, Loader, Trash2, ChevronDown, ChevronUp, Upload, Image as ImageIcon, RefreshCw, Languages } from 'lucide-react';
 import { updateAdminSeries, getAdminSeriesComics, deleteAdminComic, uploadSeriesCover, getSeriesCoverUrl, translateWholeChapter, getTranslationStatus } from '../lib/api';
 import SyncSourcePicker from './SyncSourcePicker';
 import ConfirmSheet from './ConfirmSheet';
+import { useEscapeKey } from '../lib/useEscapeKey';
 
 interface SeriesEditModalProps {
   series: {
@@ -184,15 +185,28 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
     }
   };
 
+  const titleId = useId();
+  useEscapeKey(onClose, pendingDelete === null && !showSourcePicker);
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl mx-4 max-h-full overflow-y-auto">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl mx-4 max-h-full overflow-y-auto"
+      >
 
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-t-xl">
-          <h2 className="text-lg font-semibold flex-1 truncate">Edit: {series.name}</h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400">
+          <h2 id={titleId} className="text-lg font-semibold flex-1 truncate">Edit: {series.name}</h2>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            title="Close"
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
             <X size={18} />
           </button>
         </div>
