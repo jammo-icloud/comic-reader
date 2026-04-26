@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Loader, Check, ExternalLink, Eye, X, Compass, AlertCircle, BookOpen } from 'lucide-react';
+import { Search, Loader, Check, ExternalLink, Eye, X, Compass, AlertCircle, BookOpen, Download, Puzzle } from 'lucide-react';
 import type { SearchResult, ChapterResult } from '../lib/types';
 import { discoverSearch, discoverChapters, addToCollection, getComics } from '../lib/api';
 import { useSources, HAKUNEKO_SITES, HAKUNEKO_URL } from '../lib/browser-sources/registry';
@@ -315,7 +315,7 @@ export default function DiscoverPage() {
               <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-700" />
             </div>
             <div className="flex items-center justify-between px-5 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-800">
-              <h2 className="text-base font-semibold">More Manga Sites</h2>
+              <h2 className="text-base font-semibold">More sources</h2>
               <button
                 onClick={() => setShowMoreSites(false)}
                 className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400"
@@ -324,39 +324,84 @@ export default function DiscoverPage() {
                 <X size={18} />
               </button>
             </div>
-            <div className="px-5 sm:px-6 py-4 space-y-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                These sites require a desktop app to download from. Use{' '}
-                <a href={HAKUNEKO_URL} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline font-medium">HakuNeko</a>{' '}
-                to download chapters, then import the folder into Comic Reader.
-              </p>
-              <div className="space-y-2">
-                {HAKUNEKO_SITES.map((site) => (
+            <div className="px-5 sm:px-6 py-4 space-y-6">
+
+              {/* === Chrome extension — preferred path === */}
+              <section>
+                <div className="flex items-start gap-3">
+                  <span className="shrink-0 w-9 h-9 rounded-lg bg-accent/15 text-accent flex items-center justify-center">
+                    <Puzzle size={18} />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold">Manga Finder Chrome extension</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Adds 10 more sources directly into Discover — MangaHub, OmegaScans, HentaiNexus, and more.
+                      Downloads route through Comic Reader; no manual import needed.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 pl-12 space-y-1.5">
                   <a
-                    key={site.name}
-                    href={site.url}
+                    href="/manga-finder-extension.zip"
+                    download
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors"
+                  >
+                    <Download size={14} /> Download extension
+                  </a>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                    Unzip → open <span className="font-mono">chrome://extensions</span> → enable Developer mode → Load unpacked.
+                  </p>
+                </div>
+              </section>
+
+              {/* === HakuNeko — alternative for sites the extension doesn't cover === */}
+              <section className="pt-5 border-t border-gray-200 dark:border-gray-800">
+                <div className="flex items-start gap-3">
+                  <span className="shrink-0 w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 flex items-center justify-center">
+                    <ExternalLink size={18} />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold">HakuNeko desktop app</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Standalone app for sites we can't reach directly. Download chapters with HakuNeko, then use the
+                      Import page to bring them into your library.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 pl-12 space-y-2">
+                  <a
+                    href={HAKUNEKO_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
                   >
-                    <div>
-                      <span className="text-sm font-medium">{site.name}</span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{site.description}</p>
-                    </div>
-                    <ExternalLink size={14} className="text-gray-400 shrink-0" />
+                    Download HakuNeko <ExternalLink size={14} />
                   </a>
-                ))}
-              </div>
-              <div className="pt-2 border-t border-gray-200 dark:border-gray-800">
-                <a
-                  href={HAKUNEKO_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
-                >
-                  Download HakuNeko <ExternalLink size={14} />
-                </a>
-              </div>
+                  <details className="pt-1">
+                    <summary className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer select-none">
+                      Sites HakuNeko covers
+                    </summary>
+                    <div className="space-y-1.5 mt-2">
+                      {HAKUNEKO_SITES.map((site) => (
+                        <a
+                          key={site.name}
+                          href={site.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        >
+                          <div>
+                            <span className="text-xs font-medium">{site.name}</span>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400">{site.description}</p>
+                          </div>
+                          <ExternalLink size={12} className="text-gray-400 shrink-0" />
+                        </a>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              </section>
+
             </div>
           </div>
         </div>,
@@ -472,7 +517,7 @@ function PreSearchHint({
           onClick={onShowMoreSites}
           className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-accent transition-colors"
         >
-          <Eye size={14} /> More sites with HakuNeko
+          <Eye size={14} /> More sources (extension &amp; HakuNeko)
         </button>
       </div>
     </div>
