@@ -425,19 +425,13 @@ Modal-style overlay?
 
 Tracked tech debt — fix opportunistically.
 
-1. **`min-h-screen` instead of `min-h-[100dvh]`** in:
-   - `src/client/pages/LoginPage.tsx:64`
-   - `src/client/pages/SettingsPage.tsx:106`, `:113`
+1. **Page max-width inconsistency.** Library and Discover use `max-w-7xl`, Admin uses `max-w-6xl`, Series uses `max-w-5xl`, Import uses `max-w-3xl`. Each is reasonable for the content shape but worth a deliberate decision next time we touch them.
 
-2. **Page max-width inconsistency.** Library and Discover use `max-w-7xl`, Admin uses `max-w-6xl`, Series uses `max-w-5xl`, Import uses `max-w-3xl`. Each is reasonable for the content shape but worth a deliberate decision next time we touch them.
+2. **Modal sticky-header `z-10` is fine but easily confused with page-level `z-10`.** Consider documenting modal z-index as a separate scale (modal-internal: 10/20/30, page-level: 30/40, overlay: 50) to avoid future muddling.
 
-3. **Modal sticky-header `z-10` is fine but easily confused with page-level `z-10`.** Consider documenting modal z-index as a separate scale (modal-internal: 10/20/30, page-level: 30/40, overlay: 50) to avoid future muddling.
+3. **No semantic tokens** for success/warning/danger. Currently using raw `green-*`/`amber-*`/`red-*`. If we ever want themes to optionally retint semantics (e.g. a colorblind-friendly theme), we'd add `--success`, `--warning`, `--danger` to themes.css and `success`/`warning`/`danger` to tailwind config.
 
-4. **`PendingList` modal** is not portaled. It works today because nothing wraps it in a backdrop-filter ancestor, but it's the last modal that doesn't follow the portal pattern.
-
-5. **No semantic tokens** for success/warning/danger. Currently using raw `green-*`/`amber-*`/`red-*`. If we ever want themes to optionally retint semantics (e.g. a colorblind-friendly theme), we'd add `--success`, `--warning`, `--danger` to themes.css and `success`/`warning`/`danger` to tailwind config. Out of scope today.
-
-6. **NotificationDropdown popover** isn't portaled. Same containing-block trap potential as the old ProfileMenu — works today only because LibraryPage's header has backdrop-filter at z-30 and the popover doesn't stretch beyond the header bounds. If headers ever get taller it could clip.
+4. **SettingsPage header tokens drift.** Uses `bg-white/80 dark:bg-gray-900/80` (more transparent, dark surface = gray-900 not gray-950) instead of the canonical `bg-white/95 dark:bg-gray-950/95`. Decide if it's deliberate; if not, normalize.
 
 ---
 

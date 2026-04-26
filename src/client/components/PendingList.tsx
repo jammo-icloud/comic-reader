@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Check, SkipForward, BookOpen, Newspaper, Star, Loader, Pencil, AlertTriangle, Merge } from 'lucide-react';
 import type { PendingImport, Series } from '../lib/types';
 import { getImportReady, getLocalReady, confirmImport, skipImport, skipLocalImport, getSeries } from '../lib/api';
@@ -113,18 +114,19 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
   };
 
   if (loading) {
-    return (
+    return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center">
         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
         <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-8">
           <Loader size={24} className="animate-spin text-accent" />
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
   if (!current) {
-    return (
+    return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center">
         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
         <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-8 text-center max-w-sm mx-4">
@@ -144,7 +146,8 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
             </>
           )}
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
@@ -157,7 +160,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
     s.name.toLowerCase() === editName.toLowerCase()
   );
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
@@ -390,6 +393,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Loader, Check, AlertCircle, X, Square, ChevronRight, BookOpen } from 'lucide-react';
 import { getImportCount, getDownloadQueue, cancelDownload, removeDownloadJob, getSeriesCoverUrl, getPlaceholderUrl, getSubscriptionsWithNew } from '../lib/api';
@@ -30,7 +31,8 @@ export default function NotificationDropdown() {
   const [pendingCount, setPendingCount] = useState(0);
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
   const [newChapters, setNewChapters] = useState<NewChapterItem[]>([]);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Load initial state
@@ -70,13 +72,15 @@ export default function NotificationDropdown() {
     return () => es.close();
   }, []);
 
-  // Close on click outside
+  // Close on click outside — popover is portaled, so we need to check both
+  // the trigger button AND the popover, since they're no longer DOM siblings.
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      const inTrigger = triggerRef.current?.contains(target);
+      const inPopover = popoverRef.current?.contains(target);
+      if (!inTrigger && !inPopover) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -98,8 +102,9 @@ export default function NotificationDropdown() {
   const hasContent = pendingCount > 0 || jobs.length > 0 || newChapters.length > 0;
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <>
       <button
+        ref={triggerRef}
         onClick={() => setOpen(!open)}
         className={`relative p-2 rounded-lg transition-colors ${
           activeJobs.length > 0
@@ -120,8 +125,13 @@ export default function NotificationDropdown() {
         )}
       </button>
 
-      {open && (
-        <div className="fixed sm:absolute right-2 sm:right-0 left-2 sm:left-auto top-14 sm:top-full sm:mt-1 sm:w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+      {/* Portaled to document.body so a backdrop-filter ancestor (e.g. the
+          page header) can't trap our `position: fixed` to its box. */}
+      {open && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed top-14 left-2 right-2 sm:left-auto sm:right-3 sm:w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-[80dvh] overflow-y-auto"
+        >
           {!hasContent && (
             <div className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">
               No notifications
@@ -246,8 +256,9 @@ export default function NotificationDropdown() {
               ))}
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
