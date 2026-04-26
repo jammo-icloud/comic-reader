@@ -23,11 +23,11 @@ export default function ToolbarIconButton({
   const palette = (() => {
     if (active) {
       if (variant === 'primary') return 'bg-accent text-white';
-      if (variant === 'destructive') return 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300';
+      if (variant === 'destructive') return 'bg-danger/15 dark:bg-danger/30/40 text-danger';
       return 'bg-accent/20 text-accent';
     }
     if (variant === 'primary') return 'bg-accent hover:bg-accent text-white';
-    if (variant === 'destructive') return 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20';
+    if (variant === 'destructive') return 'text-danger hover:bg-danger/10';
     return 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800';
   })();
 

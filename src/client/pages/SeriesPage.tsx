@@ -252,7 +252,7 @@ export default function SeriesPage() {
                   icon: offlineState === 'saving'
                     ? <Loader size={15} className="animate-spin" />
                     : offlineState === 'done'
-                      ? <CheckCircle size={15} className="text-green-500" />
+                      ? <CheckCircle size={15} className="text-success" />
                       : <Download size={15} />,
                   label: offlineState === 'saving'
                     ? `Saving ${offlineProgress.done}/${offlineProgress.total}…`
@@ -326,7 +326,7 @@ export default function SeriesPage() {
               {/* Meta strip */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 sm:mt-3 text-sm text-gray-600 dark:text-gray-400">
                 {series.score != null && series.score > 0 && (
-                  <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+                  <span className="inline-flex items-center gap-1 font-medium text-warning">
                     <Star size={14} fill="currentColor" /> {series.score.toFixed(1)}
                   </span>
                 )}
@@ -336,7 +336,7 @@ export default function SeriesPage() {
                 {series.status && (
                   <span className={`text-xs px-1.5 py-0.5 rounded capitalize ${
                     series.status === 'completed' ? 'bg-accent/15 text-accent' :
-                    series.status === 'ongoing' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                    series.status === 'ongoing' ? 'bg-success/15 dark:bg-success/20 text-success' :
                     'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
                   }`}>{series.status}</span>
                 )}
@@ -354,7 +354,7 @@ export default function SeriesPage() {
               {/* Read-state strip — only when meaningful */}
               {(readCount > 0 || inProgress > 0) && (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs">
-                  {readCount > 0 && <span className="text-green-600 dark:text-green-400">{readCount} read</span>}
+                  {readCount > 0 && <span className="text-success">{readCount} read</span>}
                   {inProgress > 0 && <span className="text-accent">{inProgress} in progress</span>}
                 </div>
               )}
@@ -394,7 +394,7 @@ export default function SeriesPage() {
 
           {/* Sync result toast */}
           {syncResult && (
-            <p className={`text-xs mt-2 ${syncResult.startsWith('Error') ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
+            <p className={`text-xs mt-2 ${syncResult.startsWith('Error') ? 'text-danger' : 'text-success'}`}>
               {syncResult}
             </p>
           )}

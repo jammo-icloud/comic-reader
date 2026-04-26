@@ -112,7 +112,7 @@ export default function SyncSourcePicker({ seriesId, seriesName, currentSource, 
               <button
                 onClick={handleUnsubscribe}
                 disabled={saving}
-                className="text-red-500 hover:text-red-600 hover:underline"
+                className="text-danger hover:text-danger hover:underline"
               >
                 Unsubscribe
               </button>
@@ -167,7 +167,7 @@ export default function SyncSourcePicker({ seriesId, seriesName, currentSource, 
           )}
 
           {error && (
-            <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-4 py-2">{error}</div>
+            <div className="text-sm text-danger bg-danger/10 rounded-lg px-4 py-2">{error}</div>
           )}
 
           {/* Results */}
@@ -184,7 +184,7 @@ export default function SyncSourcePicker({ seriesId, seriesName, currentSource, 
                       disabled={saving || isCurrent}
                       className={`w-full flex items-start gap-3 p-2 rounded-lg border text-left transition-colors ${
                         isCurrent
-                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                          ? 'border-success bg-success/10'
                           : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
                       }`}
                     >
@@ -197,7 +197,7 @@ export default function SyncSourcePicker({ seriesId, seriesName, currentSource, 
                         {r.description && <p className="text-[10px] text-gray-400 line-clamp-2 mt-1">{r.description}</p>}
                         <p className="text-[10px] text-gray-400 font-mono mt-1 truncate">{r.mangaId}</p>
                       </div>
-                      {isCurrent && <Check size={16} className="text-green-500 shrink-0" />}
+                      {isCurrent && <Check size={16} className="text-success shrink-0" />}
                     </button>
                   );
                 })}

@@ -155,7 +155,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div className="flex-1 mr-4">
                 <p className="text-sm font-medium flex items-center gap-2">
-                  {safeMode ? <ShieldCheck size={16} className="text-green-500" /> : <ShieldOff size={16} className="text-red-400" />}
+                  {safeMode ? <ShieldCheck size={16} className="text-success" /> : <ShieldOff size={16} className="text-danger" />}
                   Safe Mode
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -168,7 +168,7 @@ export default function SettingsPage() {
                 onClick={() => saveSafeMode(!safeMode)}
                 disabled={saving}
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-                  safeMode ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+                  safeMode ? 'bg-success' : 'bg-gray-300 dark:bg-gray-600'
                 }`}
               >
                 <span
@@ -179,7 +179,7 @@ export default function SettingsPage() {
               </button>
             </div>
             {!safeMode && (
-              <p className="text-[10px] text-red-400 mt-2">
+              <p className="text-[10px] text-danger mt-2">
                 Categories shown: adult, hentai, nsfw, ecchi, mature, nudity, erotica, smut, sexual violence
               </p>
             )}
@@ -247,7 +247,7 @@ export default function SettingsPage() {
                   Save
                 </button>
                 {transMsg && (
-                  <span className={`text-xs ${transMsg.startsWith('Error') ? 'text-red-500' : 'text-green-500'}`}>
+                  <span className={`text-xs ${transMsg.startsWith('Error') ? 'text-danger' : 'text-success'}`}>
                     {transMsg}
                   </span>
                 )}

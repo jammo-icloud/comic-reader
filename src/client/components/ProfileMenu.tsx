@@ -200,7 +200,7 @@ export default function ProfileMenu({ sections, triggerVariant = 'header' }: Pro
                     aria-pressed={!isDark}
                     className={`p-1.5 rounded transition-colors ${
                       !isDark
-                        ? 'bg-white dark:bg-gray-700 text-amber-500 shadow-sm'
+                        ? 'bg-white dark:bg-gray-700 text-warning shadow-sm'
                         : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
                     }`}
                   >
@@ -268,12 +268,12 @@ function MenuRow({
       disabled={disabled}
       className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors disabled:opacity-50 disabled:cursor-default ${
         destructive
-          ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+          ? 'text-danger hover:bg-danger/10'
           : 'hover:bg-gray-50 dark:hover:bg-gray-800'
       }`}
     >
       {icon && (
-        <span className={destructive ? 'text-red-500 dark:text-red-400 shrink-0' : 'text-gray-500 dark:text-gray-400 shrink-0'}>
+        <span className={destructive ? 'text-danger shrink-0' : 'text-gray-500 dark:text-gray-400 shrink-0'}>
           {icon}
         </span>
       )}

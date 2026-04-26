@@ -56,13 +56,13 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
           </div>
 
           {error && (
-            <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
+            <div className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">
               {error}
             </div>
           )}
 
           {result && (
-            <div className="text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg">
+            <div className="text-sm text-success bg-success/10 px-3 py-2 rounded-lg">
               Scanning started! Check the pending bell icon for results as they come in.
             </div>
           )}

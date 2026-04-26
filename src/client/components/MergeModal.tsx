@@ -153,7 +153,7 @@ export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: Me
 
           {/* Error */}
           {error && (
-            <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-4 py-2">{error}</div>
+            <div className="text-sm text-danger bg-danger/10 rounded-lg px-4 py-2">{error}</div>
           )}
 
           {/* Preview */}

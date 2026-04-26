@@ -139,7 +139,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
             </>
           ) : (
             <>
-              <Check size={32} className="mx-auto text-green-500 mb-3" />
+              <Check size={32} className="mx-auto text-success mb-3" />
               <h2 className="text-lg font-semibold">All caught up!</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">No pending imports.</p>
               <button onClick={onClose} className="mt-4 px-4 py-2 text-sm bg-accent text-white rounded-lg">Done</button>
@@ -227,7 +227,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
                     <p className="text-sm font-medium">{mal.title}</p>
                     <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                       {mal.score != null && mal.score > 0 && (
-                        <span className="flex items-center gap-0.5 text-amber-600 dark:text-amber-400">
+                        <span className="flex items-center gap-0.5 text-warning">
                           <Star size={11} fill="currentColor" /> {mal.score.toFixed(1)}
                         </span>
                       )}
@@ -302,13 +302,13 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
 
           {/* Duplicate warning */}
           {duplicate && (
-            <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-              <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 bg-warning/10 border border-warning/30 rounded-lg px-3 py-2">
+              <AlertTriangle size={16} className="text-warning shrink-0 mt-0.5" />
               <div className="text-xs">
-                <p className="font-medium text-amber-700 dark:text-amber-300">
+                <p className="font-medium text-warning">
                   Possible duplicate of "{duplicate.name}"
                 </p>
-                <p className="text-amber-600 dark:text-amber-400 mt-0.5">
+                <p className="text-warning mt-0.5">
                   {duplicate.malId === malIdNum ? 'Same MAL ID.' : 'Similar name.'} {duplicate.count} chapters already imported.
                 </p>
                 <div className="flex gap-2 mt-2">
@@ -318,7 +318,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
                       setEditName(duplicate.name);
                       if (duplicate.malId) setEditMalId(String(duplicate.malId));
                     }}
-                    className="px-2 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700"
+                    className="px-2 py-1 text-xs bg-warning text-white rounded hover:bg-warning"
                   >
                     Merge into existing
                   </button>
@@ -327,7 +327,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
                       // Import as separate: clear the MAL ID to avoid conflict
                       setEditMalId('');
                     }}
-                    className="px-2 py-1 text-xs text-amber-600 dark:text-amber-400 hover:underline"
+                    className="px-2 py-1 text-xs text-warning hover:underline"
                   >
                     Import as separate
                   </button>
@@ -358,15 +358,15 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
 
           {/* Import error — shown inline instead of window.alert */}
           {importError && (
-            <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 rounded-lg px-3 py-2">
-              <AlertTriangle size={14} className="text-red-500 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
+              <AlertTriangle size={14} className="text-danger shrink-0 mt-0.5" />
               <div className="flex-1 text-xs">
-                <p className="font-medium text-red-700 dark:text-red-300">Import failed</p>
-                <p className="text-red-600 dark:text-red-400 mt-0.5">{importError}</p>
+                <p className="font-medium text-danger">Import failed</p>
+                <p className="text-danger mt-0.5">{importError}</p>
               </div>
               <button
                 onClick={() => setImportError(null)}
-                className="shrink-0 text-red-400 hover:text-red-600 dark:hover:text-red-200"
+                className="shrink-0 text-danger hover:text-danger dark:hover:text-danger"
                 aria-label="Dismiss error"
               >
                 <X size={14} />

@@ -64,21 +64,29 @@ Each theme defines `--accent` and `--accent-hover` for its primary action color 
 - `accent/20` ≈ what `dark:bg-blue-900/30` used to render (dark-mode active)
 - `accent/30` ≈ what `dark:bg-blue-900/40` used to render (strongest dark-mode tint)
 
-### 1.3 Semantic colors — intentionally NOT themed
+### 1.3 Semantic tokens — themable but stable by default
 
-Status, success, warning, danger keep stable Tailwind palette across all themes. Switching to Tankobon does NOT make errors orange just because the accent shifted.
+`--success`, `--warning`, `--danger` defined in `themes.css` and wired into Tailwind as `success`, `warning`, `danger`. Defaults: `green-600`, `amber-600`, `red-600`. Themes can override per-theme if a designer wants a coordinated palette (e.g. a colorblind-friendly variant), but the default values are stable across all 12 themes — switching to Tankobon does NOT make errors orange.
 
-| Concept | Token | Notes |
+| Token | Maps to | When to use |
 |---|---|---|
-| Success / read indicator | `text-green-500`, `bg-green-600`, `bg-green-50 dark:bg-green-900/20` | Mark-as-read, "saved offline" |
-| Status: ongoing | `bg-green-600` | Series status pill |
-| Status: completed | `bg-accent` | Treat as accent-tinted, not blue-tinted |
-| Status: hiatus | `bg-amber-600` | |
-| Status: cancelled / error | `bg-red-600` | |
-| Warning | `text-amber-500`, `bg-amber-50 dark:bg-amber-900/20`, `border-amber-200 dark:border-amber-800` | Duplicate import warning |
-| Destructive / error | `text-red-500`, `bg-red-50 dark:bg-red-900/20`, `border-red-200 dark:border-red-900` | Delete, error banners, NSFW badge (`bg-red-600/85`) |
+| `bg-success` / `text-success` | green-600 default | Read indicators, "saved offline", confirmation, ongoing status |
+| `bg-success/10` / `bg-success/15` | tinted | Light success-tinted background |
+| `bg-success/90` | nearly solid | "In Collection" badge over a cover image |
+| `bg-warning` / `text-warning` | amber-600 default | Pending imports, hiatus status, warning icons, duplicate-warning |
+| `bg-warning/10` / `bg-warning/15` | tinted | Warning banner background |
+| `bg-danger` / `text-danger` | red-600 default | Delete, errors, cancelled status, NSFW badge |
+| `bg-danger/10` / `bg-danger/15` | tinted | Error banner background |
+| `bg-danger/85` | nearly solid | NSFW badge (slight transparency for cover legibility) |
+| `border-warning/30` / `border-danger/30` | tinted border | Warning / error banner outlines |
 
-**Rule:** if the meaning is "primary action," use `accent`. If the meaning is "this is good / this went wrong / pay attention," use semantic.
+**Status pill mapping:**
+- `ongoing` → `bg-success` (green by default)
+- `completed` → `bg-accent/15 text-accent` (accent-tinted, theme-aware)
+- `hiatus` → `bg-warning`
+- `cancelled` → `bg-danger`
+
+**Rule:** if the meaning is "primary action / link / brand," use `accent`. If the meaning is "this is good / pay attention / this went wrong," use semantic.
 
 ### 1.4 Overlay & glass tokens (theme-independent)
 
@@ -391,7 +399,9 @@ The `dark` class is added to `<html>` alongside the `data-theme` attribute for a
 ```
 Need a primary action color?
 ├─ Always swaps with theme        → bg-accent / text-accent / ring-accent
-└─ Status / semantic meaning      → bg-{green,amber,red}-{600,500} (NOT themed)
+└─ Semantic meaning               → bg-success / bg-warning / bg-danger
+                                    (themable via --success/--warning/--danger,
+                                     stable across all 12 themes by default)
 
 Need a surface color?
 ├─ Page background                → bg-gray-50 dark:bg-gray-950
@@ -429,15 +439,14 @@ Tracked tech debt — fix opportunistically.
 
 2. **Modal sticky-header `z-10` is fine but easily confused with page-level `z-10`.** Consider documenting modal z-index as a separate scale (modal-internal: 10/20/30, page-level: 30/40, overlay: 50) to avoid future muddling.
 
-3. **No semantic tokens** for success/warning/danger. Currently using raw `green-*`/`amber-*`/`red-*`. If we ever want themes to optionally retint semantics (e.g. a colorblind-friendly theme), we'd add `--success`, `--warning`, `--danger` to themes.css and `success`/`warning`/`danger` to tailwind config.
-
-4. **SettingsPage header tokens drift.** Uses `bg-white/80 dark:bg-gray-900/80` (more transparent, dark surface = gray-900 not gray-950) instead of the canonical `bg-white/95 dark:bg-gray-950/95`. Decide if it's deliberate; if not, normalize.
+3. **SettingsPage header tokens drift.** Uses `bg-white/80 dark:bg-gray-900/80` (more transparent, dark surface = gray-900 not gray-950) instead of the canonical `bg-white/95 dark:bg-gray-950/95`. Decide if it's deliberate; if not, normalize.
 
 ---
 
 ## 13. Don'ts
 
 - ❌ `bg-blue-N` / `text-blue-N` for accent — use `accent` tokens
+- ❌ `bg-red-N` / `text-red-N` / `bg-green-N` / `bg-amber-N` for semantic intent — use `success`, `warning`, `danger` tokens
 - ❌ `100vh` / `min-h-screen` — use `100dvh` / `min-h-[100dvh]`
 - ❌ `window.confirm()` / `window.alert()` — use `<ConfirmSheet>` or inline error banner
 - ❌ Modal `<div>` inside a backdrop-filter ancestor — portal to `document.body`

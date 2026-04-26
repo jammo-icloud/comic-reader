@@ -3,10 +3,10 @@ import type { SearchResult } from '../lib/types';
 import { getSourceConfig } from '../lib/browser-sources/registry';
 
 const statusColors: Record<string, string> = {
-  ongoing: 'bg-green-600',
+  ongoing: 'bg-success',
   completed: 'bg-accent',
-  hiatus: 'bg-amber-600',
-  cancelled: 'bg-red-600',
+  hiatus: 'bg-warning',
+  cancelled: 'bg-danger',
 };
 
 export default function MangaSearchCard({
@@ -60,7 +60,7 @@ export default function MangaSearchCard({
 
         {/* Local library match badge */}
         {manga.localSeriesId && (
-          <div className={`absolute top-2 left-2 flex items-center gap-1 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm ${manga.inCollection ? 'bg-green-600/90' : 'bg-accent/90'}`}>
+          <div className={`absolute top-2 left-2 flex items-center gap-1 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm ${manga.inCollection ? 'bg-success/90' : 'bg-accent/90'}`}>
             {manga.inCollection ? <><Check size={9} /> In Collection</> : <><Library size={9} /> In Library</>}
           </div>
         )}

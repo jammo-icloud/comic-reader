@@ -110,7 +110,7 @@ export default function NotificationDropdown() {
           activeJobs.length > 0
             ? 'text-accent hover:bg-accent/15 dark:hover:bg-accent/20'
             : badgeCount > 0
-              ? 'text-amber-600 dark:text-amber-400 hover:bg-gray-200 dark:hover:bg-gray-800'
+              ? 'text-warning hover:bg-gray-200 dark:hover:bg-gray-800'
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800'
         }`}
         title="Notifications"
@@ -118,7 +118,7 @@ export default function NotificationDropdown() {
         <Zap size={18} className={activeJobs.length > 0 ? 'animate-pulse' : ''} />
         {badgeCount > 0 && (
           <span className={`absolute -top-0.5 -right-0.5 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1 ${
-            activeJobs.length > 0 ? 'bg-accent' : 'bg-amber-500'
+            activeJobs.length > 0 ? 'bg-accent' : 'bg-warning'
           }`}>
             {badgeCount}
           </span>
@@ -142,12 +142,12 @@ export default function NotificationDropdown() {
           {pendingCount > 0 && (
             <button
               onClick={() => { setOpen(false); navigate('/import'); }}
-              className="flex items-center justify-between w-full px-4 py-3 bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors border-b border-gray-200 dark:border-gray-800"
+              className="flex items-center justify-between w-full px-4 py-3 bg-warning/10 hover:bg-warning/15  transition-colors border-b border-gray-200 dark:border-gray-800"
             >
-              <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+              <span className="text-sm font-medium text-warning">
                 {pendingCount} pending import{pendingCount !== 1 ? 's' : ''}
               </span>
-              <ChevronRight size={16} className="text-amber-500" />
+              <ChevronRight size={16} className="text-warning" />
             </button>
           )}
 
@@ -218,7 +218,7 @@ export default function NotificationDropdown() {
                     </div>
                     <button
                       onClick={() => handleCancel(job.id)}
-                      className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                      className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-400 hover:text-danger transition-colors shrink-0"
                       title="Cancel"
                     >
                       <Square size={13} />
@@ -235,9 +235,9 @@ export default function NotificationDropdown() {
               {doneJobs.map((job) => (
                 <div key={job.id} className="flex items-center gap-3 px-4 py-2.5">
                   {job.status === 'complete' ? (
-                    <Check size={14} className="text-green-500 shrink-0" />
+                    <Check size={14} className="text-success shrink-0" />
                   ) : (
-                    <AlertCircle size={14} className="text-red-500 shrink-0" />
+                    <AlertCircle size={14} className="text-danger shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm truncate">{job.mangaTitle}</p>

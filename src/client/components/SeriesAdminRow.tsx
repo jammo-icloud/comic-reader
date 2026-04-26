@@ -158,7 +158,7 @@ export default function SeriesAdminRow({
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onPurge(); }}
-            className="p-2 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors"
+            className="p-2 rounded-md hover:bg-danger/10 text-gray-400 hover:text-danger transition-colors"
             title="Purge (delete files)"
             aria-label="Purge series"
           >
@@ -199,7 +199,7 @@ export default function SeriesAdminRow({
             <div className="border-t border-gray-200 dark:border-gray-800" />
             <button
               onClick={() => { setShowMenu(false); onPurge(); }}
-              className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left text-danger hover:bg-danger/10"
             >
               <Trash2 size={15} />
               <span>Purge series</span>

@@ -59,7 +59,7 @@ export default function ConfirmSheet({
         <div className="px-5 sm:px-6 pt-3 sm:pt-5 pb-2">
           <div className="flex items-start gap-3">
             {destructive && (
-              <span className="shrink-0 w-9 h-9 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400">
+              <span className="shrink-0 w-9 h-9 rounded-full bg-danger/15 dark:bg-danger/30/30 flex items-center justify-center text-danger">
                 <AlertTriangle size={18} />
               </span>
             )}
@@ -86,7 +86,7 @@ export default function ConfirmSheet({
             autoFocus
             className={`px-4 py-2.5 sm:py-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-60 min-h-[44px] sm:min-h-0 inline-flex items-center justify-center gap-2 ${
               destructive
-                ? 'bg-red-600 hover:bg-red-500'
+                ? 'bg-danger hover:bg-danger'
                 : 'bg-accent hover:bg-accent'
             }`}
           >

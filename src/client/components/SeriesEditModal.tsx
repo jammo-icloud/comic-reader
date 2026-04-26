@@ -357,7 +357,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
                               {t.translating
                                 ? <span className="text-accent">{done}/{total} ({total ? Math.round((done / total) * 100) : 0}%)</span>
                                 : done > 0
-                                  ? <span className="text-green-600 dark:text-green-500">{done}/{total || '?'}</span>
+                                  ? <span className="text-success dark:text-success">{done}/{total || '?'}</span>
                                   : <span className="text-gray-400">—</span>}
                             </td>
                           )}
@@ -375,7 +375,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
                             <button
                               onClick={() => handleDeleteComic(c.file)}
                               disabled={deletingFile === c.file}
-                              className="p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                              className="p-0.5 rounded hover:bg-danger/10 text-gray-400 hover:text-danger transition-colors disabled:opacity-50"
                               title="Delete chapter"
                             >
                               {deletingFile === c.file ? <Loader size={12} className="animate-spin" /> : <Trash2 size={12} />}
@@ -393,7 +393,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
 
           {/* Error */}
           {error && (
-            <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-4 py-2">{error}</div>
+            <div className="text-sm text-danger bg-danger/10 rounded-lg px-4 py-2">{error}</div>
           )}
 
           {/* Footer */}

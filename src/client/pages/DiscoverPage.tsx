@@ -254,11 +254,11 @@ export default function DiscoverPage() {
 
         {/* Search error */}
         {!searching && searchError && (
-          <div className="flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 rounded-lg px-4 py-3 mb-4">
-            <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2 bg-danger/10 border border-danger/30 rounded-lg px-4 py-3 mb-4">
+            <AlertCircle size={16} className="text-danger shrink-0 mt-0.5" />
             <div className="flex-1 text-sm">
-              <p className="font-medium text-red-700 dark:text-red-300">Search failed</p>
-              <p className="text-red-600 dark:text-red-400 text-xs mt-0.5">{searchError}</p>
+              <p className="font-medium text-danger">Search failed</p>
+              <p className="text-danger text-xs mt-0.5">{searchError}</p>
             </div>
           </div>
         )}

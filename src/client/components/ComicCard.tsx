@@ -20,7 +20,7 @@ export default function ComicCard({ comic, seriesId, hideSeries }: { comic: Comi
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
         {comic.isRead && (
-          <div className="absolute top-2 right-2 bg-green-600/90 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
+          <div className="absolute top-2 right-2 bg-success/90 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
             <Check size={12} strokeWidth={3} /> Read
           </div>
         )}
@@ -34,7 +34,7 @@ export default function ComicCard({ comic, seriesId, hideSeries }: { comic: Comi
             <div className="h-full bg-accent" style={{ width: `${progress}%` }} />
           </div>
         )}
-        {comic.isRead && <div className="absolute bottom-0 left-0 right-0 h-1 bg-green-500" />}
+        {comic.isRead && <div className="absolute bottom-0 left-0 right-0 h-1 bg-success" />}
       </div>
       <div className="p-3">
         <h3 className="text-sm font-medium truncate">{comic.file.replace('.pdf', '')}</h3>

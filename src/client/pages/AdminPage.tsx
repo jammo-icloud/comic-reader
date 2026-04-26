@@ -525,9 +525,9 @@ export default function AdminPage() {
               <div key={task.id} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
                 <div className="flex items-center gap-3">
                   {task.status === 'downloading' && <Loader size={14} className="animate-spin text-accent shrink-0" />}
-                  {task.status === 'queued' && <Zap size={14} className="text-amber-500 shrink-0" />}
-                  {task.status === 'complete' && <Check size={14} className="text-green-500 shrink-0" />}
-                  {task.status === 'error' && <AlertCircle size={14} className="text-red-500 shrink-0" />}
+                  {task.status === 'queued' && <Zap size={14} className="text-warning shrink-0" />}
+                  {task.status === 'complete' && <Check size={14} className="text-success shrink-0" />}
+                  {task.status === 'error' && <AlertCircle size={14} className="text-danger shrink-0" />}
 
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{task.mangaTitle}</p>
@@ -546,7 +546,7 @@ export default function AdminPage() {
                   <div className="flex items-center gap-1 shrink-0">
                     {(task.status === 'downloading' || task.status === 'queued') && (
                       <button onClick={async () => { await cancelAdminTask(task.id); refreshTasks(); }}
-                        className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-red-500 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+                        className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-danger transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
                         title="Cancel" aria-label="Cancel task"
                       >
                         <Square size={14} />
@@ -561,7 +561,7 @@ export default function AdminPage() {
                       </button>
                     )}
                     <button onClick={async () => { await deleteAdminTask(task.id); refreshTasks(); }}
-                      className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-red-500 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+                      className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-danger transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
                       title="Delete" aria-label="Delete task"
                     >
                       <Trash2 size={14} />
@@ -714,7 +714,7 @@ export default function AdminPage() {
                             setSubscriptions((prev) => prev.filter((x) => x.id !== s.id));
                           },
                         })}
-                        className="p-2 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+                        className="p-2 rounded-md hover:bg-danger/10 text-gray-400 hover:text-danger transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
                         title="Unsubscribe"
                         aria-label="Unsubscribe"
                       >
@@ -851,8 +851,8 @@ function StatCard({
   accent?: 'blue' | 'amber' | 'red';
 }) {
   const valueColor = accent === 'blue' ? 'text-accent'
-    : accent === 'amber' ? 'text-amber-600 dark:text-amber-400'
-    : accent === 'red' ? 'text-red-600 dark:text-red-400'
+    : accent === 'amber' ? 'text-warning'
+    : accent === 'red' ? 'text-danger'
     : '';
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-3 sm:p-4">

@@ -207,12 +207,12 @@ export default function ImportPage() {
           />
 
           {crzMessage && (
-            <p className="inline-flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 mt-1">
+            <p className="inline-flex items-center gap-1.5 text-xs text-success mt-1">
               <CheckCircle size={12} /> {crzMessage}
             </p>
           )}
           {uploadError && (
-            <p className="inline-flex items-center gap-1.5 text-xs text-red-500 mt-1">
+            <p className="inline-flex items-center gap-1.5 text-xs text-danger mt-1">
               <AlertCircle size={12} /> {uploadError}
             </p>
           )}
@@ -269,7 +269,7 @@ export default function ImportPage() {
               {watchItems.map((item) => (
                 <div key={item.name} className="flex items-center gap-3 px-5 py-2.5">
                   {item.isDirectory ? (
-                    <FolderOpen size={14} className="text-amber-500 shrink-0" />
+                    <FolderOpen size={14} className="text-warning shrink-0" />
                   ) : (
                     <FileText size={14} className="text-gray-400 shrink-0" />
                   )}
@@ -321,12 +321,12 @@ export default function ImportPage() {
                 </button>
               </div>
               {scanError && (
-                <p className="inline-flex items-center gap-1 text-xs text-red-500 mt-2">
+                <p className="inline-flex items-center gap-1 text-xs text-danger mt-2">
                   <AlertCircle size={12} /> {scanError}
                 </p>
               )}
               {scanResult && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-2">{scanResult}</p>
+                <p className="text-xs text-success mt-2">{scanResult}</p>
               )}
             </form>
           )}

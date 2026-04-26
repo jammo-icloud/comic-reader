@@ -203,7 +203,7 @@ function SeriesGrid({ items, offlineSeries }: { items: Series[]; offlineSeries: 
               />
               {isNsfw && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <span className="text-[10px] text-white bg-red-600/85 px-2 py-0.5 rounded-full font-medium shadow-sm">NSFW</span>
+                  <span className="text-[10px] text-white bg-danger/85 px-2 py-0.5 rounded-full font-medium shadow-sm">NSFW</span>
                 </div>
               )}
               {offlineSeries.has(s.id) && (
@@ -227,7 +227,7 @@ function SeriesGrid({ items, offlineSeries }: { items: Series[]; offlineSeries: 
                 <span className="text-xs text-gray-500 dark:text-gray-400">{s.count} ch.</span>
                 <span className="text-xs text-gray-400 dark:text-gray-500">{s.readCount}/{s.count}</span>
                 {s.score != null && s.score > 0 && (
-                  <span className="text-xs text-amber-600 dark:text-amber-400 ml-auto">{s.score.toFixed(1)}</span>
+                  <span className="text-xs text-warning ml-auto">{s.score.toFixed(1)}</span>
                 )}
               </div>
             </div>

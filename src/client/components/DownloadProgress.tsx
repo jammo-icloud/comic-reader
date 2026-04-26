@@ -82,7 +82,7 @@ export default function DownloadProgress() {
             </div>
             <button
               onClick={() => handleCancel(job.id)}
-              className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+              className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-400 hover:text-danger transition-colors shrink-0"
               title="Cancel download"
             >
               <Square size={14} />
@@ -93,11 +93,11 @@ export default function DownloadProgress() {
         {doneJobs.map((job) => (
           <div key={job.id} className="flex items-center gap-3 text-sm">
             {job.status === 'complete' ? (
-              <Check size={14} className="text-green-500 shrink-0" />
+              <Check size={14} className="text-success shrink-0" />
             ) : (
-              <AlertCircle size={14} className="text-red-500 shrink-0" />
+              <AlertCircle size={14} className="text-danger shrink-0" />
             )}
-            <span className={job.status === 'complete' ? 'text-green-600 dark:text-green-400' : 'text-red-500'}>
+            <span className={job.status === 'complete' ? 'text-success' : 'text-danger'}>
               {job.mangaTitle}
             </span>
             <span className="text-xs text-gray-400">

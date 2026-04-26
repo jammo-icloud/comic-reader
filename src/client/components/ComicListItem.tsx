@@ -22,7 +22,7 @@ export default function ComicListItem({ comic, seriesId, onToggleRead }: { comic
     >
       <button onClick={handleToggle} className="shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={comic.isRead ? 'Mark as unread' : 'Mark as read'}>
         {comic.isRead ? (
-          <Check size={16} strokeWidth={2.5} className="text-green-500" />
+          <Check size={16} strokeWidth={2.5} className="text-success" />
         ) : comic.currentPage > 0 ? (
           <div className="w-3 h-3 rounded-full border-2 border-accent border-t-transparent" />
         ) : (
@@ -37,7 +37,7 @@ export default function ComicListItem({ comic, seriesId, onToggleRead }: { comic
 
       <div className="shrink-0 text-right">
         {comic.isRead ? (
-          <span className="text-xs text-green-600 dark:text-green-400">{comic.pages || '?'} pages</span>
+          <span className="text-xs text-success">{comic.pages || '?'} pages</span>
         ) : comic.currentPage > 0 ? (
           <span className="text-xs text-accent">p.{comic.currentPage + 1}/{comic.pages || '?'}</span>
         ) : (
