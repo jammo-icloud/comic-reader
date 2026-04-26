@@ -444,7 +444,7 @@ export default function SeriesPage() {
       <div ref={sentinelRef} className="h-px" />
 
       {/* ===== Sticky chapter toolbar ===== */}
-      <div className={`sticky top-0 z-20 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md transition-shadow ${pinned ? 'shadow-md border-b border-gray-200 dark:border-gray-800' : 'border-b border-gray-200/60 dark:border-gray-800/60'}`}>
+      <div className={`sticky top-0 z-20 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md transition-shadow ${pinned ? 'shadow-md border-b border-gray-200 dark:border-gray-800' : 'border-b border-gray-200/60 dark:border-gray-800/60'}`}>
         {/* When pinned, reserve space on each side so the floating Back / ⋯ buttons
             (fixed at top-3 left/right) don't cover the toolbar's content. */}
         <div className={`max-w-5xl mx-auto py-2.5 flex items-center gap-2 transition-[padding] ${
@@ -518,7 +518,7 @@ export default function SeriesPage() {
             {showSortMenu && (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-10 min-w-[10rem] bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden text-sm z-30"
+                className="absolute right-0 top-10 min-w-[10rem] bg-surface dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden text-sm z-30"
               >
                 <SortItem active={sortMode === 'order-asc'} onClick={() => { setSortMode('order-asc'); setShowSortMenu(false); }}>
                   Chapter ↑ (1→N)

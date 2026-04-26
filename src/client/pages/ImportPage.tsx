@@ -151,7 +151,7 @@ export default function ImportPage() {
     <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
 
       {/* ===== Library-shape header ===== */}
-      <header className="sticky top-0 z-30 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+      <header className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
         <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-1.5">
           <img src="/logo.png" alt="Comic Reader" className="h-10 w-10 rounded-lg shrink-0" />
           <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-1" />
@@ -219,7 +219,7 @@ export default function ImportPage() {
         </section>
 
         {/* ===== Watch folder ===== */}
-        <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <section className="bg-surface dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <div className="flex items-center justify-between gap-2 px-5 py-3 border-b border-gray-100 dark:border-gray-800">
             <div className="min-w-0">
               <h2 className="text-sm font-semibold flex items-center gap-2">
@@ -284,7 +284,7 @@ export default function ImportPage() {
         </section>
 
         {/* ===== Scan a NAS folder (collapsed by default — secondary path) ===== */}
-        <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <section className="bg-surface dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <button
             onClick={() => setShowFolderScan((v) => !v)}
             className="w-full flex items-center justify-between gap-2 px-5 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"

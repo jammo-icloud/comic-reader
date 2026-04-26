@@ -123,7 +123,7 @@ export default function DiscoverPage() {
     <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
 
       {/* ===== Library-shape header ===== */}
-      <header className="sticky top-0 z-30 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+      <header className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
         <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-1.5">
           <img src="/logo.png" alt="Comic Reader" className="h-10 w-10 rounded-lg shrink-0" />
           <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-1" />
@@ -308,7 +308,7 @@ export default function DiscoverPage() {
           <div
             role="dialog"
             aria-modal="true"
-            className="relative w-full sm:max-w-lg bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden mx-0 sm:mx-4 max-h-[90dvh] overflow-y-auto"
+            className="relative w-full sm:max-w-lg bg-surface dark:bg-gray-900 rounded-t-2xl sm:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden mx-0 sm:mx-4 max-h-[90dvh] overflow-y-auto"
             style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
           >
             <div className="sm:hidden flex justify-center pt-2 pb-1">
@@ -397,7 +397,7 @@ function SourcePill({
       className={`shrink-0 inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full text-xs font-medium border transition-colors min-h-[28px] ${
         selected
           ? 'text-white border-transparent shadow-sm'
-          : 'text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+          : 'text-gray-700 dark:text-gray-300 bg-surface dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
       }`}
       style={selected ? { backgroundColor: hex } : undefined}
     >
@@ -484,7 +484,7 @@ function SkeletonGrid() {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 animate-pulse">
       {cells.map((_, i) => (
-        <div key={i} className="bg-white dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800">
+        <div key={i} className="bg-surface dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800">
           <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800" />
           <div className="p-3 space-y-2">
             <div className="h-3 rounded bg-gray-100 dark:bg-gray-800 w-3/4" />

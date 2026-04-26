@@ -60,9 +60,9 @@ export default function SeriesAdminRow({
     ? selected
       ? 'bg-accent/10 dark:bg-accent/15 ring-2 ring-accent'
       : selectable
-        ? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50 ring-1 ring-gray-200 dark:ring-gray-800'
-        : 'bg-white dark:bg-gray-900 ring-1 ring-gray-200 dark:ring-gray-800 opacity-50'
-    : 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50 ring-1 ring-gray-200 dark:ring-gray-800';
+        ? 'bg-surface dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50 ring-1 ring-gray-200 dark:ring-gray-800'
+        : 'bg-surface dark:bg-gray-900 ring-1 ring-gray-200 dark:ring-gray-800 opacity-50'
+    : 'bg-surface dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50 ring-1 ring-gray-200 dark:ring-gray-800';
 
   const rowDisabled = selectMode && !selectable && !selected;
 
@@ -180,7 +180,7 @@ export default function SeriesAdminRow({
         {showMenu && (
           <div
             onClick={(e) => e.stopPropagation()}
-            className="absolute right-0 top-10 min-w-[12rem] bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden text-sm z-30"
+            className="absolute right-0 top-10 min-w-[12rem] bg-surface dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden text-sm z-30"
           >
             <button
               onClick={() => { setShowMenu(false); onEdit(); }}

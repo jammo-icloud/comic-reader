@@ -39,7 +39,7 @@ export default function ContinueShelf({ items }: { items: ContinueReadingItem[] 
               <Link
                 key={`${item.seriesId}/${item.file}`}
                 to={`/read/${item.seriesId}/${item.file}`}
-                className="group snap-start shrink-0 w-[220px] flex items-center gap-3 p-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-accent hover:shadow-md transition-all"
+                className="group snap-start shrink-0 w-[220px] flex items-center gap-3 p-2 rounded-xl bg-surface dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-accent hover:shadow-md transition-all"
               >
                 {/* Mini cover with play overlay */}
                 <div className="relative w-10 h-14 rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800 shrink-0 ring-1 ring-black/5 dark:ring-white/5">

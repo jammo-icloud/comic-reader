@@ -25,6 +25,12 @@
   --success: 22 163 74;        /* green-600 */
   --warning: 217 119 6;        /* amber-600 */
   --danger:  220 38 38;        /* red-600 */
+
+  /* Card surface — used by `bg-surface`. Theme-aware so warm-paper themes
+     (Tankobon, Newsprint, etc.) don't get stark pure-white cards on a beige
+     page. One step lighter than gray-50. Dark themes use `dark:bg-gray-900`,
+     so this token only matters for light mode. */
+  --surface: 255 255 255;
 }
 
 /* ==================== DARK THEMES ==================== */
@@ -148,6 +154,7 @@
   --gray-950: 44 48 65;
   --accent: 136 57 239;
   --accent-hover: 114 135 253;
+  --surface: 250 251 254;
 }
 
 /* Dawn (Rose Pine) — warm parchment */
@@ -165,6 +172,7 @@
   --gray-950: 32 30 48;
   --accent: 144 122 169;
   --accent-hover: 215 130 126;
+  --surface: 255 250 244;
 }
 
 /* Alucard (Dracula Light) — aged ivory */
@@ -182,6 +190,7 @@
   --gray-950: 22 22 22;
   --accent: 100 74 201;
   --accent-hover: 189 147 249;
+  --surface: 255 254 245;
 }
 
 /* Gruvbox Sand — retro warm with bold orange */
@@ -199,6 +208,7 @@
   --gray-950: 29 32 33;
   --accent: 214 93 14;
   --accent-hover: 152 151 26;
+  --surface: 255 248 220;
 }
 
 /* Tankobon — authentic manga paper */
@@ -216,6 +226,7 @@
   --gray-950: 18 16 14;
   --accent: 230 53 37;
   --accent-hover: 38 67 72;
+  --surface: 250 245 230;
 }
 
 /* Newsprint — classic comic book paper */
@@ -233,4 +244,5 @@
   --gray-950: 15 14 12;
   --accent: 226 0 37;
   --accent-hover: 0 96 170;
+  --surface: 252 245 220;
 }

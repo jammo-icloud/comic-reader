@@ -128,7 +128,7 @@ export default function ProfileMenu({ sections, triggerVariant = 'header' }: Pro
             role="dialog"
             aria-modal="true"
             aria-labelledby="profile-menu-username"
-            className="fixed left-0 right-0 bottom-0 sm:left-auto sm:right-3 sm:bottom-auto sm:top-14 sm:w-72 bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 max-h-[90dvh] overflow-y-auto"
+            className="fixed left-0 right-0 bottom-0 sm:left-auto sm:right-3 sm:bottom-auto sm:top-14 sm:w-72 bg-surface dark:bg-gray-900 rounded-t-2xl sm:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 max-h-[90dvh] overflow-y-auto"
             style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
           >
             {/* Drag handle (mobile only) */}

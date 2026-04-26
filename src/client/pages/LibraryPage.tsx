@@ -124,7 +124,7 @@ export default function LibraryPage() {
     <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
 
       {/* ===== Slim page header ===== */}
-      <header className="sticky top-0 z-30 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+      <header className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
         <div className="max-w-7xl mx-auto px-4 py-1.5 flex items-center gap-2 h-12">
           <Link to="/" className="shrink-0">
             <img src="/logo.png" alt="Comic Reader" className="h-8 w-8 rounded-md" />
@@ -188,7 +188,7 @@ function SeriesGrid({ items, offlineSeries }: { items: Series[]; offlineSeries: 
           <Link
             key={s.id}
             to={`/series/${s.id}`}
-            className="group bg-white dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
+            className="group bg-surface dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
           >
             <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 overflow-hidden relative">
               <img
@@ -244,7 +244,7 @@ function OnboardingCards() {
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
       <Link
         to="/import"
-        className="group bg-white dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
+        className="group bg-surface dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
       >
         <div className="aspect-[2/3] bg-gradient-to-br from-accent to-accent-hover overflow-hidden relative">
           <img
@@ -261,7 +261,7 @@ function OnboardingCards() {
       </Link>
       <Link
         to="/discover"
-        className="group bg-white dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
+        className="group bg-surface dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
       >
         <div className="aspect-[2/3] bg-gradient-to-br from-purple-500 to-pink-600 overflow-hidden relative">
           <img

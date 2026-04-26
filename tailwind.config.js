@@ -25,6 +25,7 @@ export default {
         success: 'rgb(var(--success) / <alpha-value>)',
         warning: 'rgb(var(--warning) / <alpha-value>)',
         danger: 'rgb(var(--danger) / <alpha-value>)',
+        surface: 'rgb(var(--surface) / <alpha-value>)',
       },
     },
   },

@@ -186,7 +186,7 @@ export default function LibraryToolbar({
               {showTagMenu && (
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute right-0 top-full mt-1 w-72 sm:w-80 max-h-[60vh] overflow-y-auto bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 z-30"
+                  className="absolute right-0 top-full mt-1 w-72 sm:w-80 max-h-[60vh] overflow-y-auto bg-surface dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 z-30"
                 >
                   <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-800">
                     <span className="text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
@@ -245,7 +245,7 @@ export default function LibraryToolbar({
               {showSortMenu && (
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute right-0 top-full mt-1 min-w-[12rem] bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden z-30"
+                  className="absolute right-0 top-full mt-1 min-w-[12rem] bg-surface dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden z-30"
                 >
                   {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => {
                     const active = sortBy === mode;

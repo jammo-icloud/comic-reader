@@ -137,11 +137,11 @@ export default function MergeModal({ seriesA, seriesB, onClose, onComplete }: Me
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-5xl mx-4 max-h-full overflow-y-auto"
+        className="relative bg-surface dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-5xl mx-4 max-h-full overflow-y-auto"
       >
 
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-t-xl">
+        <div className="sticky top-0 z-10 flex items-center gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-800 bg-surface dark:bg-gray-900 rounded-t-xl">
           <GitMerge size={18} className="text-accent" />
           <h2 id={titleId} className="text-lg font-semibold flex-1">Merge Series</h2>
           <button

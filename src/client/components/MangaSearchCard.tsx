@@ -22,7 +22,7 @@ export default function MangaSearchCard({
   return (
     <button
       onClick={onClick}
-      className="group text-left bg-white dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 hover:ring-2 hover:ring-accent hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 relative"
+      className="group text-left bg-surface dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 hover:ring-2 hover:ring-accent hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 relative"
     >
       {/* Source-color accent: 3px top edge. Subtle but identifiable per-source. */}
       <div

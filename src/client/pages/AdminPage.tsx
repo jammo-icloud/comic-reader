@@ -232,7 +232,7 @@ export default function AdminPage() {
           Row 2: tab strip (Library | Tasks | Subscriptions | Users)
           Sticky at top:0, z-30.
           ======================================================================== */}
-      <header className="sticky top-0 z-30 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+      <header className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
         {/* Row 1 */}
         <div className="max-w-6xl mx-auto px-3 sm:px-6 py-2 flex items-center gap-2">
           <button
@@ -522,7 +522,7 @@ export default function AdminPage() {
               </div>
             )}
             {tasks.map((task) => (
-              <div key={task.id} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+              <div key={task.id} className="bg-surface dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
                 <div className="flex items-center gap-3">
                   {task.status === 'downloading' && <Loader size={14} className="animate-spin text-accent shrink-0" />}
                   {task.status === 'queued' && <Zap size={14} className="text-warning shrink-0" />}
@@ -654,7 +654,7 @@ export default function AdminPage() {
             {!loadingSubs && subscriptions.length > 0 && (
               <div className="space-y-1.5">
                 {subscriptions.map((s) => (
-                  <div key={s.id} className="bg-white dark:bg-gray-900 rounded-xl ring-1 ring-gray-200 dark:ring-gray-800 px-4 py-3 md:py-2.5 grid grid-cols-[1fr_auto] md:grid-cols-[1fr_minmax(140px,200px)_80px_minmax(120px,160px)_auto] md:items-center gap-x-3 gap-y-1">
+                  <div key={s.id} className="bg-surface dark:bg-gray-900 rounded-xl ring-1 ring-gray-200 dark:ring-gray-800 px-4 py-3 md:py-2.5 grid grid-cols-[1fr_auto] md:grid-cols-[1fr_minmax(140px,200px)_80px_minmax(120px,160px)_auto] md:items-center gap-x-3 gap-y-1">
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{s.name}</p>
                       {s.englishTitle && s.englishTitle !== s.name && (
@@ -743,7 +743,7 @@ export default function AdminPage() {
             {!loadingUsers && users.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {users.map((u) => (
-                  <div key={u.username} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                  <div key={u.username} className="bg-surface dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
                     <div className="flex items-center gap-3">
                       <Avatar username={u.username} size="lg" />
                       <div className="flex-1 min-w-0">
@@ -764,7 +764,7 @@ export default function AdminPage() {
       {/* ===== Selection footer (Library, multi-select mode) ===== */}
       {tab === 'library' && selectMode && (
         <div
-          className="fixed left-0 right-0 bottom-0 z-30 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 shadow-2xl"
+          className="fixed left-0 right-0 bottom-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 shadow-2xl"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
@@ -855,7 +855,7 @@ function StatCard({
     : accent === 'red' ? 'text-danger'
     : '';
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-3 sm:p-4">
+    <div className="bg-surface dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-3 sm:p-4">
       <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 text-[11px] sm:text-xs mb-1">
         {icon} <span className="truncate">{label}</span>
       </div>

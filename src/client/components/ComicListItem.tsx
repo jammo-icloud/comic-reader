@@ -18,7 +18,7 @@ export default function ComicListItem({ comic, seriesId, onToggleRead }: { comic
   return (
     <Link
       to={`/read/${seriesId}/${comic.file}`}
-      className="group flex items-center gap-4 bg-white dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent px-4 py-2.5"
+      className="group flex items-center gap-4 bg-surface dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent px-4 py-2.5"
     >
       <button onClick={handleToggle} className="shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={comic.isRead ? 'Mark as unread' : 'Mark as read'}>
         {comic.isRead ? (

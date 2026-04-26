@@ -130,7 +130,7 @@ export default function NotificationDropdown() {
       {open && createPortal(
         <div
           ref={popoverRef}
-          className="fixed top-14 left-2 right-2 sm:left-auto sm:right-3 sm:w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-[80dvh] overflow-y-auto"
+          className="fixed top-14 left-2 right-2 sm:left-auto sm:right-3 sm:w-80 bg-surface dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-[80dvh] overflow-y-auto"
         >
           {!hasContent && (
             <div className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">

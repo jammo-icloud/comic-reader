@@ -9,7 +9,7 @@ export default function ComicCard({ comic, seriesId, hideSeries }: { comic: Comi
   return (
     <Link
       to={`/read/${seriesId}/${comic.file}`}
-      className="group block bg-white dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
+      className="group block bg-surface dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
     >
       <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
         <img

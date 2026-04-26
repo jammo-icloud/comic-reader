@@ -120,7 +120,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center">
         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-        <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-8">
+        <div className="relative bg-surface dark:bg-gray-900 rounded-xl shadow-2xl p-8">
           <Loader size={24} className="animate-spin text-accent" />
         </div>
       </div>,
@@ -132,7 +132,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center">
         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-        <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-8 text-center max-w-sm mx-4">
+        <div className="relative bg-surface dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-8 text-center max-w-sm mx-4">
           {polling ? (
             <>
               <Loader size={32} className="mx-auto text-accent mb-3 animate-spin" />
@@ -171,7 +171,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-lg mx-4 overflow-hidden"
+        className="relative bg-surface dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-lg mx-4 overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-800">

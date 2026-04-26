@@ -48,7 +48,7 @@ export default function ConfirmSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-sheet-title"
-        className="relative w-full sm:max-w-md bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden mx-0 sm:mx-4 mb-0 sm:mb-0"
+        className="relative w-full sm:max-w-md bg-surface dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden mx-0 sm:mx-4 mb-0 sm:mb-0"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {/* Drag handle (mobile only) */}

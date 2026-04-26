@@ -66,7 +66,7 @@ export default function ChapterPicker({ manga, chapters, loading, localChapterNu
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col overflow-hidden"
+        className="relative bg-surface dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-start gap-4 px-6 py-4 border-b border-gray-200 dark:border-gray-800 shrink-0">

@@ -26,7 +26,7 @@ gray: {
 | `bg-gray-50` / `dark:bg-gray-950` | Page background |
 | `bg-gray-100` / `dark:bg-gray-800` | Subtle surface (toggles, segmented controls, input bg) |
 | `bg-gray-200` / `dark:bg-gray-700` | Stronger surface (selected segment, separator strip) |
-| `bg-white` / `dark:bg-gray-900` | Card surface |
+| `bg-surface` / `dark:bg-gray-900` | **Card / modal surface** — see §1.2 below for details |
 | `border-gray-200` / `dark:border-gray-800` | Default border |
 | `border-gray-100` / `dark:border-gray-800` | Subtle separator inside a card |
 | `text-gray-900` / `dark:text-gray-100` | Body text |
@@ -37,7 +37,29 @@ gray: {
 
 **Rule:** light/dark pairs use complementary numeric tokens (50 ↔ 950, 100 ↔ 900, etc.). Don't break this pairing — it's how each theme's brightness curve stays balanced.
 
-### 1.2 Theme-aware: accent
+### 1.2 Theme-aware: surface
+
+`--surface` is the **card / modal background** in light mode. It exists because in warm-paper light themes (Tankobon, Newsprint, Gruvbox Sand, etc.), the page bg is a beige and `bg-white` reads as a stark, disconnected stripe of pure white over the warm page. With `--surface`, cards pick up a slightly-lifted-from-page-bg cream that harmonizes per theme.
+
+| Theme | `--gray-50` (page) | `--surface` (card) |
+|---|---|---|
+| Default | 249 250 251 (near-white) | 255 255 255 (white) |
+| Latte | 239 241 245 (cool lavender) | 250 251 254 (lifted cool) |
+| Dawn | 250 244 237 (warm parchment) | 255 250 244 (lifted warm) |
+| Alucard | 255 251 235 (aged ivory) | 255 254 245 (lifted ivory) |
+| Gruvbox Sand | 251 241 199 (retro sand) | 255 248 220 (lifted cream) |
+| Tankobon | 237 232 213 (manga paper) | 250 245 230 (lifted cream) |
+| Newsprint | 242 232 201 (comic paper) | 252 245 220 (lifted cream) |
+
+The token only matters in light mode — dark themes use `dark:bg-gray-900` (which is theme-aware via the gray var system, no `--surface` override needed). So the canonical card pattern is:
+
+```tsx
+<div className="bg-surface dark:bg-gray-900 …" />
+```
+
+**Sticky chrome (page header + StickyToolbar)** does NOT use `--surface` — it uses `bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md` so the sticky strip blends with the page bg (slight transparency for the glass effect). Stick chrome is "the page extending up," not a card.
+
+### 1.3 Theme-aware: accent
 
 Each theme defines `--accent` and `--accent-hover` for its primary action color (Midnight=purple, Tankobon=red, Latte=lavender, etc.). Wired into Tailwind as `accent` and `accent-hover`.
 
@@ -64,7 +86,7 @@ Each theme defines `--accent` and `--accent-hover` for its primary action color 
 - `accent/20` ≈ what `dark:bg-blue-900/30` used to render (dark-mode active)
 - `accent/30` ≈ what `dark:bg-blue-900/40` used to render (strongest dark-mode tint)
 
-### 1.3 Semantic tokens — themable but stable by default
+### 1.4 Semantic tokens — themable but stable by default
 
 `--success`, `--warning`, `--danger` defined in `themes.css` and wired into Tailwind as `success`, `warning`, `danger`. Defaults: `green-600`, `amber-600`, `red-600`. Themes can override per-theme if a designer wants a coordinated palette (e.g. a colorblind-friendly variant), but the default values are stable across all 12 themes — switching to Tankobon does NOT make errors orange.
 
@@ -88,7 +110,7 @@ Each theme defines `--accent` and `--accent-hover` for its primary action color 
 
 **Rule:** if the meaning is "primary action / link / brand," use `accent`. If the meaning is "this is good / pay attention / this went wrong," use semantic.
 
-### 1.4 Overlay & glass tokens (theme-independent)
+### 1.5 Overlay & glass tokens (theme-independent)
 
 Floating UI over content (Reader page, Series cover backdrop) uses fixed black/white scrims so it stays legible regardless of the theme behind it.
 
@@ -98,7 +120,7 @@ Floating UI over content (Reader page, Series cover backdrop) uses fixed black/w
 | `bg-black/50 backdrop-blur-sm` | Modal/sheet backdrop |
 | `bg-black/60` | Strong card-overlay strip (source name on cover, offline badge) |
 | `bg-black/90 backdrop-blur-md` | Reader bottom toolbar surface |
-| `bg-white/95 dark:bg-gray-950/95 backdrop-blur-md` | Sticky page header / sticky toolbar |
+| `bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md` | Sticky page header / sticky toolbar (theme-aware page bg, transparent for glass) |
 | `bg-white/20 ring-1 ring-white/20` | Avatar over dark backdrop (`onDark` variant) |
 | `bg-white/10` (hover) | Reader toolbar button hover (over its dark surface) |
 | `backdrop-blur-md` | Default blur for sticky surfaces |
@@ -324,10 +346,12 @@ Use `<StickyToolbar topPx={N}>` where `N` is the page-header height in pixels (4
 ### 8.4 Card
 
 ```tsx
-<div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm dark:shadow-none">
+<div className="bg-surface dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 shadow-sm dark:shadow-none">
 ```
 
 For interactive cards: add `hover:ring-2 hover:ring-accent transition-all`.
+
+The `bg-surface` token is theme-aware in light mode (lifts above the page bg per theme — see §1.2). In dark mode, `dark:bg-gray-900` carries the load (gray-900 is theme-aware via the gray var system).
 
 ### 8.5 Modal / sheet
 
@@ -425,8 +449,9 @@ Need a primary action color?
 
 Need a surface color?
 ├─ Page background                → bg-gray-50 dark:bg-gray-950
-├─ Card                           → bg-white dark:bg-gray-900 + border-gray-200 dark:border-gray-800
+├─ Card / modal                   → bg-surface dark:bg-gray-900 + border-gray-200 dark:border-gray-800
 ├─ Subtle (input, segmented)      → bg-gray-100 dark:bg-gray-800
+├─ Sticky page chrome             → bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md
 └─ Floating over content          → bg-black/40 backdrop-blur-md text-white (theme-independent)
 
 Need a text color?
@@ -467,6 +492,8 @@ Tracked tech debt — fix opportunistically.
 
 - ❌ `bg-blue-N` / `text-blue-N` for accent — use `accent` tokens
 - ❌ `bg-red-N` / `text-red-N` / `bg-green-N` / `bg-amber-N` for semantic intent — use `success`, `warning`, `danger` tokens
+- ❌ `bg-white` for cards and modals — use `bg-surface` so warm-paper themes (Tankobon, Newsprint, Gruvbox Sand, Alucard, Latte, Dawn) don't get stark pure-white cards on a beige page
+- ❌ `bg-white/95` for sticky page chrome — use `bg-gray-50/85` so the chrome blends with the theme's page bg instead of standing out as a pure-white stripe
 - ❌ `100vh` / `min-h-screen` — use `100dvh` / `min-h-[100dvh]`
 - ❌ `window.confirm()` / `window.alert()` — use `<ConfirmSheet>` for confirmation, or inline error banner (set `error` state, render in a styled `<div className="bg-danger/10 border border-danger/30 …">` near the action)
 - ❌ Modal `<div>` inside a backdrop-filter ancestor — portal to `document.body`

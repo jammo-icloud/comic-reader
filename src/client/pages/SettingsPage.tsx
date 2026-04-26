@@ -123,7 +123,7 @@ export default function SettingsPage() {
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
         {/* Theme Picker */}
-        <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <section className="bg-surface dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
             <h2 className="text-sm font-semibold">Theme</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Choose your reading atmosphere</p>
@@ -147,7 +147,7 @@ export default function SettingsPage() {
         </section>
 
         {/* Safe Mode */}
-        <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <section className="bg-surface dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
             <h2 className="text-sm font-semibold">Content Filtering</h2>
           </div>
@@ -188,7 +188,7 @@ export default function SettingsPage() {
 
         {/* Translation (admin only) */}
         {isAdmin && transConfig && (
-          <section className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+          <section className="bg-surface dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
               <h2 className="text-sm font-semibold flex items-center gap-2">
                 <Languages size={14} /> Translation (Admin)

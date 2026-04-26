@@ -75,7 +75,7 @@ export default function StickyToolbar({
     <>
       <div ref={sentinelRef} className="h-px" />
       <div
-        className={`sticky z-20 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md transition-shadow ${
+        className={`sticky z-20 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md transition-shadow ${
           pinned
             ? 'shadow-md border-b border-gray-200 dark:border-gray-800'
             : 'border-b border-gray-200/60 dark:border-gray-800/60'
