@@ -686,12 +686,58 @@ export function queueDownload(
   metadata?: DownloadJob['metadata'],
   username?: string,
 ): DownloadJob {
+  const user = username || process.env.DEFAULT_USER || 'local';
+  const sourceId = metadata?.sourceId || '';
+
+  // Dedupe on enqueue. If a queued or actively-downloading job already exists
+  // for the same (series + source + user) tuple, merge new chapters into it
+  // instead of creating a duplicate. This kills the "rapid double-click =
+  // two identical jobs" footgun where the second job replays everything
+  // after the first finishes (mostly fast-skipping via the existence check,
+  // but still pointless work and clutter in the queue).
+  //
+  // Match key: mangaDexId is the source's manga ID (legacy field name —
+  // not necessarily MangaDex). Combined with sourceId it uniquely identifies
+  // the same series across sources. Username scopes per-user so two users
+  // can independently queue the same series.
+  const existing = loadAllTasks().find(
+    (t) =>
+      (t.status === 'queued' || t.status === 'downloading') &&
+      t.mangaDexId === mangaDexId &&
+      t.username === user &&
+      (t.metadata?.sourceId || '') === sourceId,
+  );
+
+  if (existing) {
+    const existingIds = new Set(existing.chapters.map((c) => c.id));
+    const newChapters = chapters.filter((c) => !existingIds.has(c.id));
+    if (newChapters.length === 0) {
+      console.log(`  Duplicate enqueue for "${mangaTitle}" — nothing new to add (job ${existing.id})`);
+      return existing;
+    }
+    // Append new chapters to the end of the existing list. The processQueue
+    // loop reads job.chapters.length on each iteration, so appending while
+    // a job is mid-process is safe — newly-added chapters get reached when
+    // the loop catches up. Order within the appended slice is preserved.
+    existing.chapters = [...existing.chapters, ...newChapters];
+    existing.progress.total = existing.chapters.length;
+    saveTask(existing);
+    emitProgress(existing);
+    console.log(
+      `  Merged ${newChapters.length} new chapter(s) into existing job for "${mangaTitle}" (${existing.id}, now ${existing.chapters.length} total)`,
+    );
+    // Make sure the queue is running. If the existing job was already finishing
+    // up and processQueue exited, kicking it again wakes it for the new chapters.
+    setTimeout(() => processQueue(), 0);
+    return existing;
+  }
+
   const job: DownloadJob = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     mangaDexId,
     mangaTitle,
     shelfId,
-    username: username || process.env.DEFAULT_USER || 'local',
+    username: user,
     chapters,
     status: 'queued',
     progress: { current: 0, total: chapters.length, currentChapter: null, pagesDownloaded: 0, pagesTotal: 0 },
