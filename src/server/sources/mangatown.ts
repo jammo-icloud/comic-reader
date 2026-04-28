@@ -153,24 +153,67 @@ export const mangatownSource: MangaSource = {
     }
     const totalPages = parseInt(totalMatch[1], 10);
 
-    // Extract the image URL from page 1 — it's the template for all pages
-    // Pattern: //zjcdn.mangahere.org/store/manga/{id}/{chap}/compressed/b001.jpg
-    const imgMatch = html.match(/<img[^>]*src="(\/\/[^"]+\/compressed\/b\d+\.jpg[^"]*)"/);
-    if (!imgMatch) {
-      console.error(`MangaTown: could not find image URL template for ${chapterId}`);
+    // Find the page-1 image URL. MangaTown has shuffled CDNs over the years
+    // (zjcdn.mangahere.org → mangahere.cc → others), so we try patterns from
+    // most-specific to most-permissive. The first hit wins; whichever pattern
+    // matches, we then derive a numeric-component template from the URL.
+    const imgPatterns: RegExp[] = [
+      // Original: //zjcdn.mangahere.org/store/manga/.../compressed/b001.jpg
+      /<img[^>]*\bsrc="(\/\/[^"]+\/compressed\/b\d+\.jpg[^"]*)"/i,
+      // Same shape but lazy-loaded via data-src
+      /<img[^>]*\bdata-src="(\/\/[^"]+\/compressed\/b\d+\.jpg[^"]*)"/i,
+      // MangaHere variants without /compressed/: /store/manga/.../001.jpg
+      /<img[^>]*\bsrc="(\/\/[^"]+\/store\/manga\/[^"]+\d+\.(?:jpg|jpeg|png|webp)[^"]*)"/i,
+      // Modern reader pattern — img with id="image"
+      /<img[^>]*\bid=["']?image["']?[^>]*\bsrc="(\/\/[^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i,
+      // Inside a viewer/reader/page container
+      /<(?:div|section)[^>]+(?:id|class)="[^"]*(?:viewer|reader|page-image|read-page)[^"]*"[\s\S]{0,400}?<img[^>]*\b(?:src|data-src)="(\/\/[^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i,
+    ];
+
+    let captured: string | null = null;
+    for (const pattern of imgPatterns) {
+      const m = html.match(pattern);
+      if (m) { captured = m[1]; break; }
+    }
+
+    if (!captured) {
+      // Dump a sample of the page's <img> tags so we can update the patterns
+      // without round-tripping through the user's browser. Limited to the
+      // first few image-shaped tags to keep logs readable.
+      const samples = (html.match(/<img[^>]+(?:src|data-src)="[^"]+\.(?:jpg|jpeg|png|webp)[^"]*"[^>]*>/gi) || [])
+        .slice(0, 3)
+        .map((s) => s.length > 240 ? s.slice(0, 240) + '…' : s)
+        .join('\n    ');
+      console.error(
+        `MangaTown: could not find image URL template for ${chapterId}.\n` +
+        `  total_pages found (${totalPages}); URL was ${firstPageUrl}\n` +
+        `  Sample <img> tags from page:\n    ${samples || '(none matched)'}`,
+      );
       return [];
     }
 
-    const templateUrl = imgMatch[1].startsWith('//') ? `https:${imgMatch[1]}` : imgMatch[1];
-    const templateBase = templateUrl.replace(/b\d+\.jpg[^"]*$/, '');
+    const templateUrl = captured.startsWith('//') ? `https:${captured}` : captured;
 
-    // Generate all page URLs
+    // Decompose the URL into prefix + numeric-page-component + suffix so we
+    // can swap the digits for any padding (b001 vs 0001 vs 001 vs page-001).
+    // Example matches:
+    //   .../compressed/b001.jpg   → prefix=".../compressed/b", num="001", suffix=".jpg"
+    //   .../page-001.jpg?v=2      → prefix=".../page-", num="001", suffix=".jpg?v=2"
+    //   .../store/manga/x/001.jpg → prefix=".../store/manga/x/", num="001", suffix=".jpg"
+    const partsMatch = templateUrl.match(/^(.+?)(\d+)(\.(?:jpg|jpeg|png|webp)(?:\?[^"]*)?)$/i);
+    if (!partsMatch) {
+      console.error(
+        `MangaTown: image URL ${templateUrl} has no numeric page component — can't template`,
+      );
+      return [];
+    }
+    const [, prefix, originalNum, suffix] = partsMatch;
+    const padding = originalNum.length;
+
     const urls: string[] = [];
     for (let i = 1; i <= totalPages; i++) {
-      const paddedNum = String(i).padStart(3, '0');
-      urls.push(`${templateBase}b${paddedNum}.jpg`);
+      urls.push(`${prefix}${String(i).padStart(padding, '0')}${suffix}`);
     }
-
     return urls;
   },
 };
