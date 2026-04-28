@@ -218,9 +218,12 @@ async function assembleChapterFromSource(
   const pageUrls = await getPageUrlsFromSource(detectedSource, chapterId);
 
   if (pageUrls.length === 0) {
-    console.error(`  No pages found for ${chapterId} from ${sourceId}`);
-    onPageDone?.();
-    return;
+    // Silent return is the wrong thing here — caller's try/catch wraps this
+    // function and tracks skipped chapters. A bare `return` looks like success
+    // and the loop quietly advances the progress UI without ever writing a PDF
+    // (this is how MangaTown shipped "219 chapters but only 5 land" for months).
+    // Throwing routes through the skippedChapters channel instead.
+    throw new Error(`No pages returned by ${detectedSource} for chapter ${chapterId}`);
   }
 
   // File-based source short-circuit (Archive.org, etc.):
@@ -495,6 +498,14 @@ async function processQueue() {
                 job.progress.pagesDownloaded++;
                 emitProgress(job);
               }, job.metadata?.sourceId);
+            }
+
+            // Post-condition guard — even if no error was thrown, the assembler
+            // could have produced no PDF (e.g. all pages 404'd silently in the
+            // per-page try/catch). Treat missing PDF as failure rather than
+            // letting the loop advance and report success.
+            if (!fs.existsSync(outputPath)) {
+              throw new Error('Assembler completed but produced no PDF');
             }
           } catch (chErr) {
             // Skip this chapter but continue with the rest

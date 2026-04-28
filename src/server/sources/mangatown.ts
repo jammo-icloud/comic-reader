@@ -69,23 +69,47 @@ export const mangatownSource: MangaSource = {
     const chapters: ChapterResult[] = [];
     // Chapter list: <ul class="chapter_list">...<li><a href="/manga/{slug}/vXX/cYY.Y/"...>
     // Also handles chapters without volume: /manga/{slug}/cYY/
+    // And chapters with suffix qualifiers: /manga/{slug}/cYY-extra/
     const listMatch = html.match(/<ul\s+class="chapter_list">([\s\S]*?)<\/ul>/);
     if (!listMatch) return chapters;
     const listHtml = listMatch[1];
 
-    const linkRegex = /<a\s+href="\/manga\/[^"]+\/(?:(v[\d.]+)\/)?c([\d.]+)\/?[^"]*"\s*(?:name="[^"]*")?\s*>/g;
+    // Capture the FULL href — don't reconstruct a synthetic path from parsed
+    // pieces. MangaTown URLs sometimes include suffix qualifiers (`-special`,
+    // `-extra`) or non-standard segments that the synthetic rebuild dropped,
+    // producing chapter IDs that 404 on the page-fetch in getPageUrls. The
+    // result was 219 chapters listed, only ~5 actually downloadable, with
+    // every failure swallowed silently downstream. Use the literal href.
+    const linkRegex = /<a\s+href="(\/manga\/[^"]+?\/c[\d.]+(?:[-_][^"\/]+)?\/?)"[^>]*>/g;
     const seen = new Set<string>();
     let match;
     while ((match = linkRegex.exec(listHtml)) !== null) {
-      const [, vol, chNum] = match;
-      const key = `${vol || ''}/${chNum}`;
+      const fullPath = match[1]; // e.g. "/manga/lone-necromancer/v01/c1.5/"
+      const expectedPrefix = `/manga/${mangaSlug}/`;
+      // Defend against the chapter_list block accidentally containing related-
+      // manga links (different slug). Skip anything not for our manga.
+      if (!fullPath.startsWith(expectedPrefix)) continue;
+
+      // Pull chNum + optional vol off the captured path for sort + dedup.
+      const chMatch = fullPath.match(/\/c([\d.]+)(?:[-_][^/]+)?\/?$/);
+      if (!chMatch) continue;
+      const chNum = chMatch[1];
+      const volMatch = fullPath.match(/\/v([\d.]+)\//);
+      const vol = volMatch ? volMatch[1] : '';
+
+      const key = `${vol}/${chNum}`;
       if (seen.has(key)) continue;
       seen.add(key);
 
-      const chapterPath = vol ? `${mangaSlug}/${vol}/c${chNum}` : `${mangaSlug}/c${chNum}`;
+      // chapterId = path minus "/manga/<slug>/" prefix and trailing slash.
+      // Round-trips back to the same URL when getPageUrls prepends the prefix.
+      const chapterId = fullPath
+        .slice(expectedPrefix.length)
+        .replace(/\/$/, '');
+
       chapters.push({
         sourceId: 'mangatown',
-        chapterId: chapterPath,
+        chapterId,
         chapter: String(parseFloat(chNum)),
         title: null,
         pages: 0,
