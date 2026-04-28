@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Loader, Check, ExternalLink, Eye, X, Compass, AlertCircle, BookOpen, Download, Puzzle } from 'lucide-react';
-import type { SearchResult, ChapterResult } from '../lib/types';
-import { discoverSearch, discoverChapters, addToCollection, getComics } from '../lib/api';
+import { Search, Loader, Check, ExternalLink, Eye, X, Compass, AlertCircle, BookOpen, Download, Puzzle, Heart, Library as LibraryIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import type { SearchResult, ChapterResult, RecommendedItem, Series } from '../lib/types';
+import { discoverSearch, discoverChapters, addToCollection, getComics, getCatalog, getRecommended, getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
 import { useSources, HAKUNEKO_SITES, HAKUNEKO_URL } from '../lib/browser-sources/registry';
 import type { SourceConfig } from '../lib/browser-sources/types';
 import MangaSearchCard from '../components/MangaSearchCard';
@@ -32,18 +33,94 @@ export default function DiscoverPage() {
   const [loadingChapters, setLoadingChapters] = useState(false);
   const [localChapterNums, setLocalChapterNums] = useState<Set<string>>(new Set());
 
+  // Discover has three modes:
+  //   'sources'     — existing UX, search external sources for new manga
+  //   'library'     — browse the server's master catalog (this instance only)
+  //   'recommended' — aggregated cross-user feed of favorites (NSFW-filtered)
+  // The two server-internal modes are mutually exclusive with source selection.
+  type ViewMode = 'sources' | 'library' | 'recommended';
+  const [viewMode, setViewMode] = useState<ViewMode>('sources');
+  const [libraryItems, setLibraryItems] = useState<Series[]>([]);
+  const [recommendedItems, setRecommendedItems] = useState<RecommendedItem[]>([]);
+  const [feedLoading, setFeedLoading] = useState(false);
+
   const hasSelection = selectedSources.size > 0;
 
   // Auto-show the search row once the user has results, so they can refine without toggling.
   useEffect(() => { if (hasSearched) setShowSearch(true); }, [hasSearched]);
 
+  // Auto-show search input in library/recommended modes — the input becomes a
+  // live filter, so it should be visible from the moment the user enters the mode.
+  useEffect(() => {
+    if (viewMode !== 'sources') setShowSearch(true);
+  }, [viewMode]);
+
+  // Load the appropriate feed when viewMode flips. Idempotent — refetches when
+  // the user re-enters the mode so a fresh favorite shows up immediately.
+  useEffect(() => {
+    if (viewMode === 'sources') return;
+    let cancelled = false;
+    setFeedLoading(true);
+    const promise = viewMode === 'library' ? getCatalog() : getRecommended();
+    promise
+      .then((data) => {
+        if (cancelled) return;
+        if (viewMode === 'library') setLibraryItems(data as Series[]);
+        else setRecommendedItems(data as RecommendedItem[]);
+      })
+      .catch((err) => {
+        if (!cancelled) console.error(`Failed to load ${viewMode} feed:`, err);
+      })
+      .finally(() => {
+        if (!cancelled) setFeedLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [viewMode]);
+
+  // Live-filter the loaded feed by the search query.
+  const queryLower = query.trim().toLowerCase();
+  const filteredLibrary = useMemo(() => {
+    if (!queryLower) return libraryItems;
+    return libraryItems.filter((s) =>
+      s.name.toLowerCase().includes(queryLower) ||
+      (s.englishTitle?.toLowerCase().includes(queryLower) ?? false),
+    );
+  }, [libraryItems, queryLower]);
+  const filteredRecommended = useMemo(() => {
+    if (!queryLower) return recommendedItems;
+    return recommendedItems.filter((r) =>
+      r.series.name.toLowerCase().includes(queryLower) ||
+      (r.series.englishTitle?.toLowerCase().includes(queryLower) ?? false),
+    );
+  }, [recommendedItems, queryLower]);
+
   const toggleSource = (id: string) => {
+    // Tapping a source pill always returns to sources mode.
+    if (viewMode !== 'sources') setViewMode('sources');
     setSelectedSources((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+  };
+
+  /**
+   * Switch to a server-internal mode (library / recommended). Mutually
+   * exclusive with source selection; flipping into one of these clears the
+   * selected-sources set and any prior search results.
+   */
+  const switchMode = (next: 'library' | 'recommended') => {
+    if (viewMode === next) {
+      // Tapping the active pill exits back to sources mode.
+      setViewMode('sources');
+      return;
+    }
+    setViewMode(next);
+    setSelectedSources(new Set());
+    setHasSearched(false);
+    setSearchError('');
+    setResults([]);
   };
 
   const handleSearch = async (e?: React.FormEvent) => {
@@ -217,6 +294,23 @@ export default function DiscoverPage() {
               </button>
 
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1 flex-1 min-w-0">
+                {/* Server-internal pills — mutually exclusive with source selection.
+                    Visually distinct via accent tint to read as "this server" vs
+                    external sources. */}
+                <ServerPill
+                  icon={<Heart size={12} fill={viewMode === 'recommended' ? 'currentColor' : 'none'} strokeWidth={viewMode === 'recommended' ? 0 : 2} />}
+                  label="Recommended"
+                  active={viewMode === 'recommended'}
+                  onClick={() => switchMode('recommended')}
+                />
+                <ServerPill
+                  icon={<LibraryIcon size={12} />}
+                  label="Library"
+                  active={viewMode === 'library'}
+                  onClick={() => switchMode('library')}
+                />
+                {/* Visual divider between server-internal and external pills */}
+                <span className="shrink-0 w-px h-4 bg-gray-200 dark:bg-gray-700 mx-0.5" aria-hidden="true" />
                 {sources.map((source) => (
                   <SourcePill
                     key={source.id}
@@ -242,8 +336,26 @@ export default function DiscoverPage() {
       {/* ===== Main ===== */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
 
-        {/* Search hint — pre-search state */}
-        {!hasSearched && !searching && (
+        {/* Server-internal feeds (Library / Recommended) take over the main
+            area when active. Source-search render flow is bypassed. */}
+        {viewMode === 'recommended' && (
+          <RecommendedFeed
+            items={filteredRecommended}
+            loading={feedLoading}
+            query={query.trim()}
+            totalLoaded={recommendedItems.length}
+          />
+        )}
+        {viewMode === 'library' && (
+          <LibraryFeed
+            items={filteredLibrary}
+            loading={feedLoading}
+            query={query.trim()}
+          />
+        )}
+
+        {/* Existing source-search flow — only when in 'sources' mode */}
+        {viewMode === 'sources' && !hasSearched && !searching && (
           <PreSearchHint
             sources={sources}
             hasSelection={hasSelection}
@@ -254,10 +366,10 @@ export default function DiscoverPage() {
         )}
 
         {/* Loading skeleton */}
-        {searching && <SkeletonGrid />}
+        {viewMode === 'sources' && searching && <SkeletonGrid />}
 
         {/* Search error */}
-        {!searching && searchError && (
+        {viewMode === 'sources' && !searching && searchError && (
           <div className="flex items-start gap-2 bg-danger/10 border border-danger/30 rounded-lg px-4 py-3 mb-4">
             <AlertCircle size={16} className="text-danger shrink-0 mt-0.5" />
             <div className="flex-1 text-sm">
@@ -268,7 +380,7 @@ export default function DiscoverPage() {
         )}
 
         {/* Results */}
-        {hasSearched && !searching && !searchError && (
+        {viewMode === 'sources' && hasSearched && !searching && !searchError && (
           <>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               {results.length} result{results.length === 1 ? '' : 's'} for "{query}"
@@ -427,6 +539,231 @@ export default function DiscoverPage() {
 }
 
 // ----- Subcomponents -----
+
+/**
+ * Server-internal pill (Library / Recommended). Visually distinct from
+ * SourcePill — uses accent tint instead of source-color so they read as
+ * "this server" rather than an external source.
+ */
+function ServerPill({
+  icon, label, active, onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      title={`${label} on this server`}
+      className={`shrink-0 inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full text-xs font-medium border transition-colors min-h-[28px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+        active
+          ? 'bg-accent text-white border-transparent shadow-sm'
+          : 'text-gray-700 dark:text-gray-300 bg-surface dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-accent'
+      }`}
+    >
+      <span className="shrink-0">{icon}</span>
+      <span className="truncate max-w-[8rem]">{label}</span>
+    </button>
+  );
+}
+
+/**
+ * Hash-based username chip used as an attribution glyph on Recommended cards.
+ * Stable color per username; dimensions match the small-circle Avatar.
+ *
+ * The user's own contribution is highlighted with the accent ring so they
+ * can quickly see "yes, my taste is part of this signal."
+ */
+function AttributionChip({ username, isSelf }: { username: string; isSelf: boolean }) {
+  // Cheap stable hash → 12 hue-distinct colors. Same series of usernames always
+  // produces the same chip color across renders.
+  const hueIndex = Array.from(username).reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % 12;
+  const hues = [210, 280, 340, 20, 50, 130, 170, 0, 240, 310, 90, 200];
+  const hue = hues[hueIndex];
+  const initial = username.length > 0 ? username[0].toUpperCase() : '?';
+  return (
+    <span
+      title={isSelf ? `${username} (you)` : username}
+      aria-label={isSelf ? `Recommended by you (${username})` : `Recommended by ${username}`}
+      className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 ${
+        isSelf ? 'ring-2 ring-accent ring-offset-1 ring-offset-surface dark:ring-offset-gray-900' : ''
+      }`}
+      style={{ backgroundColor: `hsl(${hue}, 55%, 45%)` }}
+    >
+      {initial}
+    </span>
+  );
+}
+
+/**
+ * "Recommended" feed — aggregated cross-user favorites. Server already
+ * NSFW-filters and sorts by count desc, recency tiebreak. We render cards
+ * with attribution chips so each row tells you who liked it.
+ */
+function RecommendedFeed({
+  items, loading, query, totalLoaded,
+}: {
+  items: RecommendedItem[];
+  loading: boolean;
+  query: string;
+  totalLoaded: number;
+}) {
+  if (loading) return <SkeletonGrid />;
+
+  // Empty-state branches: zero favorites server-wide vs. empty filter result.
+  if (items.length === 0) {
+    if (query) {
+      return (
+        <div className="text-center py-16">
+          <Heart size={32} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">No recommendations match "{query}".</p>
+        </div>
+      );
+    }
+    if (totalLoaded === 0) {
+      return (
+        <div className="text-center py-16 max-w-md mx-auto">
+          <Heart size={32} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
+          <h2 className="text-base font-semibold mb-1">Nothing's been recommended yet</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Tap the Recommend button on a series page to add it to this feed for everyone on the server.
+          </p>
+        </div>
+      );
+    }
+  }
+
+  return (
+    <>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        {items.length} recommended series
+        {query && <span className="text-gray-400 dark:text-gray-600"> · matching "{query}"</span>}
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {items.map((item) => (
+          <RecommendedCard key={item.series.id} item={item} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function RecommendedCard({ item }: { item: RecommendedItem }) {
+  const { series, favoritedBy, count } = item;
+  const coverUrl = series.coverFile
+    ? getSeriesCoverUrl(series.id, series.coverFile)
+    : getPlaceholderUrl(series.placeholder);
+  // Prefer the current user's chip first if they're in the list; otherwise
+  // alphabetic. Cap visible chips at 3 with a "+N" overflow indicator.
+  const visibleChips = favoritedBy.slice(0, 3);
+  const overflowCount = favoritedBy.length - visibleChips.length;
+  return (
+    <Link
+      to={`/series/${series.id}`}
+      className="group block bg-surface dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 hover:border-accent transition-colors"
+    >
+      <div className="relative aspect-[2/3] overflow-hidden bg-gray-100 dark:bg-gray-800">
+        <img
+          src={coverUrl}
+          alt=""
+          loading="lazy"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+        />
+        {/* Count chip — top-right, visual quality signal */}
+        <div className="absolute top-2 right-2 inline-flex items-center gap-1 bg-black/60 text-white text-[11px] px-2 py-0.5 rounded-full backdrop-blur-sm">
+          <Heart size={10} fill="currentColor" strokeWidth={0} />
+          <span className="font-semibold tabular-nums">{count}</span>
+        </div>
+      </div>
+      <div className="p-2.5">
+        <h3 className="text-sm font-medium truncate text-gray-900 dark:text-gray-100">{series.name}</h3>
+        {/* Attribution row — tells the user who specifically recommended this */}
+        <div className="flex items-center gap-1 mt-1.5 text-[10px] text-gray-500 dark:text-gray-400">
+          <span className="flex -space-x-1">
+            {visibleChips.map((u) => (
+              <AttributionChip key={u} username={u} isSelf={false} />
+            ))}
+          </span>
+          {overflowCount > 0 && (
+            <span className="ml-1 tabular-nums">+{overflowCount}</span>
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/**
+ * "Library" feed — every series on this server. Useful when a user knows
+ * something is in the catalog but isn't in their own collection yet.
+ */
+function LibraryFeed({
+  items, loading, query,
+}: {
+  items: Series[];
+  loading: boolean;
+  query: string;
+}) {
+  if (loading) return <SkeletonGrid />;
+
+  if (items.length === 0 && query) {
+    return (
+      <div className="text-center py-16">
+        <LibraryIcon size={32} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
+        <p className="text-sm text-gray-500 dark:text-gray-400">No series match "{query}".</p>
+      </div>
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <LibraryIcon size={32} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
+        <p className="text-sm text-gray-500 dark:text-gray-400">No series on this server yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        {items.length} series on this server
+        {query && <span className="text-gray-400 dark:text-gray-600"> · matching "{query}"</span>}
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {items.map((s) => (
+          <Link
+            key={s.id}
+            to={`/series/${s.id}`}
+            className="group block bg-surface dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 hover:border-accent transition-colors"
+          >
+            <div className="relative aspect-[2/3] overflow-hidden bg-gray-100 dark:bg-gray-800">
+              <img
+                src={s.coverFile ? getSeriesCoverUrl(s.id, s.coverFile) : getPlaceholderUrl(s.placeholder)}
+                alt=""
+                loading="lazy"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+              />
+              {s.inCollection && (
+                <div className="absolute top-2 left-2 inline-flex items-center gap-1 bg-success/90 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                  <Check size={10} strokeWidth={3} />
+                </div>
+              )}
+            </div>
+            <div className="p-2.5">
+              <h3 className="text-sm font-medium truncate text-gray-900 dark:text-gray-100">{s.name}</h3>
+              {s.englishTitle && s.englishTitle.toLowerCase() !== s.name.toLowerCase() && (
+                <p className="text-[10px] text-gray-500 dark:text-gray-500 mt-0.5 truncate">{s.englishTitle}</p>
+              )}
+            </div>
+          </Link>
+        ))}
+      </div>
+    </>
+  );
+}
 
 function SourcePill({
   source, selected, onClick,
