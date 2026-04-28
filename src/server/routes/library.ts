@@ -7,6 +7,7 @@ import {
   loadCollection, addToCollection, removeFromCollection, isInCollection,
   loadUserProgress, updateUserProgress,
   loadPreferences, savePreferences,
+  isFavorited,
   isNsfwSeries, VALID_THEMES,
   type SeriesRecord,
 } from '../data.js';
@@ -68,6 +69,7 @@ router.get('/series/:id', (req, res) => {
     ...series,
     ...getSeriesStatsForUser(series.id, req.username),
     inCollection: isInCollection(req.username, series.id),
+    isFavorited: isFavorited(req.username, series.id),
   });
 });
 

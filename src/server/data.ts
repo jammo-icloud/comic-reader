@@ -80,6 +80,11 @@ export interface CollectionEntry {
   addedAt: string;
 }
 
+export interface FavoriteEntry {
+  seriesId: string;
+  favoritedAt: string;
+}
+
 export interface UserProgressRecord {
   seriesId: string;
   file: string;
@@ -118,6 +123,7 @@ const comicsCache = new Map<string, ComicRecord[]>();
 const collectionCache = new Map<string, CollectionEntry[]>();
 const progressCache = new Map<string, UserProgressRecord[]>();
 const preferencesCache = new Map<string, UserPreferences>();
+const favoritesCache = new Map<string, FavoriteEntry[]>();
 
 // --- Series cache ops ---
 
@@ -190,6 +196,9 @@ export function removeSeries(id: string): void {
   comicsCache.delete(id);
   const comicsFile = comicsFilePath(id);
   if (fs.existsSync(comicsFile)) fs.unlinkSync(comicsFile);
+  // Cascade: drop this series from every user's favorites so the Recommended
+  // feed doesn't reference dangling IDs.
+  purgeSeriesFromAllFavorites(id);
 }
 
 // --- Comics cache ops ---
@@ -348,6 +357,108 @@ export function removeFromCollection(username: string, seriesId: string): void {
 
 export function isInCollection(username: string, seriesId: string): boolean {
   return getCollectionCached(username).some((e) => e.seriesId === seriesId);
+}
+
+// --- Favorites cache ops ---
+//
+// Mirrors the collection cache exactly — per-user JSONL at
+// data/users/<username>/favorites.jsonl. A favorite is the user's
+// "I'd recommend this" mark, separate from collection ("I'm tracking this").
+// Favorites surface in the cross-user "Recommended" feed in Discover; that
+// feed is always NSFW-filtered regardless of the viewer's admin status.
+
+function favoritesPath(username: string): string {
+  return path.join(userDir(username), 'favorites.jsonl');
+}
+
+function loadFavoritesFromDisk(username: string): FavoriteEntry[] {
+  const p = favoritesPath(username);
+  if (!fs.existsSync(p)) return [];
+  try {
+    return fs.readFileSync(p, 'utf-8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  } catch {
+    console.error(`Corrupt favorites for "${username}", resetting`);
+    return [];
+  }
+}
+
+function flushFavoritesToDisk(username: string, entries: FavoriteEntry[]): void {
+  ensureUserDir(username);
+  fs.writeFileSync(
+    favoritesPath(username),
+    entries.map((e) => JSON.stringify(e)).join('\n') + (entries.length ? '\n' : ''),
+  );
+}
+
+function getFavoritesCached(username: string): FavoriteEntry[] {
+  let cached = favoritesCache.get(username);
+  if (!cached) {
+    cached = loadFavoritesFromDisk(username);
+    favoritesCache.set(username, cached);
+  }
+  return cached;
+}
+
+export function loadFavorites(username: string): FavoriteEntry[] {
+  return getFavoritesCached(username).map(clone);
+}
+
+export function addFavorite(username: string, seriesId: string): void {
+  const entries = getFavoritesCached(username);
+  if (entries.some((e) => e.seriesId === seriesId)) return;
+  entries.push({ seriesId, favoritedAt: new Date().toISOString() });
+  flushFavoritesToDisk(username, entries);
+}
+
+export function removeFavorite(username: string, seriesId: string): void {
+  const entries = getFavoritesCached(username);
+  const filtered = entries.filter((e) => e.seriesId !== seriesId);
+  if (filtered.length === entries.length) return;
+  favoritesCache.set(username, filtered);
+  flushFavoritesToDisk(username, filtered);
+}
+
+export function isFavorited(username: string, seriesId: string): boolean {
+  return getFavoritesCached(username).some((e) => e.seriesId === seriesId);
+}
+
+/**
+ * List every user's favorites for the cross-user "Recommended" feed.
+ * Walks the users dir; each user's cache is loaded lazily as we visit it.
+ * Returns flat [{ username, seriesId, favoritedAt }] — caller aggregates by seriesId.
+ */
+export function loadAllFavorites(): Array<{ username: string; seriesId: string; favoritedAt: string }> {
+  if (!fs.existsSync(USERS_DIR)) return [];
+  const usernames = fs.readdirSync(USERS_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  const out: Array<{ username: string; seriesId: string; favoritedAt: string }> = [];
+  for (const username of usernames) {
+    for (const entry of getFavoritesCached(username)) {
+      out.push({ username, seriesId: entry.seriesId, favoritedAt: entry.favoritedAt });
+    }
+  }
+  return out;
+}
+
+/**
+ * Cascade-delete a series from every user's favorites. Called from removeSeries.
+ * Cheaper than a full reload — operates on cached entries only and only flushes
+ * users that actually had this series favorited.
+ */
+function purgeSeriesFromAllFavorites(seriesId: string): void {
+  if (!fs.existsSync(USERS_DIR)) return;
+  const usernames = fs.readdirSync(USERS_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  for (const username of usernames) {
+    const entries = getFavoritesCached(username);
+    const filtered = entries.filter((e) => e.seriesId !== seriesId);
+    if (filtered.length !== entries.length) {
+      favoritesCache.set(username, filtered);
+      flushFavoritesToDisk(username, filtered);
+    }
+  }
 }
 
 // --- User progress cache ops ---

@@ -20,6 +20,7 @@ import chapterUploadRoutes from './routes/chapter-upload.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import exportRoutes from './routes/export.js';
+import favoritesRoutes from './routes/favorites.js';
 import { resumeIncompleteDownloads } from './downloader.js';
 import { runMaintenance } from './maintenance.js';
 import { userMiddleware, authGuard } from './middleware/user.js';
@@ -46,6 +47,7 @@ app.use('/api', importRoutes);
 app.use('/api', chapterUploadRoutes);
 app.use('/api', adminRoutes);
 app.use('/api', exportRoutes);
+app.use('/api', favoritesRoutes);
 
 // Serve data directory assets (covers, thumbnails) as static files
 // This bypasses Express route handling — much faster for images
