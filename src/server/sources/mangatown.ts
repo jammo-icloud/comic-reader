@@ -116,10 +116,14 @@ export const mangatownSource: MangaSource = {
       if (seen.has(key)) continue;
       seen.add(key);
 
-      // chapterId = path minus "/manga/<slug>/" prefix and trailing slash.
-      // Round-trips back to the same URL when getPageUrls prepends the prefix.
+      // chapterId = path minus the "/manga/" prefix and trailing slash.
+      // INCLUDES the slug — getPageUrls prepends "/manga/" to round-trip,
+      // so chapterId must be e.g. "lone-necromancer/c021" or
+      // "lone-necromancer/v01/c1.5". (Earlier version sliced off the slug
+      // too, producing chapterIds like "c021" that resolved to
+      // /manga/c021/1.html — MangaTown's homepage — and failed.)
       const chapterId = fullPath
-        .slice(expectedPrefix.length)
+        .slice('/manga/'.length)
         .replace(/\/$/, '');
 
       chapters.push({
