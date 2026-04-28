@@ -208,6 +208,8 @@ const CDN_REFERERS: Record<string, string> = {
   'mfcdn.net': 'https://fanfox.net/',
   'zjcdn.mangahere.org': 'https://www.mangatown.com/',
   'mangahere.org': 'https://www.mangatown.com/',
+  'mangahere.cc': 'https://www.mangatown.com/',
+  'mangatown.com': 'https://www.mangatown.com/',
   'rcdn.kyut.dev': 'https://rawkuma.net/',
   'kyut.dev': 'https://rawkuma.net/',
   'bp.blogspot.com': 'https://readallcomics.com/',
@@ -215,14 +217,30 @@ const CDN_REFERERS: Record<string, string> = {
   'uploads.mangadex.org': 'https://mangadex.org/',
 };
 
-function refererFor(url: string): string {
+// Per-source homepage — used as a fallback Referer when a cover/page URL hits
+// a CDN we haven't mapped yet. Most hotlink-blockers accept the source's home
+// URL as Referer, so this catches the long tail of CDN moves without needing
+// to chase each one individually.
+const SOURCE_HOME: Record<string, string> = {
+  mangadex: 'https://mangadex.org/',
+  mangafox: 'https://fanfox.net/',
+  mangatown: 'https://www.mangatown.com/',
+  rawkuma: 'https://rawkuma.net/',
+  readallcomics: 'https://readallcomics.com/',
+  readcomicsonline: 'https://readcomicsonline.ru/',
+  archiveorg: 'https://archive.org/',
+};
+
+function refererFor(url: string, sourceId?: string): string {
   try {
     const hostname = new URL(url).hostname;
     for (const [cdn, ref] of Object.entries(CDN_REFERERS)) {
       if (hostname.includes(cdn)) return ref;
     }
   } catch {}
-  return '';
+  // Fall back to source homepage. Beats sending an empty Referer when the CDN
+  // requires one — most blockers are happy with the source's home URL.
+  return sourceId ? SOURCE_HOME[sourceId] || '' : '';
 }
 
 /**
@@ -304,7 +322,7 @@ async function assembleChapterFromSource(
       const res = await fetch(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Referer': refererFor(url),
+          'Referer': refererFor(url, detectedSource),
         },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -405,6 +423,13 @@ async function processQueue() {
 
       // Download cover art if available and series doesn't have one yet
       const series = loadAllSeries().find((s) => s.id === actualSlug);
+      // Log the skip reasons explicitly — silent skips here are why
+      // "cover failed" used to be impossible to diagnose without a debugger.
+      if (series && !series.coverFile && !job.metadata?.coverUrl) {
+        console.log(`  Cover skipped: no coverUrl in metadata (source=${job.metadata?.sourceId || '(unknown)'})`);
+      } else if (series?.coverFile) {
+        console.log(`  Cover skipped: already set (${series.coverFile})`);
+      }
       if (series && !series.coverFile && job.metadata?.coverUrl) {
         try {
           const DATA_DIR = process.env.DATA_DIR || './data';
@@ -412,6 +437,7 @@ async function processQueue() {
           if (!fs.existsSync(coversDir)) fs.mkdirSync(coversDir, { recursive: true });
 
           const coverUrl = job.metadata.coverUrl;
+          const sourceId = job.metadata?.sourceId;
           // Resolve cover URLs to actual CDN URLs
           let actualUrl: string;
           if (coverUrl.startsWith('/api/discover/proxy-image?url=')) {
@@ -432,25 +458,35 @@ async function processQueue() {
 
           if (!actualUrl) throw new Error('No resolvable cover URL');
 
-          // Use the shared CDN_REFERERS table — without it MangaTown covers
-          // (zjcdn.mangahere.org) 403 because their CDN gates on Referer.
+          const referer = refererFor(actualUrl, sourceId);
+          console.log(`  Cover fetch: ${actualUrl} [referer=${referer || '(none)'}, source=${sourceId || '(unknown)'}]`);
+
           const coverRes = await fetch(actualUrl, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Referer': refererFor(actualUrl),
+              'Referer': referer,
             },
           });
           if (!coverRes.ok) {
-            throw new Error(`Cover fetch ${coverRes.status}: ${actualUrl}`);
+            throw new Error(`Cover fetch ${coverRes.status} ${coverRes.statusText} from ${actualUrl}`);
           }
           const coverBuffer = Buffer.from(await coverRes.arrayBuffer());
+          // Defend against a 0-byte response or one that's too small to be a
+          // real cover (some CDNs serve a tiny GIF instead of a 403 when
+          // hotlink-blocked, which then "succeeds" through sharp as a grey
+          // square the user sees as broken).
+          if (coverBuffer.byteLength < 200) {
+            throw new Error(
+              `Cover response too small (${coverBuffer.byteLength} bytes) — likely a placeholder from ${actualUrl}`,
+            );
+          }
           const { shortHash } = await import('./hash.js');
           const filename = `${shortHash(actualSlug)}.jpg`;
           const sharp = (await import('sharp')).default;
           await sharp(coverBuffer).resize(300, 450, { fit: 'cover' }).jpeg({ quality: 85 }).toFile(path.join(coversDir, filename));
           series.coverFile = filename;
           saveSeries(series);
-          console.log(`  Set cover for "${job.mangaTitle}"`);
+          console.log(`  Set cover for "${job.mangaTitle}" (${coverBuffer.byteLength} bytes from ${actualUrl})`);
         } catch (err) {
           console.error(`  Cover download failed:`, (err as Error).message);
         }
