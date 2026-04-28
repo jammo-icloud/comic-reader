@@ -316,16 +316,23 @@ async function assembleChapterFromSource(
   const pdf = await PDFDocument.create();
   const PDF_WIDTH = 800;
 
+  // Per-chapter Referer override — some CDNs (MangaTown's hotlink-protected
+  // images) check that Referer matches the actual reader page URL, not just
+  // the source homepage. Browsers send this naturally; we have to construct it.
+  const chapterPageReferer = chapterReaderUrl(detectedSource, chapterId);
+
+  let successfulPages = 0;
+
   for (let i = 0; i < pageUrls.length; i++) {
     const url = pageUrls[i];
     try {
       const res = await fetch(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Referer': refererFor(url, detectedSource),
+          'Referer': chapterPageReferer || refererFor(url, detectedSource),
         },
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
       const imgBuffer = Buffer.from(await res.arrayBuffer());
 
       const resized = sharp(imgBuffer).resize({ width: PDF_WIDTH, withoutEnlargement: true });
@@ -339,17 +346,61 @@ async function assembleChapterFromSource(
       const page = pdf.addPage([width, height]);
       page.drawImage(jpegImage, { x: 0, y: 0, width, height });
 
+      successfulPages++;
       onPageDone?.();
     } catch (err) {
-      console.error(`  Failed page ${i + 1}/${pageUrls.length}: ${(err as Error).message}`);
+      // Log the actual URL on first failure of each chapter so we can see
+      // what the CDN is rejecting (sample only — N×N log lines for big
+      // chapters becomes noise after the first few).
+      if (i < 2 || i === pageUrls.length - 1) {
+        console.error(`  Failed page ${i + 1}/${pageUrls.length}: ${(err as Error).message}  URL: ${url}`);
+      } else {
+        console.error(`  Failed page ${i + 1}/${pageUrls.length}: ${(err as Error).message}`);
+      }
       onPageDone?.();
     }
 
     if (i < pageUrls.length - 1) await sleep(200);
   }
 
+  // Don't write a placeholder PDF when every page failed. Throw instead so
+  // the chapter is tracked in skippedChapters and the user gets feedback.
+  // Without this, a 0-page PDF (~583 bytes from pdf-lib's empty save) lands
+  // on disk and the next download attempt sees `fs.existsSync` as true and
+  // silently skips the chapter forever.
+  if (successfulPages === 0) {
+    throw new Error(
+      `All ${pageUrls.length} pages failed for ${chapterId}` +
+      ` (likely CDN blocking — Referer was "${chapterPageReferer || refererFor(pageUrls[0], detectedSource) || '(none)'}")`,
+    );
+  }
+
   const pdfBytes = await pdf.save();
   fs.writeFileSync(outputPath, pdfBytes);
+
+  // If most pages failed (e.g. 1 of 50 succeeded) the PDF is technically
+  // non-empty but functionally useless. Surface this so the user knows.
+  if (successfulPages < pageUrls.length) {
+    console.warn(
+      `  Partial chapter: ${chapterId} got ${successfulPages}/${pageUrls.length} pages`,
+    );
+  }
+}
+
+/**
+ * Build the reader-page URL for a given source + chapterId. Used as a Referer
+ * for per-page image fetches when the CDN gates on the specific chapter page
+ * (which a real browser would send naturally).
+ *
+ * Sources we know need this: mangatown. Add others when their CDNs reject the
+ * homepage Referer.
+ */
+function chapterReaderUrl(sourceId: string | undefined, chapterId: string): string {
+  if (!sourceId || !chapterId) return '';
+  if (sourceId === 'mangatown') {
+    return `https://www.mangatown.com/manga/${chapterId}/`;
+  }
+  return '';
 }
 
 async function processQueue() {
@@ -510,13 +561,25 @@ async function processQueue() {
           const filename = `Chapter ${String(chapterNum).padStart(3, '0')}.pdf`;
           const outputPath = path.join(seriesDir, filename);
 
-          // Skip if already exists
+          // Skip if already exists AND is meaningfully sized. An "exists"
+          // guard alone permanently strands stub PDFs from earlier failed
+          // runs (pdf-lib's empty save is 583 bytes; real chapters are MBs).
+          // 5 KB is a conservative threshold — a real single-page chapter
+          // with a 200×200 JPEG is already >20 KB, so this catches stubs
+          // without false-positives.
+          const STUB_PDF_BYTES = 5 * 1024;
           if (fs.existsSync(outputPath)) {
-            job.progress.current = i + 1;
-            job.progress.currentChapter = chapterNum;
-            saveTask(job);
-            emitProgress(job);
-            continue;
+            const size = fs.statSync(outputPath).size;
+            if (size > STUB_PDF_BYTES) {
+              job.progress.current = i + 1;
+              job.progress.currentChapter = chapterNum;
+              saveTask(job);
+              emitProgress(job);
+              continue;
+            } else {
+              console.log(`  Re-downloading Ch.${chapterNum}: existing file is a ${size}-byte stub`);
+              fs.unlinkSync(outputPath);
+            }
           }
 
           job.progress.current = i;
