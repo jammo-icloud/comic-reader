@@ -196,6 +196,35 @@ async function assembleChapterPdf(
   fs.writeFileSync(outputPath, pdfBytes);
 }
 
+// CDN → Referer mapping. Many image hosts gate on Referer to block hotlinking;
+// without the right Referer they 403 or return empty bytes. Used for both
+// chapter page images and cover-art downloads.
+//
+// When adding a new source: add its CDN hosts here in ONE place. The cover
+// downloader and the chapter-image downloader both read from this table.
+const CDN_REFERERS: Record<string, string> = {
+  'zjcdn.mangafox.me': 'https://fanfox.net/',
+  'fmcdn.mfcdn.net': 'https://fanfox.net/',
+  'mfcdn.net': 'https://fanfox.net/',
+  'zjcdn.mangahere.org': 'https://www.mangatown.com/',
+  'mangahere.org': 'https://www.mangatown.com/',
+  'rcdn.kyut.dev': 'https://rawkuma.net/',
+  'kyut.dev': 'https://rawkuma.net/',
+  'bp.blogspot.com': 'https://readallcomics.com/',
+  'blogger.googleusercontent.com': 'https://readallcomics.com/',
+  'uploads.mangadex.org': 'https://mangadex.org/',
+};
+
+function refererFor(url: string): string {
+  try {
+    const hostname = new URL(url).hostname;
+    for (const [cdn, ref] of Object.entries(CDN_REFERERS)) {
+      if (hostname.includes(cdn)) return ref;
+    }
+  } catch {}
+  return '';
+}
+
 /**
  * Download chapter from a non-MangaDex source (MangaFox, etc.)
  * Uses the source adapter to get page URLs, then downloads images via proxy-compatible fetch.
@@ -269,36 +298,13 @@ async function assembleChapterFromSource(
   const pdf = await PDFDocument.create();
   const PDF_WIDTH = 800;
 
-  // CDN referer mapping for image downloads
-  const referers: Record<string, string> = {
-    'zjcdn.mangafox.me': 'https://fanfox.net/',
-    'fmcdn.mfcdn.net': 'https://fanfox.net/',
-    'mfcdn.net': 'https://fanfox.net/',
-    'zjcdn.mangahere.org': 'https://www.mangatown.com/',
-    'mangahere.org': 'https://www.mangatown.com/',
-    'rcdn.kyut.dev': 'https://rawkuma.net/',
-    'kyut.dev': 'https://rawkuma.net/',
-    'bp.blogspot.com': 'https://readallcomics.com/',
-    'blogger.googleusercontent.com': 'https://readallcomics.com/',
-  };
-
-  function getReferer(url: string): string {
-    try {
-      const hostname = new URL(url).hostname;
-      for (const [cdn, ref] of Object.entries(referers)) {
-        if (hostname.includes(cdn)) return ref;
-      }
-    } catch {}
-    return '';
-  }
-
   for (let i = 0; i < pageUrls.length; i++) {
     const url = pageUrls[i];
     try {
       const res = await fetch(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Referer': getReferer(url),
+          'Referer': refererFor(url),
         },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -426,23 +432,25 @@ async function processQueue() {
 
           if (!actualUrl) throw new Error('No resolvable cover URL');
 
+          // Use the shared CDN_REFERERS table — without it MangaTown covers
+          // (zjcdn.mangahere.org) 403 because their CDN gates on Referer.
           const coverRes = await fetch(actualUrl, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Referer': actualUrl.includes('mangadex') ? 'https://mangadex.org/' :
-                         actualUrl.includes('mfcdn') || actualUrl.includes('fanfox') ? 'https://fanfox.net/' : '',
+              'Referer': refererFor(actualUrl),
             },
           });
-          if (coverRes.ok) {
-            const coverBuffer = Buffer.from(await coverRes.arrayBuffer());
-            const { shortHash } = await import('./hash.js');
-            const filename = `${shortHash(actualSlug)}.jpg`;
-            const sharp = (await import('sharp')).default;
-            await sharp(coverBuffer).resize(300, 450, { fit: 'cover' }).jpeg({ quality: 85 }).toFile(path.join(coversDir, filename));
-            series.coverFile = filename;
-            saveSeries(series);
-            console.log(`  Set cover for "${job.mangaTitle}"`);
+          if (!coverRes.ok) {
+            throw new Error(`Cover fetch ${coverRes.status}: ${actualUrl}`);
           }
+          const coverBuffer = Buffer.from(await coverRes.arrayBuffer());
+          const { shortHash } = await import('./hash.js');
+          const filename = `${shortHash(actualSlug)}.jpg`;
+          const sharp = (await import('sharp')).default;
+          await sharp(coverBuffer).resize(300, 450, { fit: 'cover' }).jpeg({ quality: 85 }).toFile(path.join(coversDir, filename));
+          series.coverFile = filename;
+          saveSeries(series);
+          console.log(`  Set cover for "${job.mangaTitle}"`);
         } catch (err) {
           console.error(`  Cover download failed:`, (err as Error).message);
         }

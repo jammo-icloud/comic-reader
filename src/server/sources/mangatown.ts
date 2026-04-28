@@ -40,19 +40,34 @@ export const mangatownSource: MangaSource = {
     const html = await fetchPage(`${SITE_URL}/search.php?name=${encodeURIComponent(query)}`);
 
     const items: SearchResult[] = [];
-    // Each result is: <li><a class="manga_cover" href="/manga/{slug}/" title="{title}"><img src="{cover}" ... /></a>
-    const regex = /<a\s+class="manga_cover"\s+href="\/manga\/([^"/]+)\/"\s+title="([^"]+)"[\s\S]*?<img\s+src="([^"]+)"/g;
+    // Each result is: <li><a class="manga_cover" href="/manga/{slug}/" title="{title}"><img ... /></a>
+    // Capture the whole anchor body so we can robustly find the cover URL
+    // regardless of <img> attribute order or lazy-loading.
+    const blockRegex = /<a\s+class="manga_cover"\s+href="\/manga\/([^"/]+)\/"\s+title="([^"]+)"([\s\S]*?)<\/a>/g;
     let match;
-    while ((match = regex.exec(html)) !== null && items.length < limit) {
-      const [, slug, title, coverUrl] = match;
-      // Some cover images are the placeholder/error image — we skip those
-      const normalizedCover = coverUrl.startsWith('//') ? `https:${coverUrl}` : coverUrl;
+    while ((match = blockRegex.exec(html)) !== null && items.length < limit) {
+      const [, slug, title, blockHtml] = match;
+
+      // Prefer data-src (lazy-loaded real URL) over src (often a placeholder
+      // GIF when lazy-loading is in use). Fall back to src only if it looks
+      // like an actual image URL — guard against grabbing a 1×1 spacer.
+      const dataSrcMatch = blockHtml.match(/data-src="([^"]+)"/i);
+      const srcMatch = blockHtml.match(/\bsrc="([^"]+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^"]*)?)"/i);
+      const rawCover = dataSrcMatch?.[1] || srcMatch?.[1] || '';
+      const normalizedCover = rawCover.startsWith('//') ? `https:${rawCover}` : rawCover;
+
       items.push({
         sourceId: 'mangatown',
         sourceName: 'MangaTown',
         mangaId: slug,
         title: title.trim(),
-        coverUrl: normalizedCover.includes('manga_cover.jpg') ? null : normalizedCover,
+        // Drop known placeholder URLs so the UI shows a clean fallback
+        // instead of a 1×1 grey square that later 403s on cover download.
+        coverUrl:
+          !normalizedCover ||
+          /manga_cover\.jpg|grey\.gif|loading\.gif|placeholder/i.test(normalizedCover)
+            ? null
+            : normalizedCover,
         description: '',
         status: 'unknown',
         year: null,
