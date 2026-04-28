@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Check, Circle, ChevronRight } from 'lucide-react';
+import { Check, Circle, ChevronRight, AlertTriangle } from 'lucide-react';
 import type { Comic } from '../lib/types';
 import { updateProgress } from '../lib/api';
 import ProgressBar from './ProgressBar';
@@ -31,7 +31,18 @@ export default function ComicListItem({ comic, seriesId, onToggleRead }: { comic
       </button>
 
       <div className="flex-1 min-w-0">
-        <h3 className="text-sm font-medium truncate">{comic.file.replace('.pdf', '')}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-medium truncate">{comic.file.replace('.pdf', '')}</h3>
+          {comic.partial && (
+            <span
+              className="shrink-0 inline-flex items-center gap-1 text-[10px] text-warning bg-warning/10 px-1.5 py-0.5 rounded-full"
+              title={`Partial chapter — got ${comic.partial.successfulPages} of ${comic.partial.totalPages} pages (retry #${comic.partial.retryCount}). Admin can retry from the series menu.`}
+            >
+              <AlertTriangle size={10} strokeWidth={2.5} />
+              {comic.partial.successfulPages}/{comic.partial.totalPages}
+            </span>
+          )}
+        </div>
         {comic.currentPage > 0 && !comic.isRead && <ProgressBar value={progress} className="mt-1.5" />}
       </div>
 

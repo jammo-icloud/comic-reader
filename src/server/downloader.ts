@@ -6,6 +6,7 @@ import { getChapterPages, pageImageUrl, getMangaDetail, type MangaDexChapter } f
 import { getPageUrlsFromSource } from './sources/index.js';
 import { loadAllSeries, saveSeries, addToCollection, type SeriesRecord } from './data.js';
 import { rescanLibrary } from './scanner.js';
+import { readPartial, writePartial, clearPartial, hasPartial } from './partial.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const TASKS_DIR = path.join(DATA_DIR, 'tasks');
@@ -322,6 +323,9 @@ async function assembleChapterFromSource(
   const chapterPageReferer = chapterReaderUrl(detectedSource, chapterId);
 
   let successfulPages = 0;
+  // Track which 1-based page indices failed so we can record them in the
+  // partial sidecar (if any) for later retry diagnostics.
+  const failedPageIndices: number[] = [];
 
   for (let i = 0; i < pageUrls.length; i++) {
     const url = pageUrls[i];
@@ -349,6 +353,7 @@ async function assembleChapterFromSource(
       successfulPages++;
       onPageDone?.();
     } catch (err) {
+      failedPageIndices.push(i + 1);
       // Log the actual URL on first failure of each chapter so we can see
       // what the CDN is rejecting (sample only — N×N log lines for big
       // chapters becomes noise after the first few).
@@ -378,12 +383,33 @@ async function assembleChapterFromSource(
   const pdfBytes = await pdf.save();
   fs.writeFileSync(outputPath, pdfBytes);
 
-  // If most pages failed (e.g. 1 of 50 succeeded) the PDF is technically
-  // non-empty but functionally useless. Surface this so the user knows.
+  // Sidecar bookkeeping. If any pages failed, write a partial-chapter record
+  // alongside the PDF so the chapter loop can detect it on the next attempt
+  // and re-try instead of silently treating the partial as complete. If
+  // EVERY page succeeded, clear any stale sidecar from a prior attempt —
+  // the chapter is now fully downloaded and shouldn't be flagged anymore.
   if (successfulPages < pageUrls.length) {
+    const prior = readPartial(outputPath);
+    writePartial(outputPath, {
+      chapterId,
+      sourceId: detectedSource,
+      totalPages: pageUrls.length,
+      successfulPages,
+      missingPageIndices: failedPageIndices,
+      pageUrls,
+      lastAttempt: new Date().toISOString(),
+      retryCount: (prior?.retryCount || 0) + 1,
+    });
     console.warn(
-      `  Partial chapter: ${chapterId} got ${successfulPages}/${pageUrls.length} pages`,
+      `  Partial chapter: ${chapterId} got ${successfulPages}/${pageUrls.length} pages` +
+        ` (sidecar written, retry #${(prior?.retryCount || 0) + 1})`,
     );
+  } else {
+    // Full success — clear any leftover sidecar from a prior partial attempt.
+    if (hasPartial(outputPath)) {
+      clearPartial(outputPath);
+      console.log(`  Cleared partial sidecar for ${chapterId} — chapter now complete`);
+    }
   }
 }
 
@@ -561,24 +587,31 @@ async function processQueue() {
           const filename = `Chapter ${String(chapterNum).padStart(3, '0')}.pdf`;
           const outputPath = path.join(seriesDir, filename);
 
-          // Skip if already exists AND is meaningfully sized. An "exists"
-          // guard alone permanently strands stub PDFs from earlier failed
-          // runs (pdf-lib's empty save is 583 bytes; real chapters are MBs).
-          // 5 KB is a conservative threshold — a real single-page chapter
-          // with a 200×200 JPEG is already >20 KB, so this catches stubs
-          // without false-positives.
+          // Skip if already exists AND is meaningfully sized AND has no
+          // partial-chapter sidecar. Two ways to fall through to re-download:
+          //   1. Stub PDF (pdf-lib empty save = 583 bytes; <5 KB threshold)
+          //   2. Partial sidecar present (chapter has missing pages from a
+          //      prior attempt — re-attempting may fill them in)
+          // Without (2) any partial chapter would be permanently stuck at
+          // its first incomplete state.
           const STUB_PDF_BYTES = 5 * 1024;
           if (fs.existsSync(outputPath)) {
             const size = fs.statSync(outputPath).size;
-            if (size > STUB_PDF_BYTES) {
+            if (size <= STUB_PDF_BYTES) {
+              console.log(`  Re-downloading Ch.${chapterNum}: existing file is a ${size}-byte stub`);
+              fs.unlinkSync(outputPath);
+            } else if (hasPartial(outputPath)) {
+              const prior = readPartial(outputPath);
+              console.log(
+                `  Re-downloading Ch.${chapterNum}: partial chapter (${prior?.successfulPages || '?'}/${prior?.totalPages || '?'} pages, retry #${(prior?.retryCount || 0) + 1})`,
+              );
+              fs.unlinkSync(outputPath);
+            } else {
               job.progress.current = i + 1;
               job.progress.currentChapter = chapterNum;
               saveTask(job);
               emitProgress(job);
               continue;
-            } else {
-              console.log(`  Re-downloading Ch.${chapterNum}: existing file is a ${size}-byte stub`);
-              fs.unlinkSync(outputPath);
             }
           }
 

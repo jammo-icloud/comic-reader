@@ -2,7 +2,8 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { loadAllSeries, loadComics, writeComics, removeSeries, saveSeries, getSeries, loadCollection, loadUserProgress, userDir, type SeriesRecord } from '../data.js';
-import { getQueue, removeFromQueue, cancelDownload, cleanupDownloads } from '../downloader.js';
+import { getQueue, removeFromQueue, cancelDownload, cleanupDownloads, queueDownload } from '../downloader.js';
+import { listPartialsForSeries, clearPartial } from '../partial.js';
 import { cleanupConversions } from '../converter.js';
 import { enrichSeries } from '../enrich.js';
 import { rescanLibrary } from '../scanner.js';
@@ -226,6 +227,9 @@ router.delete('/admin/catalog/:id/comics/:file', (req, res) => {
   const filePath = path.join(LIBRARY_DIR, typeDir, seriesId, file);
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
+  // Delete partial-chapter sidecar if it exists (otherwise it'd be orphaned)
+  clearPartial(filePath);
+
   // Delete thumbnail
   const DATA_DIR = process.env.DATA_DIR || './data';
   const thumbPath = path.join(DATA_DIR, 'thumbnails', `${shortHash(`${seriesId}/${file}`)}.jpg`);
@@ -245,6 +249,83 @@ router.get('/admin/catalog/:id/comics', (req, res) => {
   const comics = loadComics(req.params.id);
   res.json(comics);
 });
+
+/**
+ * Retry every partial chapter for a series in a single download job.
+ *
+ * Walks the series directory for *.partial.json sidecars, builds a chapter
+ * list from each one, and queues a download. The chapter loop's existence
+ * check has already been taught to fall through when a sidecar exists, so
+ * the same code path that handles fresh downloads handles retries — pages
+ * that succeeded before may succeed again, missing pages may fill in.
+ *
+ * Dedupe-on-enqueue means hitting this twice rapidly merges into one job.
+ *
+ * Returns: { partialsFound, queued } so the UI can confirm what was retried.
+ */
+router.post('/admin/series/:id/retry-partials', (req, res) => {
+  const series = getSeries(req.params.id);
+  if (!series) {
+    res.status(404).json({ error: 'Series not found' });
+    return;
+  }
+
+  const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
+  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
+  const seriesDir = path.join(LIBRARY_DIR, typeDir, series.id);
+  const partials = listPartialsForSeries(seriesDir);
+
+  if (partials.length === 0) {
+    res.json({ partialsFound: 0, queued: false, message: 'No partial chapters' });
+    return;
+  }
+
+  // All partials for one series should share the same sourceId. Use the first
+  // sidecar as the reference; if they ever diverge (cross-source merges,
+  // hypothetically), the per-chapter sourceId still drives the actual fetch.
+  const sourceId = partials[0].record.sourceId;
+
+  // Build the chapter payload that queueDownload expects. Page count comes
+  // from the sidecar's totalPages — if the source's getPageUrls returns a
+  // different count on retry that's still fine, the assembler uses what it
+  // gets back.
+  const chapters = partials.map(({ record }) => ({
+    id: record.chapterId,
+    chapter: extractChapterNumberFromId(record.chapterId),
+    pages: record.totalPages,
+  }));
+
+  const job = queueDownload(
+    series.syncSource?.mangaId || series.id,
+    series.name,
+    'default',
+    chapters,
+    {
+      sourceId,
+      coverUrl: series.coverFile ? undefined : undefined, // already have cover
+      tags: series.tags,
+      status: series.status || undefined,
+      year: series.year,
+    },
+    req.username,
+  );
+
+  console.log(
+    `Retry partials for ${series.id}: queued ${chapters.length} chapter(s) in job ${job.id}`,
+  );
+  res.json({ partialsFound: partials.length, queued: true, jobId: job.id });
+});
+
+/**
+ * Best-effort chapter-number extraction from a source chapterId.
+ *   "the_lone_necromancer/c053"        → "53"
+ *   "the_lone_necromancer/v01/c1.5"    → "1.5"
+ * Falls back to "" if no match — chapter labelling will use file ordinal.
+ */
+function extractChapterNumberFromId(chapterId: string): string {
+  const m = chapterId.match(/\/c([\d.]+)(?:\/|$)/);
+  return m ? String(parseFloat(m[1])) : '';
+}
 
 router.post('/admin/merge/preview', (req, res) => {
   try {

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, AlertTriangle } from 'lucide-react';
 import type { Comic } from '../lib/types';
 import { getThumbnailUrl } from '../lib/api';
 
@@ -35,6 +35,17 @@ export default function ComicCard({ comic, seriesId, hideSeries }: { comic: Comi
           </div>
         )}
         {comic.isRead && <div className="absolute bottom-0 left-0 right-0 h-1 bg-success" />}
+        {/* Partial-chapter badge — bottom-left so it doesn't fight with the
+            top-right read/progress chip. Warning-tone to signal "needs attention." */}
+        {comic.partial && (
+          <div
+            className="absolute top-2 left-2 inline-flex items-center gap-1 bg-warning/90 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm"
+            title={`Partial — ${comic.partial.successfulPages}/${comic.partial.totalPages} pages (retry #${comic.partial.retryCount})`}
+          >
+            <AlertTriangle size={10} strokeWidth={3} />
+            {comic.partial.successfulPages}/{comic.partial.totalPages}
+          </div>
+        )}
       </div>
       <div className="p-3">
         <h3 className="text-sm font-medium truncate">{comic.file.replace('.pdf', '')}</h3>

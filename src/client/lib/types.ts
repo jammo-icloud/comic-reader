@@ -52,6 +52,16 @@ export interface Comic {
   order: number;
   lastReadAt: string | null;
   thumbHash: string;
+  /**
+   * Populated when the chapter has a partial-chapter sidecar on disk —
+   * the chapter PDF exists but is missing some pages. Null for whole chapters.
+   */
+  partial?: {
+    successfulPages: number;
+    totalPages: number;
+    retryCount: number;
+    lastAttempt: string;
+  } | null;
 }
 
 // --- Continue Reading ---

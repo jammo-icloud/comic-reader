@@ -3,13 +3,14 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, LayoutGrid, List, Star, RefreshCw, Loader,
   Play, Search, ArrowUpDown, BookOpen, Pencil, Bell, BellOff, Trash2, X,
-  Download, CheckCircle, Package, Heart, Plus, Check,
+  Download, CheckCircle, Package, Heart, Plus, Check, AlertTriangle,
 } from 'lucide-react';
 import type { Series, Comic } from '../lib/types';
 import {
   getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl,
   deleteSeries, syncSeriesNow,
   addToCollection, addFavorite, removeFavorite,
+  retryPartialChapters,
 } from '../lib/api';
 import { useAuth } from '../App';
 import SyncSourcePicker from '../components/SyncSourcePicker';
@@ -140,6 +141,35 @@ export default function SeriesPage() {
   };
 
   /**
+   * Retry every partial chapter for this series in one job. Server-side
+   * dedupe-on-enqueue means rapid double-tap is harmless. The chapter loop's
+   * existence check has been taught to fall through when a sidecar exists,
+   * so the partials get re-attempted via the normal download path.
+   *
+   * Reuses the syncing state for the spinner — they're conceptually similar
+   * (admin-triggered backfill), and we don't want both spinning at once.
+   */
+  const handleRetryPartials = async () => {
+    if (!id || syncing) return;
+    setSyncing(true);
+    setSyncResult('');
+    try {
+      const result = await retryPartialChapters(id);
+      if (result.queued) {
+        setSyncResult(`Retrying ${result.partialsFound} partial chapter${result.partialsFound === 1 ? '' : 's'}…`);
+      } else {
+        setSyncResult(result.message || 'No partial chapters');
+      }
+      await refresh();
+    } catch (err) {
+      setSyncResult(`Error: ${(err as Error).message}`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncResult(''), 4000);
+    }
+  };
+
+  /**
    * Trigger a streaming .crz download via a programmatic <a> click.
    * The server sends Content-Disposition: attachment, so the browser hands
    * the response to its native download manager — never buffered in JS.
@@ -236,6 +266,7 @@ export default function SeriesPage() {
 
   const readCount = comics.filter((c) => c.isRead).length;
   const inProgress = comics.filter((c) => c.currentPage > 0 && !c.isRead).length;
+  const partialCount = comics.filter((c) => !!c.partial).length;
 
   // Continue-reading target: most recently read in-progress chapter, else first unread
   const continueTarget = useMemo<Comic | null>(() => {
@@ -351,6 +382,20 @@ export default function SeriesPage() {
                   label: 'Export as .crz',
                   hint: 'Archive · share across instances',
                   onClick: handleExportCrz,
+                });
+              }
+              // Show "Retry partial chapters" only when there's something
+              // to retry. Re-attempts every partial in one job (dedupe-on-
+              // enqueue means rapid taps merge harmlessly).
+              if (partialCount > 0) {
+                items.push({
+                  icon: syncing
+                    ? <Loader size={15} className="animate-spin" />
+                    : <AlertTriangle size={15} className="text-warning" />,
+                  label: `Retry ${partialCount} partial chapter${partialCount === 1 ? '' : 's'}`,
+                  hint: 'Re-fetch missing pages from the source',
+                  onClick: handleRetryPartials,
+                  disabled: syncing,
                 });
               }
               items.push({

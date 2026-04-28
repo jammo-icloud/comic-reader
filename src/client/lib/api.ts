@@ -218,6 +218,20 @@ export function syncSeriesNow(id: string): Promise<{ ok: boolean; newChapters: n
   return fetchJson(`/series/${id}/sync`, { method: 'POST' });
 }
 
+/**
+ * Admin-only — retry every partial chapter for this series in one job.
+ * Returns the count of partials found + whether a retry job was queued.
+ * Dedupe-on-enqueue means rapid clicks merge into a single job.
+ */
+export function retryPartialChapters(id: string): Promise<{
+  partialsFound: number;
+  queued: boolean;
+  jobId?: string;
+  message?: string;
+}> {
+  return fetchJson(`/admin/series/${id}/retry-partials`, { method: 'POST' });
+}
+
 export function updateSeriesSyncSource(
   id: string,
   source: { sourceId: string; mangaId: string } | null,

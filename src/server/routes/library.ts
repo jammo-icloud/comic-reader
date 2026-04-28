@@ -8,9 +8,11 @@ import {
   loadUserProgress, updateUserProgress,
   loadPreferences, savePreferences,
   isFavorited,
+  resolveComicPath,
   isNsfwSeries, VALID_THEMES,
   type SeriesRecord,
 } from '../data.js';
+import { readPartial } from '../partial.js';
 import { shortHash } from '../hash.js';
 import { getThumbnailPath, generateThumbnail } from '../thumbnails.js';
 import { enrichSeries, enrichSingle } from '../enrich.js';
@@ -132,10 +134,26 @@ router.patch('/series/:id/sync-source', (req, res) => {
 
 router.get('/series/:id/comics', (req, res) => {
   const comics = loadComicsForUser(req.params.id, req.username);
-  const withHashes = comics.map((c) => ({
-    ...c,
-    thumbHash: shortHash(`${req.params.id}/${c.file}`),
-  }));
+  const withHashes = comics.map((c) => {
+    // Surface partial-chapter state if a sidecar exists. The frontend uses
+    // this to render a "13/14 pages" badge and an admin "Retry" affordance.
+    // resolveComicPath gives the absolute PDF path; readPartial returns null
+    // when no sidecar is present (the common case — most chapters are whole).
+    const pdfPath = resolveComicPath(req.params.id, c.file);
+    const partial = pdfPath ? readPartial(pdfPath) : null;
+    return {
+      ...c,
+      thumbHash: shortHash(`${req.params.id}/${c.file}`),
+      partial: partial
+        ? {
+            successfulPages: partial.successfulPages,
+            totalPages: partial.totalPages,
+            retryCount: partial.retryCount,
+            lastAttempt: partial.lastAttempt,
+          }
+        : null,
+    };
+  });
   res.json(withHashes);
 });
 
