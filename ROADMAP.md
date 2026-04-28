@@ -9,11 +9,12 @@ re-deriving any architectural decisions.
 | Track | Status |
 |---|---|
 | **Server-side CRZ export/import (single series)** | ✅ Done |
-| **Server-side backup/system/scheduled backups** | ❌ **Not building** — see "Not building" |
+| **Server-side backup/system/scheduled backups** | ❌ **Not building** — see Decisions log |
 | **iOS PWA polish (Phase 1)** | ✅ Done |
-| **iOS server-side capability flags (Phase 2)** | 🔜 Next |
-| **iOS Capacitor shell (Phase 3)** | Queued |
-| **iOS App Store submission (Phase 4)** | Queued |
+| **Web capability flags (Phase 2a)** | 🔜 Next |
+| **Build-time exclusion / two-target build (Phase 2b)** | Queued |
+| **iOS Capacitor "Viewer" shell (Phase 3)** | Queued |
+| **iOS App Store submission — media-viewer framing (Phase 4)** | Queued |
 | **iOS native unlocks (Phase 5)** | Later |
 | **manga-finder produces v2 CRZ (parallel)** | Format spec ready; extension work pending |
 
@@ -148,19 +149,72 @@ logo on Library / Discover / SeriesPage pull-to-refresh.
 that runs on every refresh forever, in exchange for a polish win that fades
 to invisible after week one.
 
+### Runtime capability flags as the App Store gating mechanism
+
+**Considered:** ship a single bundle to both web and Capacitor/iOS, and let
+runtime capability flags hide Discover / source-picker / etc. on iOS. This
+was the original framing of Phase 2.
+
+**Rejected because:** runtime flags don't defend against bundle inspection.
+Apple App Reviewers (especially for borderline categories like "manga reader")
+run `strings` on the JS bundle, look at lazy-loaded chunks, and inspect Vite
+build artifacts. Even a flag-disabled `<DiscoverPage>` component ships with
+its source-name strings ("MangaDex", "WeebCentral", etc.) intact in the IPA.
+A reviewer's `grep` finds them; the flag-off-at-runtime defense is invisible
+to the inspector.
+
+**Chose instead:** build-time exclusion via two separate Vite targets
+(Phase 2b). The App Store build literally has no `<DiscoverPage>` chunk,
+no source-name strings, no source-picker UI in the bundle. `strings` on
+the IPA returns clean. Runtime capability flags (Phase 2a) remain useful
+for shared/family web UIs, but they are *not* the App Store defense — they
+were re-scoped to their actual purpose.
+
+**Concrete consequence:** Phase 2 is split into 2a (web admin UX win) and
+2b (App Store bundle defense). Both ship; they solve different problems.
+Don't conflate them again.
+
+### Synology DSM Package Center integration
+
+**Considered:** ship Comic Reader as a DSM Package, integrate with DSM auth,
+appear in Synology's Package Center alongside Plex / Drive / Surveillance.
+
+**Rejected because:** locks the project to Synology. Most self-hosted users
+run TrueNAS / Unraid / raw Docker on commodity hardware / k3s / Proxmox VMs.
+DSM Package Center membership signals "Synology user" not "comic reader user"
+and narrows the audience for a polish gain that affects ~20% of the install
+base.
+
+**Chose instead:** stay platform-agnostic. Ship as a Docker image that runs
+on any NAS or VPS. Existing users who use DSM-specific features (DSM auth)
+are accommodated via existing config; full DSM Package Center distribution
+is not pursued.
+
 ---
 
-## 🔜 Phase 2 — Server-side capability flags
+## 🔜 Phase 2 — Capability gating (split into 2a + 2b)
 
-**Why before Capacitor:** the iOS App Store version needs feature gating to
-pass review. Apple's bar is "does the iPhone app on its own facilitate piracy?"
-A capability-flags system lets the server be the source of truth — the app
-just shows what's enabled. Plex / Jellyfin / Komga all use this pattern.
+Phase 2 splits cleanly into two pieces with **different motivations**, which
+the original framing conflated:
 
-Useful even without iOS: it cleans up the "core library reader" vs "discovery"
-separation, lets you ship a stripped-down family/shared web UI.
+| Piece | Solves | Why separate |
+|---|---|---|
+| **2a — Web capability flags** (runtime toggles) | Shared/family web UIs that need to gate sensitive features per-server | Useful for ANY web user. App Store gating is not the goal here. |
+| **2b — Build-time exclusion** (two build targets) | App Store submission risk: bundle inspection reveals hidden UI strings even when runtime-disabled | This is the actual App Review defense. Runtime flags are insufficient on their own. |
 
-### What to build
+**Critical:** runtime capability flags do NOT defend against App Store review.
+A reviewer running `strings` on the bundled JS finds every UI text shipped,
+including flag-disabled `<DiscoverPage>` components and source names. **2a
+helps web admins; 2b is what keeps the App Store happy.** See Decisions log:
+"Runtime capability flags are sufficient for App Store gating."
+
+---
+
+### Phase 2a — Web capability flags
+
+**Why:** lets server admins gate sensitive features (Discover, NSFW, Translate)
+for non-admin users. Useful for shared NAS accounts (kids, family, friends),
+or for hardening a public-facing web UI. Plex / Jellyfin / Komga pattern.
 
 **`GET /api/server-info`** — public, unauthenticated, returns:
 
@@ -168,7 +222,7 @@ separation, lets you ship a stripped-down family/shared web UI.
 {
   version: string,            // package.json version
   capabilities: {
-    discover:           { enabled: boolean, sources: string[] },  // names only, no domains
+    discover:           { enabled: boolean, sources: string[] },  // friendly names only
     chromeExtension:    { available: boolean, installUrl: string | null },
     translate:          { enabled: boolean },
     export:             { enabled: boolean },
@@ -177,8 +231,8 @@ separation, lets you ship a stripped-down family/shared web UI.
 }
 ```
 
-Settings persist in a new `data/server-config.json` (system-level, separate
-from per-user prefs). New server module `src/server/config.ts` with typed
+Settings persist in `data/server-config.json` (system-level, separate from
+per-user prefs). New server module `src/server/config.ts` with typed
 load/save and an in-memory cache.
 
 **Admin UI** — new section in `AdminPage` "Server features" with toggle rows
@@ -190,21 +244,21 @@ for each capability. Saves via `POST /api/admin/server-config`.
   on app boot, exposes `useCapabilities()`.
 - Existing pages check capabilities before rendering features:
   - `LibraryPage` hides Discover nav if `!capabilities.discover.enabled`
-  - `DiscoverPage` 404s if disabled (defense-in-depth)
+  - `DiscoverPage` returns 404 component if disabled (defense-in-depth)
   - SeriesPage hides "Export as .crz" if `!capabilities.export.enabled`
   - Translation toggle in Reader hides if `!capabilities.translate.enabled`
 
 **Key design rules:**
 - Source names in `capabilities.discover.sources` are **friendly names**
-  (`"Source A"`, `"Source B"`) — never domain names. Apple reviewer never sees
-  "mangadex.org" in app traffic or UI.
-- Default for new installs: `discover: { enabled: false }`. Existing installs
-  upgrade with `discover: { enabled: true }` (preserves current behavior).
+  (`"Source A"`, `"Source B"`) — never domain names. Even on web, reviewer
+  network-traffic inspection should never see "mangadex.org".
+- Default for new installs: `discover: { enabled: true }`. Existing installs
+  preserved (no breaking change). Admins can disable on shared accounts.
 - `chromeExtension.available` defaults to `true` since the extension exists;
   surface as a tip, never an action.
 - Capabilities can be toggled live without server restart.
 
-**Estimate:** ~2 weeks calendar.
+**Estimate:** ~1 week calendar.
 
 **Files touched:**
 - New: `src/server/config.ts`, `src/server/routes/server-info.ts` (or extend admin)
@@ -215,48 +269,146 @@ for each capability. Saves via `POST /api/admin/server-config`.
 
 ---
 
-## 📦 Phase 3 — Capacitor shell
+### Phase 2b — Build-time exclusion (two build targets)
 
-**Goal:** a real iPhone app that's mostly the existing SPA in a WKWebView,
-plus a few native niceties.
+**Why:** the iOS App Store bundle must NOT contain any code or strings
+related to discovery, source browsing, or anything pattern-matching to
+"manga downloader." Runtime flags don't help — bundle inspection reveals
+all shipped UI. The defense is to *not ship those bytes at all* in the
+App Store target.
+
+**Two build targets, one codebase:**
+
+| Build | Command | Discover code | Source names | Capability admin UI | Audience |
+|---|---|---|---|---|---|
+| **Default** | `npm run build` | Present | Present | Present | Web / desktop / self-host |
+| **App Store** | `npm run build:appstore` | Stripped | Stripped | Hidden | Capacitor iOS bundle |
+
+**Implementation:**
+- `VITE_APPSTORE=true` env var set by the `build:appstore` script.
+- Top-level route gating uses `import.meta.env.VITE_APPSTORE` to lazy-import
+  conditionally:
+
+```ts
+// src/client/App.tsx
+const DiscoverPage = !import.meta.env.VITE_APPSTORE
+  ? lazy(() => import('./pages/DiscoverPage'))
+  : null;
+
+// In the route table
+{DiscoverPage && <Route path="/discover" element={<DiscoverPage />} />}
+```
+
+- Vite + Rollup tree-shake the entire `DiscoverPage` chunk + transitively
+  reachable code (source registry, source-picker components, source-name
+  string constants) out of the App Store bundle.
+- All source-name display goes through capabilities API responses; never
+  hardcoded in the bundle.
+- `SOURCES.md` is repo-only — never imported into the SPA bundle.
+- "Save offline" stays (it's about the user's own library — not piracy-adjacent).
+- "Export as .crz" stays (about user's own library; file-format handling).
+- "CRZ import" stays (file handling, like importing a movie).
+- Translation stays (operates on already-imported pages).
+- Admin "Server features" toggles for Discover are HIDDEN in App Store
+  builds (no point showing a toggle for a feature that doesn't exist).
+
+**Verification:**
+After `npm run build:appstore`:
+```bash
+strings dist/client/assets/*.js | grep -iE 'mangadex|hentainexus|weebcentral|tachiyomi|scrape'
+# Expected output: nothing
+```
+This is the actual App Review defense. If `strings` returns clean,
+reviewer's bundle inspection finds nothing discovery-related.
+
+**Estimate:** ~3 days calendar.
+
+**Files touched:**
+- `package.json` — new `build:appstore` script with `VITE_APPSTORE=true`
+- `vite.config.ts` — read `VITE_APPSTORE`, drop discover-related entries from `includeAssets`
+- `src/client/App.tsx` — conditional lazy imports
+- `src/client/pages/AdminPage.tsx` — hide capability admin UI when `VITE_APPSTORE`
+- `src/client/lib/capabilities.tsx` — App Store builds skip the `getServerInfo()` call
+  for discover-related capabilities (server still serves them; client just doesn't ask)
+
+---
+
+## 📦 Phase 3 — Capacitor "Viewer" shell
+
+**Goal:** a self-hosted-media *viewer* on iPhone. Same model as Plex, Jellyfin,
+Komga, Audiobookshelf clients. Reads from your server. Does NOT manage the
+library. Adding new content explicitly happens on desktop / web.
+
+This framing matters as much as any code decision: it makes the app
+fundamentally a media-player class app for review purposes, not a
+content-discovery class app.
 
 ### What to build
 
 ```bash
 npm install @capacitor/core @capacitor/ios @capacitor/cli
 npm install @capacitor/filesystem @capacitor/share @capacitor/preferences
-npx cap init "Comic Reader" "com.morrisfamily.comicreader" --web-dir=dist/client
+npx cap init "Comics" "com.morrisfamily.comics" --web-dir=dist/client
 npx cap add ios
 ```
 
+**Build the App Store target, not the default:**
+```bash
+npm run build:appstore   # Phase 2b — strips discover, source browsing, source names
+npx cap copy ios
+```
+
+The Capacitor wrapper ALWAYS wraps the App Store build. The default `npm run
+build` (full feature set) is for self-hosted web only.
+
+**What's IN the iOS Viewer:**
+- Library (your collection, browse, sort, filter, search)
+- Reader (PDF rendering, gestures, page navigation, view modes)
+- Continue Reading shelf
+- Series detail page
+- Settings (theme, dark/light, server URL, sign out)
+- Offline cached chapters
+- CRZ import via Files app (UTI registration — see below)
+- CRZ export of own series
+- Translation feature (operates on already-imported pages — borderline but defensible)
+
+**What's NOT in the iOS Viewer (build-time excluded by Phase 2b):**
+- Discover / source browsing
+- Source picker UI
+- Source name strings (no MangaDex / WeebCentral / etc. in the bundle)
+- Capability admin UI (toggles for features that don't exist in this build)
+
 **Native features worth wiring:**
 - **Capacitor Filesystem plugin** — replaces browser Cache Storage for offline
-  PDFs. Survives Safari "Clear History and Website Data" (which currently
-  wipes offline-saved chapters). Adapter pattern: `src/client/lib/storage.ts`
+  PDFs. Survives "Clear History and Website Data" (which currently wipes
+  offline-saved chapters). Adapter pattern: `src/client/lib/storage.ts`
   abstracts both backends.
-- **Capacitor Share plugin** — receive `.crz` files from the iOS Files app,
-  Mail attachments, AirDrop. Wires to `POST /api/import/crz`.
-- **`.crz` UTI registration** — `Info.plist` declares
-  `com.morrisfamily.comicreader.crz` as the UTI for `.crz` files. iOS then
-  treats them as first-class: Files app shows the Comic Reader icon, "Open
-  with Comic Reader" appears in share sheets, AirDropping a `.crz` from
-  another iPhone routes to the app.
+- **Capacitor Share plugin + `.crz` UTI registration** — receive `.crz` files
+  from iOS Files app, Mail attachments, AirDrop. `Info.plist` declares
+  `com.morrisfamily.comics.crz` as the UTI; iOS then shows the Comics icon
+  next to `.crz` files in Files app and surfaces "Open in Comics" on share
+  sheets. Wires to `POST /api/import/crz` on the connected server.
+  This is the framing equivalent to "open a movie file" — pure file-handling,
+  not scraping.
 - **Server URL config** — first launch asks for server URL, stores in
   Capacitor Preferences. Multi-server support (Plex pattern) deferred to
   Phase 5 if useful.
-- **Auth** — tokens via Capacitor Preferences (rather than cookies in
-  WKWebView, which iOS sometimes nukes on app updates). Server keeps cookie
-  auth for the web; native client uses `Authorization: Bearer <token>`. New
-  endpoint `POST /api/auth/token` issues tokens against username+password.
+- **Auth** — tokens via Capacitor Preferences (cookies in WKWebView are
+  unreliable across app updates). Server keeps cookie auth for the web; native
+  client uses `Authorization: Bearer <token>`. New endpoint
+  `POST /api/auth/token` issues tokens against username+password.
 
-**Build output:** `npx cap copy ios` after every `npm run build`. Then Xcode
-opens, sign, TestFlight.
+**App identity:**
+- Bundle ID: `com.morrisfamily.comics` (note: "comics" not "comic-reader" —
+  matches the App Store name)
+- Display name: **Comics**
+- Subtitle: "Library viewer"
 
 **Key design rules:**
-- App is a thin WKWebView shell. NO scraping logic in the app binary.
-- Server-side capability flags (Phase 2) gate what's visible.
-- First-run experience: server URL → login → library. NO discovery surfaces
-  by default unless the connected server has `capabilities.discover.enabled`.
+- App is a thin WKWebView shell wrapping the App Store build. NO scraping
+  logic in the app binary, NO source-picker UI, NO discovery code.
+- All sensitive surfaces are stripped at build time (Phase 2b), not runtime.
+- First-run: server URL → login → library. Period.
 
 **Estimate:** ~3-4 weeks calendar (mostly Apple Developer setup, code-signing,
 TestFlight pipeline — actual Capacitor wiring is days, not weeks).
@@ -271,47 +423,78 @@ TestFlight pipeline — actual Capacitor wiring is days, not weeks).
 
 ---
 
-## 🍎 Phase 4 — App Store submission
+## 🍎 Phase 4 — App Store submission (media-viewer framing)
 
-**Goal:** publicly distributable on the App Store.
+**Goal:** publicly distributable on the App Store as a self-hosted-media
+viewer, not a content-discovery app.
+
+This phase's defense-in-depth stack:
+1. **Framing** — App Store metadata, app name, description all describe a
+   *viewer* for self-hosted servers (this phase)
+2. **Bundle integrity** — `npm run build:appstore` strips discovery code at
+   compile time, `strings` the IPA reveals zero discovery surface (Phase 2b)
+3. **Network behavior** — at runtime, the app only fetches your library
+   metadata and PDFs (Phase 3 design)
+
+All three layers must hold for the strongest review posture. Phase 2b is
+the most important — it's the one a determined reviewer can't bypass.
 
 ### What it takes
 
-**Defensible framing:**
-- App description: "Self-hosted comic reader for your personal library."
-  Never "manga downloader," never "scraper," never "Tachiyomi-style."
-- Screenshots: only show your personal library + reader. No Discover, no
-  source browsing, no third-party content.
-- Keywords: comic, library, self-hosted, reader. Avoid "manga" in metadata
-  (still fine in the app itself; it's just metadata-targeting that triggers
-  Apple's piracy-radar ML).
+**App identity:**
+- App Store name: **Comics — Library Viewer** (or just **Comics**)
+- Subtitle: "Read your self-hosted comic library"
+- Description (opening paragraph):
+  > Comics is a viewer for your self-hosted Comic Reader server. Connect
+  > to your home library and read on iPhone. New content is added to your
+  > library on your computer; this app reads what's already there.
+- Description should explicitly call out: "Like Plex / Jellyfin / Komga
+  clients, this app does not download or browse third-party content. All
+  comics shown are served from your own server."
 
-**Default-off discovery in the App Store build:**
-- Build flag `IS_APPSTORE_BUILD=true` ships with `capabilities.discover` UI
-  hidden in the first-run experience. Even if a server has discover enabled,
-  the App Store version only surfaces it after the user **explicitly enables
-  it in Settings**. (The server still controls availability; the app adds an
-  extra opt-in layer specifically for review compliance.)
+**Keyword discipline:**
+- USE: comic, comics, library, reader, viewer, self-hosted, server, NAS, plex
+- AVOID in metadata: manga, manhwa, scrape, download, source, tachiyomi
+  (these are App Store keyword-targeting-ML triggers; using "manga" in the
+  *app itself* is fine — it's metadata that flags you)
 
-**Review prep:**
-- Screen recording showing: install → connect to my home server → browse
-  library → read a chapter → export a CRZ. No discovery surfaces.
-- Reviewer notes: "This is a client app for self-hosted Comic Reader servers.
-  All content is user-owned, served from the user's own NAS. Similar to Plex,
-  Jellyfin, Komga clients."
-- Have a test server URL + credentials ready for Apple's reviewer to use.
+**Screenshots (5-10 images):**
+- ✅ Library grid with your covers (clearly your own library)
+- ✅ Series detail page with chapter list
+- ✅ Reader page with a comic open
+- ✅ Continue Reading shelf
+- ✅ Theme picker showing your 12 themes
+- ❌ NO Discover screenshots
+- ❌ NO source browsing
+- ❌ NO search-the-internet UI
 
-**Expect 1-2 rounds.** First rejection is common ("we couldn't tell what
-content this is for"). Reply with the test server access and the
-self-hosted-client framing.
+**Review prep package:**
+- Screen recording: install → connect to home server → browse library →
+  read a chapter → export a CRZ → import a CRZ via Files app. No discovery
+  surfaces. Identical to what a Plex client does, just for comics.
+- Reviewer notes (free-text field on App Store Connect):
+  > Comics is a viewer for self-hosted Comic Reader servers — similar in
+  > concept to Plex, Jellyfin, and Komga clients. All content shown is
+  > served from the user's own server. The app does not download, scrape,
+  > or browse third-party content. Library management (adding new content)
+  > happens on the desktop / web interface, not in this app.
+- Have a test server URL + credentials ready for Apple's reviewer to log
+  into and exercise.
+
+**Expected review path:**
+- First submission MAY be rejected with "we couldn't determine what content
+  this is for" — common for self-hosted clients on first review.
+- Response: link to the reviewer-notes paragraph + test server access + a
+  pointer to Plex/Jellyfin/Komga as precedent.
+- Approval typically follows within 1-2 rounds.
 
 **Estimate:** ~2 weeks calendar (mostly waiting for review).
 
 **Files touched:**
-- `ios/App/Info.plist` — final metadata, app group, URL schemes
-- `src/client/lib/capabilities.tsx` — App Store build path that requires
-  user-toggle for discover even if server has it enabled
-- New: App Store screenshots, metadata copy
+- `ios/App/Info.plist` — final metadata, bundle ID, UTI registrations
+- `package.json` — release script that runs `build:appstore`, copies to iOS,
+  bumps version, tags
+- New: App Store screenshots (5-10), metadata copy, reviewer notes
 
 ---
 
