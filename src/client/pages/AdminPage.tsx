@@ -232,7 +232,10 @@ export default function AdminPage() {
           Row 2: tab strip (Library | Tasks | Subscriptions | Users)
           Sticky at top:0, z-30.
           ======================================================================== */}
-      <header className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+      <header
+        className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         {/* Row 1 */}
         <div className="max-w-6xl mx-auto px-3 sm:px-6 py-2 flex items-center gap-2">
           <button

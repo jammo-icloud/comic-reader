@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, LayoutGrid, List, Star, RefreshCw, Loader,
   Play, Search, ArrowUpDown, BookOpen, Pencil, Bell, BellOff, Trash2, X,
-  Download, CheckCircle,
+  Download, CheckCircle, Package,
 } from 'lucide-react';
 import type { Series, Comic } from '../lib/types';
 import { getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl, deleteSeries, syncSeriesNow } from '../lib/api';
@@ -131,6 +131,25 @@ export default function SeriesPage() {
     navigate('/');
   };
 
+  /**
+   * Trigger a streaming .crz download via a programmatic <a> click.
+   * The server sends Content-Disposition: attachment, so the browser hands
+   * the response to its native download manager — never buffered in JS.
+   * Cookies (auth) ride along automatically on a same-origin GET.
+   */
+  const handleExportCrz = () => {
+    if (!id) return;
+    const url = `/api/admin/series/${encodeURIComponent(id)}/export?translations=1`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.rel = 'noopener';
+    // Filename hint; server's Content-Disposition is authoritative.
+    a.download = `${id}.crz`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const handleSaveOffline = async () => {
     if (!id || typeof caches === 'undefined' || comics.length === 0) return;
     setOfflineState('saving');
@@ -223,11 +242,17 @@ export default function SeriesPage() {
   return (
     <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
 
-      {/* ===== Floating top corner buttons (mirror Reader page) ===== */}
+      {/* ===== Floating top corner buttons (mirror Reader page) =====
+          top/left/right use safe-area-inset so the buttons clear Dynamic Island
+          in standalone PWA mode (status-bar-style: black-translucent). */}
       <Link
         to="/"
         aria-label="Back to library"
-        className="fixed top-3 left-3 z-40 p-2.5 rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors shadow-lg"
+        className="fixed z-40 p-2.5 rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors shadow-lg"
+        style={{
+          top: 'max(0.75rem, env(safe-area-inset-top))',
+          left: 'max(0.75rem, env(safe-area-inset-left))',
+        }}
         title="Library"
       >
         <ArrowLeft size={18} />
@@ -235,7 +260,13 @@ export default function SeriesPage() {
 
       {/* Floating ProfileMenu (top-right) — series admin actions injected as a section.
           Identity / nav / theme / settings / sign-out all come from ProfileMenu itself. */}
-      <div className="fixed top-3 right-3 z-40">
+      <div
+        className="fixed z-40"
+        style={{
+          top: 'max(0.75rem, env(safe-area-inset-top))',
+          right: 'max(0.75rem, env(safe-area-inset-right))',
+        }}
+      >
         <ProfileMenu
           triggerVariant="floating"
           sections={isAdmin ? [{
@@ -263,6 +294,14 @@ export default function SeriesPage() {
                   onClick: () => { if (offlineState === 'idle') handleSaveOffline(); },
                   disabled: offlineState !== 'idle',
                   keepOpen: true,
+                });
+              }
+              if (comics.length > 0) {
+                items.push({
+                  icon: <Package size={15} />,
+                  label: 'Export as .crz',
+                  hint: 'Archive · share across instances',
+                  onClick: handleExportCrz,
                 });
               }
               items.push({
@@ -443,8 +482,15 @@ export default function SeriesPage() {
       {/* ===== Sentinel just above the sticky toolbar ===== */}
       <div ref={sentinelRef} className="h-px" />
 
-      {/* ===== Sticky chapter toolbar ===== */}
-      <div className={`sticky top-0 z-20 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md transition-shadow ${pinned ? 'shadow-md border-b border-gray-200 dark:border-gray-800' : 'border-b border-gray-200/60 dark:border-gray-800/60'}`}>
+      {/* ===== Sticky chapter toolbar =====
+          paddingTop: env(safe-area-inset-top) so when this pins under the
+          (transparent) iOS status bar in standalone mode, the toolbar content
+          (and the floating Back/⋯ buttons that sit on top of it) all clear
+          the time/battery readout. The backdrop blur extends behind the bar. */}
+      <div
+        className={`sticky top-0 z-20 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md transition-shadow ${pinned ? 'shadow-md border-b border-gray-200 dark:border-gray-800' : 'border-b border-gray-200/60 dark:border-gray-800/60'}`}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         {/* When pinned, reserve space on each side so the floating Back / ⋯ buttons
             (fixed at top-3 left/right) don't cover the toolbar's content. */}
         <div className={`max-w-5xl mx-auto py-2.5 flex items-center gap-2 transition-[padding] ${

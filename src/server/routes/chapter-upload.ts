@@ -239,7 +239,8 @@ router.post('/import/crz', crzUpload.single('file'), async (req, res) => {
     return;
   }
 
-  // Peek at manifest to check for NSFW tags before importing
+  // Peek at manifest to gate NSFW imports for non-admins.
+  // v1: infer NSFW from `tags` + sourceId. v2: top-level `nsfw` boolean (manifest is authoritative).
   if (!req.isAdmin) {
     try {
       const JSZip = (await import('jszip')).default;
@@ -247,13 +248,18 @@ router.post('/import/crz', crzUpload.single('file'), async (req, res) => {
       const manifestFile = zip.file('manifest.json');
       if (manifestFile) {
         const manifest = JSON.parse(await manifestFile.async('string'));
-        const tags: string[] = [...(manifest.tags || [])];
-        // Also check source-based tags
-        const sourceId = manifest.sourceId?.toLowerCase();
-        if (sourceId === 'hentainexus' || sourceId === 'manga18fx' || sourceId === 'omegascans') {
-          tags.push('adult');
+        let isNsfw = false;
+        if (manifest.formatVersion === 2) {
+          isNsfw = manifest.nsfw === true;
+        } else {
+          const tags: string[] = [...(manifest.tags || [])];
+          const sourceId = manifest.sourceId?.toLowerCase();
+          if (sourceId === 'hentainexus' || sourceId === 'manga18fx' || sourceId === 'omegascans') {
+            tags.push('adult');
+          }
+          isNsfw = tags.some((t: string) => NSFW_TAGS.has(t.toLowerCase()));
         }
-        if (tags.some((t: string) => NSFW_TAGS.has(t.toLowerCase()))) {
+        if (isNsfw) {
           res.status(403).json({ error: 'Only admins can import adult content' });
           return;
         }
@@ -263,8 +269,20 @@ router.post('/import/crz', crzUpload.single('file'), async (req, res) => {
     }
   }
 
+  // Conflict strategy (v2 only — v1 always merges). Default = merge.
+  const rawStrategy = String(req.query.strategy || 'merge').toLowerCase();
+  const strategy =
+    rawStrategy === 'replace' || rawStrategy === 'fork' ? rawStrategy : 'merge';
+
+  // Only admins may use destructive strategies (replace deletes existing chapters,
+  // fork creates a new series row that occupies disk).
+  if ((strategy === 'replace' || strategy === 'fork') && !req.isAdmin) {
+    res.status(403).json({ error: `Strategy '${strategy}' requires admin access` });
+    return;
+  }
+
   try {
-    const result = await importCrz(file.buffer, req.username);
+    const result = await importCrz(file.buffer, req.username, { strategy });
     res.json(result);
   } catch (err) {
     console.error(`CRZ import failed: ${(err as Error).message}`);

@@ -1,6 +1,6 @@
 {
   "name": "comic-reader",
-  "version": "3.21.3",
+  "version": "3.22.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,10 +9,12 @@
     "dev:client": "vite",
     "build": "vite build && tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
-    "scan": "tsx src/server/scan-cli.ts"
+    "scan": "tsx src/server/scan-cli.ts",
+    "splash": "tsx scripts/generate-splash.ts"
   },
   "dependencies": {
     "@types/multer": "^2.1.0",
+    "archiver": "^7.0.1",
     "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
     "jszip": "^3.10.1",
@@ -28,6 +30,7 @@
     "workbox-window": "^7.4.0"
   },
   "devDependencies": {
+    "@types/archiver": "^6.0.4",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.2",
     "@types/node": "^22.15.2",

@@ -52,7 +52,14 @@ export function isDarkTheme(themeId: string): boolean {
 }
 
 /**
- * Apply a theme to the document. Sets data-theme attribute and dark class.
+ * Apply a theme to the document. Sets data-theme attribute, dark class, and
+ * syncs the <meta name="theme-color"> tag so the iOS status bar / Android
+ * address bar tint match the current theme's background.
+ *
+ * The HTML's media-query theme-color tags handle FIRST PAINT before JS runs;
+ * once the user picks a specific theme, this overrides them with the exact
+ * background. We remove the media-query variants so iOS/Chrome don't keep
+ * preferring them over our explicit color.
  */
 export function applyTheme(themeId: string) {
   const html = document.documentElement;
@@ -62,4 +69,24 @@ export function applyTheme(themeId: string) {
   } else {
     html.classList.remove('dark');
   }
+
+  const def = ALL_THEMES.find((t) => t.id === themeId);
+  if (def) syncThemeColorMeta(def.bg);
+}
+
+/**
+ * Replace the document's <meta name="theme-color"> tags with a single explicit
+ * color (no media query). This is the active-theme override that beats the
+ * first-paint media-query fallbacks in index.html.
+ */
+function syncThemeColorMeta(color: string) {
+  // Remove any existing theme-color tags (including the prefers-color-scheme variants)
+  const existing = document.head.querySelectorAll('meta[name="theme-color"]');
+  existing.forEach((el) => el.parentNode?.removeChild(el));
+
+  // Insert the active-theme color
+  const meta = document.createElement('meta');
+  meta.name = 'theme-color';
+  meta.content = color;
+  document.head.appendChild(meta);
 }

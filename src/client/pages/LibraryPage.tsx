@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { WifiOff } from 'lucide-react';
+import { Download } from 'lucide-react';
 import type { Series, ContinueReadingItem } from '../lib/types';
 import { getSeries, getContinueReading, getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
 import NotificationDropdown from '../components/NotificationDropdown';
@@ -123,8 +123,14 @@ export default function LibraryPage() {
   return (
     <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
 
-      {/* ===== Slim page header ===== */}
-      <header className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+      {/* ===== Slim page header =====
+          paddingTop: env(safe-area-inset-top) clears the iOS standalone PWA
+          status bar (black-translucent style). The backdrop-blur extends behind
+          the time/battery; the header content sits below them. */}
+      <header
+        className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         <div className="max-w-7xl mx-auto px-4 py-1.5 flex items-center gap-2 h-12">
           <Link to="/" className="shrink-0">
             <img src="/logo.png" alt="Comic Reader" className="h-8 w-8 rounded-md" />
@@ -207,8 +213,12 @@ function SeriesGrid({ items, offlineSeries }: { items: Series[]; offlineSeries: 
                 </div>
               )}
               {offlineSeries.has(s.id) && (
-                <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-full backdrop-blur-sm">
-                  <WifiOff size={9} /> Offline
+                <div
+                  className="absolute top-2 left-2 flex items-center gap-1 bg-success/90 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm"
+                  title="Saved for offline reading"
+                  aria-label="Saved for offline reading"
+                >
+                  <Download size={9} strokeWidth={2.5} /> Saved
                 </div>
               )}
               {s.newChapterCount != null && s.newChapterCount > 0 && (

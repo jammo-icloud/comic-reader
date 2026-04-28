@@ -11,17 +11,28 @@ export default defineConfig({
       devOptions: {
         enabled: true,
       },
-      includeAssets: ['logo.png', 'unmatched-cover.png'],
+      includeAssets: [
+        'logo.png',
+        'unmatched-cover.png',
+        'icons/apple-touch-icon-180.png',
+        'splash/*.png',
+      ],
       manifest: {
         name: 'Comic Reader',
         short_name: 'Comics',
         description: 'Read your comic collection offline',
         theme_color: '#030712',
         background_color: '#030712',
+        // 'standalone' hides browser chrome on launch from home screen.
         display: 'standalone',
+        // Honor device orientation. iOS only enforces in standalone PWAs.
         orientation: 'any',
         start_url: '/',
+        // Don't include the leading dot prefix — Vite injects scope automatically.
         icons: [
+          // Apple-specific 180×180 (also used by iOS Safari "Add to Home Screen").
+          { src: '/icons/apple-touch-icon-180.png', sizes: '180x180', type: 'image/png' },
+          // Generic 512 for Android/Chrome maskable adaptive icon.
           { src: '/logo.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
       },
@@ -92,6 +103,11 @@ export default defineConfig({
     port: 5880,
     proxy: {
       '/api': 'http://localhost:3000',
+      // Express serves cover/thumbnail files at /static — proxy so dev mirrors prod.
+      // Without this, Vite's SPA fallback returns index.html for /static/covers/*.jpg
+      // and <img> tags fail silently. Works fine on the NAS because Express serves
+      // both /static and the SPA from one process.
+      '/static': 'http://localhost:3000',
     },
   },
 });

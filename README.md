@@ -100,6 +100,19 @@ Each DSM user who logs in gets:
 
 The comic files on disk are shared — no duplication. When a user searches for manga that's already in the library, they can add it to their collection instantly without re-downloading.
 
+## Install on iPhone / iPad
+
+Comic Reader is a PWA — no App Store needed.
+
+1. Open the server URL in **Safari** on iOS (e.g. `https://comics.your-nas.local`).
+2. Tap the **Share** button.
+3. Tap **Add to Home Screen**.
+4. Confirm the name (defaults to "Comics") and tap **Add**.
+
+The icon on your home screen launches the app in standalone mode (no Safari chrome, status bar blends into the active theme, deep linking from `.crz` files via the Files app, full safe-area handling for Dynamic Island devices).
+
+Cached comics, reading progress, and theme choice all persist across launches. To force a refresh after a server update, long-press the home-screen icon → **Remove App** → reinstall.
+
 ## Updating
 
 ```bash

@@ -122,8 +122,12 @@ export default function DiscoverPage() {
   return (
     <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
 
-      {/* ===== Library-shape header ===== */}
-      <header className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+      {/* ===== Library-shape header =====
+          paddingTop: env(safe-area-inset-top) clears the iOS standalone PWA status bar. */}
+      <header
+        className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-1.5">
           <img src="/logo.png" alt="Comic Reader" className="h-10 w-10 rounded-lg shrink-0" />
           <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-1" />

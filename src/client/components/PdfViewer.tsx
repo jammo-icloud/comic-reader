@@ -112,6 +112,50 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     [viewMode, zoom],
   );
 
+  // ----- Pan clamping: keep the canvas covering the container -----
+
+  /**
+   * Clamp a raw pan offset so the canvas can't be dragged past its own edges.
+   *
+   * The canvas is centered when pan = (0,0). It can be panned by at most
+   * (canvasSize - containerSize) / 2 in each direction before its edge would
+   * leave the container interior. When the canvas is smaller than the container
+   * (page narrower than viewport at zoom=1), pan is locked to 0 in that axis.
+   *
+   * Reads live DOM dimensions via refs — accurate while zoom is stable. During
+   * pinch we don't pan (gesture mode is 'pinch'), so we never read mid-resize.
+   */
+  const clampPan = useCallback((x: number, y: number): { x: number; y: number } => {
+    const c = containerRef.current;
+    const cv = canvasRef.current;
+    if (!c || !cv) return { x, y };
+    const cw = c.clientWidth;
+    const ch = c.clientHeight;
+    const iw = cv.clientWidth;
+    const ih = cv.clientHeight;
+    const maxX = Math.max(0, (iw - cw) / 2);
+    const maxY = Math.max(0, (ih - ch) / 2);
+    return {
+      x: Math.max(-maxX, Math.min(maxX, x)),
+      y: Math.max(-maxY, Math.min(maxY, y)),
+    };
+  }, []);
+
+  /**
+   * Re-clamp pan whenever the canvas size changes — fires after every zoom-driven
+   * re-render and after viewport / container resizes (rotation, split-screen, etc.).
+   * Without this, zooming out would leave you with pan that exceeds the new bounds.
+   */
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const ro = new ResizeObserver(() => {
+      setPan((prev) => clampPan(prev.x, prev.y));
+    });
+    ro.observe(cv);
+    return () => ro.disconnect();
+  }, [clampPan]);
+
   // ----- Effects: load doc, render, react to changes -----
 
   useEffect(() => {
@@ -294,6 +338,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     const localY = vy - rect.top;
     const ratio = DOUBLE_TAP_ZOOM; // since current zoom is 1
     setZoom(DOUBLE_TAP_ZOOM);
+    // Set the focal-pointed pan now; ResizeObserver re-clamps once the canvas
+    // grows to the new zoom (clampPan here can't see the new size yet).
     setPan({
       x: (1 - ratio) * (localX - rect.width / 2),
       y: (1 - ratio) * (localY - rect.height / 2),
@@ -349,10 +395,13 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         gesture.current.mode = 'pan';
       }
       if (gesture.current.mode === 'pan') {
-        setPan({
-          x: gesture.current.panStartX + dx,
-          y: gesture.current.panStartY + dy,
-        });
+        // Hard-clamp at the edges so the page can't be dragged past its bounds.
+        // (No iOS-style rubberband — that's a bigger change; this prevents the
+        // worst feel-bad case where you swipe and the page slides off-screen.)
+        setPan(clampPan(
+          gesture.current.panStartX + dx,
+          gesture.current.panStartY + dy,
+        ));
       }
     }
   };
@@ -407,10 +456,10 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     if (!mouseDown.current?.pannable) return;
     const dx = e.clientX - mouseDown.current.x;
     const dy = e.clientY - mouseDown.current.y;
-    setPan({
-      x: mouseDown.current.panStartX + dx,
-      y: mouseDown.current.panStartY + dy,
-    });
+    setPan(clampPan(
+      mouseDown.current.panStartX + dx,
+      mouseDown.current.panStartY + dy,
+    ));
   };
   const handleMouseUp = () => {
     mouseDown.current = null;
