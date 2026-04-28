@@ -62,29 +62,91 @@ Files: `index.html`, `vite.config.ts`, `src/client/lib/themes.ts`,
 
 ---
 
-## ❌ Not building (and why)
+## ❌ Decisions log — considered and rejected
+
+These were on the table at some point, evaluated, and deliberately set aside.
+Captured here so the same idea doesn't re-surface in three months and trigger
+a re-litigation. Each entry says **what** was considered, **why rejected**,
+and (where applicable) **what we chose instead**.
 
 ### Server-side backup, system-backup, scheduled backups
 
-**Decision: deleted from roadmap.** The NAS handles this natively and far
-better than we could:
+**Considered:** dedicated backup-mode (.crzbackup), system-mode (.crzsystem),
+scheduled exports to EXPORT_DIR.
+
+**Rejected because:** the NAS handles filesystem-level backup natively and far
+better than we could.
 - Synology Snapshot Replication / BTRFS snapshots / ZFS snapshots are
   filesystem-level, atomic, deduplicating, and survive corruption.
 - Rsync / Hyper Backup / borg are battle-tested for offsite copies.
-- Re-implementing this in app code would be reinventing a worse wheel and
-  forcing users to remember a separate "Comic Reader backup" instead of using
-  the one tool that backs up everything else on the NAS.
+- Re-implementing in app code reinvents a worse wheel and forces users to
+  remember a separate "Comic Reader backup" instead of using the one tool
+  that backs up everything else on the NAS.
 
-What we keep: **per-series CRZ export/import**. That's strictly better than a
-backup mode because:
-- Same format ships across instances (you and a friend, two of your own NASes).
-- File-Manager-friendly — drop a `.crz` into any working comic-reader instance.
-- Not coupled to the host filesystem.
-- Already done.
+**Chose instead:** per-series CRZ export/import (already shipped). Strictly
+better than a backup mode for sharing — file-manager-friendly, format ships
+across instances, not coupled to the host filesystem.
 
-**Concrete consequence:** ignore all references to "backup mode (.crzbackup)",
-"system mode (.crzsystem)", or "EXPORT_DIR / scheduled exports" in any earlier
-design notes. Those are out.
+**Concrete consequence:** ignore all references to ".crzbackup", ".crzsystem",
+or "EXPORT_DIR / scheduled exports" in any earlier design notes. Those are out.
+
+### Gyroscope-driven parallax (iOS-wallpaper-style depth)
+
+**Considered:** make cover art / library cards / hero shift with device tilt
+via `DeviceOrientationEvent`, mirroring iOS's home-screen wallpaper effect.
+
+**Rejected because:**
+- iOS 13+ requires `DeviceOrientationEvent.requestPermission()` — user must
+  tap a button to grant motion access. Awkward, breaks first-run flow.
+- Feel is dated (peak iOS 7 era). Apple themselves moved away from it.
+- Motion-sickness risk if applied broadly.
+- iPhone-only — no value on desktop / iPad / Android.
+- Battery drain from continuous gyroscope sampling, even if marginal.
+
+**Chose instead:** touch/pointer-driven `<TiltCard>` wrapper as the optional
+visual differentiator (see "Open product questions" — pointer-tilt). Same
+"3D perspective" feel without permissions, works everywhere, used by Apple
+Music / Apple TV+ / Steam UI today.
+
+### 3D card flip on every card surface
+
+**Considered:** apply perspective + rotate transforms across the library
+grid, comic-card list items, manga search results — anywhere a card lives.
+
+**Rejected because:** overdone = nauseating. Tilt should be reserved for
+focused/touched cards (the marquee hero, the long-pressed library card),
+not ambient. If we ever build `<TiltCard>`, it gets applied selectively,
+not globally.
+
+### Animated page transitions between routes
+
+**Considered:** crossfade / slide / shared-element transitions between
+LibraryPage ↔ SeriesPage ↔ ReaderPage.
+
+**Rejected because:** classic rabbit hole. Every transition feels great in
+isolation and frustrating after the 50th time. The current instant-route
+behavior is correctly invisible; users don't notice navigation, which is the
+goal. Re-evaluate only if there's a specific UX problem to solve, not as
+polish.
+
+### Page-flip animation in the Reader (book-page peel)
+
+**Considered:** replace the current linear page-change with a CSS-perspective
+book-page-peel animation.
+
+**Rejected (for now) because:** motion-sickness risk is real for chapter
+binge-reading. The cost of getting it wrong (user closes the app and never
+returns) outweighs the polish win. Re-evaluate ONLY if `<TiltCard>` ships
+first and proves users like the depth aesthetic in the Reader context.
+
+### Pull-to-refresh with custom logo-bounce animation
+
+**Considered:** instead of the generic spinner, animate the Comic Reader
+logo on Library / Discover / SeriesPage pull-to-refresh.
+
+**Rejected because:** cute but novelty depreciates fast. Adds animation code
+that runs on every refresh forever, in exchange for a polish win that fades
+to invisible after week one.
 
 ---
 
@@ -331,6 +393,24 @@ These don't block any phase but are worth deciding before they bite.
 5. **`manga-finder` Safari Web Extension port** — separate iOS app target,
    different review path. If you want feature-parity across browsers, decide
    when to start. Defer until after the iOS reader app ships.
+
+6. **Pointer-tilt visual differentiator (`<TiltCard>`).** Considered as the
+   "stand out visually on iPhone" feature in lieu of gyroscope (see Decisions
+   log). Not in any phase right now — ships only if we decide visual
+   differentiation matters more than the next concrete feature. If yes, the
+   recommended implementation:
+   - New `src/client/components/TiltCard.tsx` — wraps children, listens to
+     pointermove (mouse + touch), computes pointer position relative to card
+     center, applies `transform: perspective(1000px) rotateX(...) rotateY(...)`,
+     plus a `radial-gradient` sheen overlay that follows the pointer.
+     Resets to flat on pointerleave/up. Honors `prefers-reduced-motion: reduce`
+     (required, not optional).
+   - Apply selectively: SeriesPage hero cover (marquee), library `MangaCard`
+     covers, ContinueShelf cards. NEVER globally — see Decisions log entry on
+     "3D card flip on every card surface."
+   - ~120 LoC total. Ships in PWA today, carries through Capacitor unchanged.
+   - Validates one surface first (SeriesPage hero) before propagating. Revert
+     is a single-file delete if it doesn't feel right.
 
 ---
 
