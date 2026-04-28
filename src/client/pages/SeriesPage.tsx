@@ -3,10 +3,14 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, LayoutGrid, List, Star, RefreshCw, Loader,
   Play, Search, ArrowUpDown, BookOpen, Pencil, Bell, BellOff, Trash2, X,
-  Download, CheckCircle, Package,
+  Download, CheckCircle, Package, Heart, Plus, Check,
 } from 'lucide-react';
 import type { Series, Comic } from '../lib/types';
-import { getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl, deleteSeries, syncSeriesNow } from '../lib/api';
+import {
+  getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl,
+  deleteSeries, syncSeriesNow,
+  addToCollection, addFavorite, removeFavorite,
+} from '../lib/api';
 import { useAuth } from '../App';
 import SyncSourcePicker from '../components/SyncSourcePicker';
 import SeriesEditModal from '../components/SeriesEditModal';
@@ -60,6 +64,10 @@ export default function SeriesPage() {
   // Offline-save state (admin menu)
   const [offlineState, setOfflineState] = useState<'idle' | 'saving' | 'done'>('idle');
   const [offlineProgress, setOfflineProgress] = useState({ done: 0, total: 0 });
+
+  // Favorite + Add-to-library state (any logged-in user — not gated to admin)
+  const [favBusy, setFavBusy] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
 
   // ----- Data load -----
 
@@ -148,6 +156,47 @@ export default function SeriesPage() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  /**
+   * Toggle the current user's "I'd recommend this" mark. Optimistic update —
+   * we flip local state immediately and revert on error so the button feels
+   * instant. The cross-user Recommended feed re-aggregates on its next fetch.
+   */
+  const handleToggleFavorite = async () => {
+    if (!series || favBusy) return;
+    setFavBusy(true);
+    const wasFavorited = !!series.isFavorited;
+    setSeries((prev) => (prev ? { ...prev, isFavorited: !wasFavorited } : prev));
+    try {
+      if (wasFavorited) await removeFavorite(series.id);
+      else await addFavorite(series.id);
+    } catch (err) {
+      console.error('Toggle favorite failed:', err);
+      // Revert
+      setSeries((prev) => (prev ? { ...prev, isFavorited: wasFavorited } : prev));
+    } finally {
+      setFavBusy(false);
+    }
+  };
+
+  /**
+   * Add this series to the current user's collection. Same primitive that
+   * Discover already exposes — surfacing it on SeriesPage means a user can
+   * land on a series via direct URL or the Recommended feed and add it
+   * without going back through Discover.
+   */
+  const handleAddToLibrary = async () => {
+    if (!series || addBusy || series.inCollection) return;
+    setAddBusy(true);
+    try {
+      await addToCollection(series.id);
+      setSeries((prev) => (prev ? { ...prev, inCollection: true } : prev));
+    } catch (err) {
+      console.error('Add to library failed:', err);
+    } finally {
+      setAddBusy(false);
+    }
   };
 
   const handleSaveOffline = async () => {
@@ -401,8 +450,12 @@ export default function SeriesPage() {
             </div>
           </div>
 
-          {/* ===== Primary action row ===== */}
-          <div className="flex items-center gap-2 mt-5">
+          {/* ===== Primary action row =====
+              Layout: Continue (primary, flex-1 on mobile) → Add (or "In library")
+              → Favorite → Subscribe (admin). All buttons use min-h-44px for
+              comfortable mobile tap targets. Text labels collapse to icon-only
+              on mobile so the row stays single-line. */}
+          <div className="flex items-center gap-2 mt-5 flex-wrap">
             {continueTarget && (
               <Link
                 to={`/read/${id}/${continueTarget.file}`}
@@ -412,6 +465,58 @@ export default function SeriesPage() {
                 <span>{continueLabel}</span>
               </Link>
             )}
+
+            {/* Add to library — only when not already in collection */}
+            {!series.inCollection && (
+              <button
+                onClick={handleAddToLibrary}
+                disabled={addBusy}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-accent hover:text-accent text-sm transition-colors min-h-[44px] disabled:opacity-50"
+                title="Add to my library"
+                aria-label="Add to my library"
+              >
+                {addBusy ? <Loader size={15} className="animate-spin" /> : <Plus size={15} />}
+                <span className="hidden sm:inline">Add to library</span>
+              </button>
+            )}
+
+            {/* In library — non-action indicator */}
+            {series.inCollection && (
+              <span
+                className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-success/10 text-success text-sm"
+                title="In your library"
+              >
+                <Check size={15} />
+                <span className="hidden sm:inline">In your library</span>
+              </span>
+            )}
+
+            {/* Favorite (Recommend) toggle — visible to all logged-in users.
+                Filled heart when favorited; this is the user's "I'd recommend
+                this" mark that surfaces in Discover's Recommended feed. */}
+            <button
+              onClick={handleToggleFavorite}
+              disabled={favBusy}
+              className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm transition-colors min-h-[44px] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                series.isFavorited
+                  ? 'bg-accent/10 border-accent/30 text-accent hover:bg-accent/15'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-accent hover:text-accent'
+              }`}
+              title={series.isFavorited ? 'Stop recommending' : 'Recommend this series'}
+              aria-label={series.isFavorited ? 'Stop recommending' : 'Recommend this series'}
+              aria-pressed={!!series.isFavorited}
+            >
+              {favBusy ? (
+                <Loader size={15} className="animate-spin" />
+              ) : (
+                <Heart
+                  size={15}
+                  fill={series.isFavorited ? 'currentColor' : 'none'}
+                  strokeWidth={series.isFavorited ? 0 : 2}
+                />
+              )}
+              <span className="hidden sm:inline">{series.isFavorited ? 'Recommended' : 'Recommend'}</span>
+            </button>
 
             {/* Subscribe quick action — admin only since updating sync source is admin-only */}
             {isAdmin && !series.syncSource && (

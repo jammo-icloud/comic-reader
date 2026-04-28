@@ -28,6 +28,18 @@ export interface Series {
   readCount: number;
   inProgress: number;
   inCollection: boolean;
+  isFavorited?: boolean; // populated by /api/series/:id, optional elsewhere
+}
+
+/**
+ * One row in the cross-user Recommended feed.
+ * `series` is the underlying record, `favoritedBy` is who marked it,
+ * `count` is the size of that set (used for ranking).
+ */
+export interface RecommendedItem {
+  series: Series;
+  favoritedBy: string[];
+  count: number;
 }
 
 // --- Comic (within a series) ---

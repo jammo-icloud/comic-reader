@@ -1,4 +1,4 @@
-import type { Series, Comic, ContinueReadingItem, PendingImport, MangaDexManga, MangaDexChapter } from './types';
+import type { Series, Comic, ContinueReadingItem, PendingImport, MangaDexManga, MangaDexChapter, RecommendedItem } from './types';
 
 const BASE = '/api';
 
@@ -50,6 +50,36 @@ export function addToCollection(seriesId: string): Promise<void> {
 
 export function removeFromCollection(seriesId: string): Promise<void> {
   return fetchJson(`/collection/${seriesId}`, { method: 'DELETE' });
+}
+
+// ==================== Favorites ====================
+
+export function addFavorite(seriesId: string): Promise<{ ok: true }> {
+  return fetchJson(`/favorites`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ seriesId }),
+  });
+}
+
+export function removeFavorite(seriesId: string): Promise<void> {
+  return fetch(`${BASE}/favorites/${encodeURIComponent(seriesId)}`, {
+    method: 'DELETE',
+  }).then((res) => {
+    if (!res.ok && res.status !== 204) throw new Error(`Remove favorite failed: ${res.status}`);
+  });
+}
+
+export function getMyFavorites(): Promise<Series[]> {
+  return fetchJson(`/favorites`);
+}
+
+/**
+ * Cross-user aggregated feed for the Discover "Recommended" pill.
+ * NSFW-filtered server-side; safe to surface to any logged-in user.
+ */
+export function getRecommended(): Promise<RecommendedItem[]> {
+  return fetchJson(`/favorites/recommended`);
 }
 
 export function getCatalog(type?: 'comic' | 'magazine'): Promise<Series[]> {
