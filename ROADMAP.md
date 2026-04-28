@@ -11,6 +11,7 @@ re-deriving any architectural decisions.
 | **Server-side CRZ export/import (single series)** | ✅ Done |
 | **Server-side backup/system/scheduled backups** | ❌ **Not building** — see Decisions log |
 | **iOS PWA polish (Phase 1)** | ✅ Done |
+| **Favorites + Recommended feed** | ✅ Done |
 | **Web capability flags (Phase 2a)** | 🔜 Next |
 | **Build-time exclusion / two-target build (Phase 2b)** | Queued |
 | **iOS Capacitor "Viewer" shell (Phase 3)** | Queued |
@@ -37,6 +38,31 @@ Files: `src/server/crz-format.ts`, `src/server/crz-handler.ts`,
   CRZs. Zip-slip hardening on every path.
 - SeriesPage admin menu has **Export as .crz** action — programmatic
   `<a download>` click for native browser streaming.
+
+### Favorites + Recommended feed — multi-user social-via-shared-instance
+
+Files: `src/server/data.ts`, `src/server/routes/favorites.ts`,
+`src/server/routes/library.ts`, `src/client/lib/api.ts`,
+`src/client/lib/types.ts`, `src/client/pages/SeriesPage.tsx`,
+`src/client/pages/DiscoverPage.tsx`
+
+- Per-user favorites store (`data/users/<username>/favorites.jsonl`),
+  separate from collection. The user's "I'd recommend this" mark.
+- 4 routes: POST/DELETE/GET own favorites, GET aggregated cross-user
+  Recommended feed.
+- Recommended feed always NSFW-filtered regardless of viewer admin status —
+  the social-recommendation surface stays clean for shared/family contexts.
+- Cascade-delete from all users' favorites on series removal.
+- SeriesPage gains `★ Recommend` toggle + `+ Add to library` button —
+  both visible to all logged-in users (not admin-gated). The Add primitive
+  is also useful on its own — lets users add from any SeriesPage path
+  without going through Discover.
+- Discover gains two server-internal pills: `♥ Recommended` and `📚 Library`,
+  mutually exclusive with external source selection.
+- Recommended feed cards show attribution chips (per-username hash-colored
+  initials, accent ring on self).
+- This obsoletes the deep-link `?from=` recommend feature that was briefly
+  considered in earlier roadmap iterations (see Decisions log).
 
 ### iOS PWA polish — Phase 1
 
@@ -173,6 +199,34 @@ were re-scoped to their actual purpose.
 **Concrete consequence:** Phase 2 is split into 2a (web admin UX win) and
 2b (App Store bundle defense). Both ship; they solve different problems.
 Don't conflate them again.
+
+### Deep-link recommend feature (`?from=jared` URLs)
+
+**Considered:** when user A wants to recommend a series to user B on the same
+instance, generate a deep link (`/series/<id>?add=true&from=A`), share it via
+external channel (iMessage / Slack / etc.), recipient lands on series page
+with a banner offering to add to their library. Iterated through several
+versions: simple `?from=` (spoofable), token-based (heavier), recommendations
+store + validation (medium-weight).
+
+**Rejected because:** all variants required users to go OUT of the app to a
+messaging tool to share the URL, then back in. Even with server-side
+recommendation validation, the UX is "compose iMessage → paste link → wait
+for tap → render banner." The conceptual model assumed sharing is a
+person-to-person event with a target and a channel.
+
+**Chose instead:** Favorites + cross-user Recommended feed in Discover (see
+"Recently shipped"). Sharing is replaced by passive discovery — favorited
+series surface to everyone on the instance via a pill in Discover. No
+external channel, no validation logic, no spoofing concerns, no banner UI.
+Functions as a community signal ("what does this server collectively rate
+as good") rather than directed messaging.
+
+**Concrete consequence:** the in-app sharing problem was eliminated, not
+solved. There's no "send to" button, no pending-recommendations inbox, no
+per-recommendation state. If users want to point each other at a specific
+series via iMessage, they can paste the SeriesPage URL — it just navigates
+there with no special banner. CRZ export remains the cross-instance tool.
 
 ### Synology DSM Package Center integration
 
