@@ -242,6 +242,20 @@ PDF.js 4 · sharp · pdf-lib · archiver
 - [`SOURCES.md`](SOURCES.md) — current source matrix + research notes on
   blocked/protected sites
 
+## 100% vibe coded with Claude
+
+Every line of this is vibe-coded with [Anthropic's Claude](https://claude.ai)
+— described intent, agreed on the approach, let Claude write the code,
+adversarially reviewed when it mattered, shipped. Every commit is
+co-authored.
+
+The git history is unusually transparent on purpose. The ROADMAP's
+decisions log preserves what got considered and rejected (and why);
+commit messages capture the debugging-to-fix arcs in detail; design
+conversations that informed each feature are preserved in the
+descriptions. If you're curious what end-to-end vibe-coding looks like
+on a project of this size, the trail is all there.
+
 ## License
 
 MIT.
