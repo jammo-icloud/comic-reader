@@ -12,6 +12,7 @@ re-deriving any architectural decisions.
 | **Server-side backup/system/scheduled backups** | ❌ **Not building** — see Decisions log |
 | **iOS PWA polish (Phase 1)** | ✅ Done |
 | **Favorites + Recommended feed** | ✅ Done |
+| **Download queue: dedupe + partial-chapter tracking** | ✅ Done |
 | **Web capability flags (Phase 2a)** | 🔜 Next |
 | **Build-time exclusion / two-target build (Phase 2b)** | Queued |
 | **iOS Capacitor "Viewer" shell (Phase 3)** | Queued |
@@ -63,6 +64,64 @@ Files: `src/server/data.ts`, `src/server/routes/favorites.ts`,
   initials, accent ring on self).
 - This obsoletes the deep-link `?from=` recommend feature that was briefly
   considered in earlier roadmap iterations (see Decisions log).
+
+### Download queue hardening — dedupe + partial-chapter tracking
+
+Files: `src/server/downloader.ts`, `src/server/partial.ts` (new),
+`src/server/routes/library.ts`, `src/server/routes/admin.ts`,
+`src/client/lib/types.ts`, `src/client/lib/api.ts`,
+`src/client/components/ComicListItem.tsx`,
+`src/client/components/ComicCard.tsx`,
+`src/client/pages/SeriesPage.tsx`
+
+Closed two silent-failure classes that surfaced during a real
+MangaTown import (Lone Necromancer, 219 chapters):
+
+**Dedupe-on-enqueue.** Rapid double-clicks of Download (or any UI
+flow that fired twice) used to create two parallel jobs for the
+same series. The second job would replay every chapter after the
+first finished. `queueDownload` now matches on
+`(mangaDexId + sourceId + username)` against existing queued or
+downloading jobs. New chapters merge in (dedup by chapter id);
+exact duplicates return the existing job. `processQueue` is kicked
+unconditionally so a job that was about to exit picks up the new
+chapters.
+
+**Partial-chapter tracking via sidecar files.** When a chapter
+download succeeds for some pages but fails for others (CDN
+intermittent 403s, rate-limiting, etc.) the assembler used to
+write a multi-page-but-incomplete PDF, the existence check
+treated it as "done," and the missing pages were unrecoverable.
+Now: every assembly that doesn't get all pages writes a
+`Chapter NNN.partial.json` sidecar with the source URLs,
+successful-page count, missing-page indices, and retry count.
+The chapter loop's existence check falls through when a sidecar
+is present — re-attempts go through the normal download flow.
+Full success deletes the sidecar.
+
+Surfaced to the UI: `Comic` type has a `partial` field;
+`ComicListItem` and `ComicCard` render a warning-tone
+"⚠ 13/14" badge with a tooltip. SeriesPage admin menu gains
+"Retry N partial chapters" — only shown when partials exist.
+Server route: `POST /api/admin/series/:id/retry-partials`
+walks the series dir for sidecars and queues a retry job
+(dedupe-on-enqueue makes rapid taps merge harmlessly).
+
+Cleanup: admin chapter-delete route now clears the sidecar
+alongside the PDF + thumbnail to avoid orphaned sidecars.
+
+Defended along the way:
+- Stub PDFs (<5 KB, written when zero pages succeeded in older
+  code paths) are detected at the existence check and re-attempted
+  instead of permanently stranding the chapter.
+- assembleChapterFromSource throws when zero pages succeed (no
+  PDF written) — used to silently produce 583-byte empty PDFs.
+- Per-chapter Referer for MangaTown's hotlink-protected CDN
+  (some CDNs gate on the actual reader-page URL, not just the
+  source homepage).
+- Diagnostic dump of sample `<img>` tags when MangaTown's image-
+  URL regex doesn't match — makes the next CDN-rotation fix
+  targeted instead of guesswork.
 
 ### iOS PWA polish — Phase 1
 
