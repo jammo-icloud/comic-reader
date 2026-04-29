@@ -229,7 +229,7 @@ router.get('/import/watch-folder', (_req, res) => {
 
 /**
  * POST /api/import/crz
- * Import a .crz (Comic Reader Zip) file — chapters + metadata + cover.
+ * Import a .crz (Bindery archive) file — chapters + metadata + cover.
  */
 const crzUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } }); // 500MB
 router.post('/import/crz', crzUpload.single('file'), async (req, res) => {

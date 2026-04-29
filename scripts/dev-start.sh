@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start all comic-reader services for local development
+# Start all bindery services for local development
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 export LIBRARY_DIR="$DIR/local-library"
@@ -18,7 +18,7 @@ find_open_port() {
   echo $port
 }
 
-# Kill any existing comic-reader processes
+# Kill any existing bindery processes
 "$DIR/scripts/dev-stop.sh" 2>/dev/null
 
 VITE_PORT=$(find_open_port 5880)

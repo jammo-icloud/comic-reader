@@ -1,4 +1,4 @@
-# Comic Reader
+# Bindery
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](https://vite.dev)
@@ -38,7 +38,7 @@ your own server.
   instances. Multi-part import for the Chrome extension. v2 round-trips
   full metadata; v1 still readable.
 - **manga-finder** — companion Chrome extension that downloads chapters
-  from sites comic-reader can't reach server-side (Cloudflare-protected,
+  from sites Bindery can't reach server-side (Cloudflare-protected,
   encrypted-page) and uploads to your library. Bundled in the install.
 - **iPhone / iPad PWA** — installable via Safari → Add to Home Screen.
   Standalone mode, splash screens, theme-color tracks the active theme,
@@ -59,7 +59,7 @@ your own server.
 
 ```bash
 # 1. Clone or copy the repo onto your NAS
-cd /volume1/docker/comic-reader
+cd /volume1/docker/bindery
 
 # 2. Edit docker-compose.yml — set the volume + DSM URL + admin user
 #    (defaults assume Synology with DSM on host port 5000 and library at /volume1/Manga)
@@ -131,11 +131,11 @@ Drop it on the recipient's instance via the import flow.
 
 ## Install on iPhone / iPad
 
-Comic Reader is a PWA — no App Store needed.
+Bindery is a PWA — no App Store needed.
 
 1. Open the server URL in **Safari** on iOS
 2. Tap **Share** → **Add to Home Screen**
-3. Confirm the name (defaults to "Comics") and tap **Add**
+3. Confirm the name (defaults to "Bindery") and tap **Add**
 
 Launches in standalone mode (no Safari chrome), status bar tints to your
 active theme, splash screen pulls from your login-bg art, full safe-area
@@ -149,16 +149,16 @@ To force a refresh after a server update: long-press the home-screen icon
 
 Some sources (Cloudflare-protected, encrypted pages) can't be reached from
 the server. The companion **manga-finder** Chrome extension runs the
-download in your browser session and uploads to your comic-reader instance.
+download in your browser session and uploads to your Bindery instance.
 
 - Bundled at `/manga-finder-extension.zip` on every install
 - Discover page surfaces an install prompt
-- Same design language as comic-reader (dark themes, source pills)
-- Produces v2 CRZ chapters that comic-reader's importer ingests
+- Same design language as Bindery (dark themes, source pills)
+- Produces v2 CRZ chapters that Bindery's importer ingests
 
 ## Translation
 
-Comic Reader can translate Japanese bubbles inline using a vision-capable
+Bindery can translate Japanese bubbles inline using a vision-capable
 LLM via [Ollama](https://ollama.com). Recommended setup:
 
 ```bash
@@ -168,20 +168,48 @@ ollama pull qwen2.5vl:7b
 ```
 
 Set `OLLAMA_URL` (default `http://host.docker.internal:11434`) in the
-`comic-reader` service env. Per-page translations cache as JSON in
+`bindery` service env (the docker service name). Per-page translations cache as JSON in
 `data/translations/<series>/<chapter-hash>/p<N>.json` — translate once,
 re-render forever.
 
 ## Updating
 
 ```bash
-cd /volume1/docker/comic-reader
+cd /volume1/docker/bindery
 git pull   # or replace files with the new release
 docker compose up -d --build
 ```
 
 Your data lives in the mounted volume (`/volume1/Manga/.comic-reader/`),
 not inside the container. Updates are non-destructive.
+
+### Migrating from Comic Reader v3 → Bindery v4
+
+This was a project rename, not a data migration. The data directory on
+disk is still `.comic-reader/` (unchanged on purpose — your library state
+is untouched). What did change:
+
+- **Docker container/service name** — was `comic-reader`, now `bindery`.
+  On your existing NAS:
+  ```bash
+  cd /volume1/docker/comic-reader        # old location
+  docker compose down                    # stop old container
+  cd ..
+  mv comic-reader bindery                # rename the deploy directory
+  cd bindery
+  git pull                               # get the v4 code
+  docker compose up -d --build           # rebuild as `bindery` container
+  ```
+- **PWA app name** — iPhone home-screen icon shows "Bindery" instead of
+  "Comics" on the next install. Existing PWA installs will need to be
+  removed and re-added (long-press → Remove App → Safari → Add to
+  Home Screen) to pick up the new name + icon.
+- **Theme preference** — your locally-stored theme (`comic-reader-theme`
+  in localStorage) is read once as a fallback, then re-saved under the
+  new key (`bindery-theme`). No action needed; you won't lose your theme.
+- **CRZ files** — extension stays `.crz`. Existing exports continue to
+  import. The "CR" letters now stand for "ComicReader-historic" — the
+  format identifier is just `.crz` going forward.
 
 ## Local development
 
@@ -214,7 +242,7 @@ npm run splash
 ```
 Browser
   ↓
-comic-reader  (:3000, :8580 external)
+Bindery  (:3000, :8580 external)
   ├── /api/auth/*               DSM auth, sessions
   ├── /api/series, /api/comics  catalog + per-user state
   ├── /api/discover/*           server-side multi-source search

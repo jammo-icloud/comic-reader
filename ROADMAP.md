@@ -1,4 +1,4 @@
-# Comic Reader — Roadmap
+# Bindery — Roadmap
 
 Living plan for what's shipping, what's deliberately NOT shipping, and what's
 queued. Written for future-Claude/future-James to pick up cold without
@@ -133,7 +133,7 @@ Files: `index.html`, `vite.config.ts`, `src/client/lib/themes.ts`,
   returns 0 on every notched iPhone).
 - iOS standalone meta tags: `apple-mobile-web-app-capable`,
   `apple-mobile-web-app-status-bar-style="black-translucent"`,
-  `apple-mobile-web-app-title="Comics"`.
+  `apple-mobile-web-app-title="Bindery"`.
 - 180×180 `apple-touch-icon` generated from `logo.png`.
 - Splash screens generated from `public/login-bg/` art via `npm run splash`
   (4 iPhone portrait sizes: Pro Max, Pro, standard, SE).
@@ -166,7 +166,7 @@ better than we could.
   filesystem-level, atomic, deduplicating, and survive corruption.
 - Rsync / Hyper Backup / borg are battle-tested for offsite copies.
 - Re-implementing in app code reinvents a worse wheel and forces users to
-  remember a separate "Comic Reader backup" instead of using the one tool
+  remember a separate "Bindery backup" instead of using the one tool
   that backs up everything else on the NAS.
 
 **Chose instead:** per-series CRZ export/import (already shipped). Strictly
@@ -227,7 +227,7 @@ first and proves users like the depth aesthetic in the Reader context.
 
 ### Pull-to-refresh with custom logo-bounce animation
 
-**Considered:** instead of the generic spinner, animate the Comic Reader
+**Considered:** instead of the generic spinner, animate the Bindery
 logo on Library / Discover / SeriesPage pull-to-refresh.
 
 **Rejected because:** cute but novelty depreciates fast. Adds animation code
@@ -289,7 +289,7 @@ there with no special banner. CRZ export remains the cross-instance tool.
 
 ### Synology DSM Package Center integration
 
-**Considered:** ship Comic Reader as a DSM Package, integrate with DSM auth,
+**Considered:** ship Bindery as a DSM Package, integrate with DSM auth,
 appear in Synology's Package Center alongside Plex / Drive / Surveillance.
 
 **Rejected because:** locks the project to Synology. Most self-hosted users
@@ -461,7 +461,7 @@ content-discovery class app.
 ```bash
 npm install @capacitor/core @capacitor/ios @capacitor/cli
 npm install @capacitor/filesystem @capacitor/share @capacitor/preferences
-npx cap init "Comics" "com.morrisfamily.comics" --web-dir=dist/client
+npx cap init "Bindery" "com.morrisfamily.bindery" --web-dir=dist/client
 npx cap add ios
 ```
 
@@ -498,8 +498,8 @@ build` (full feature set) is for self-hosted web only.
   abstracts both backends.
 - **Capacitor Share plugin + `.crz` UTI registration** — receive `.crz` files
   from iOS Files app, Mail attachments, AirDrop. `Info.plist` declares
-  `com.morrisfamily.comics.crz` as the UTI; iOS then shows the Comics icon
-  next to `.crz` files in Files app and surfaces "Open in Comics" on share
+  `com.morrisfamily.bindery.crz` as the UTI; iOS then shows the Bindery icon
+  next to `.crz` files in Files app and surfaces "Open in Bindery" on share
   sheets. Wires to `POST /api/import/crz` on the connected server.
   This is the framing equivalent to "open a movie file" — pure file-handling,
   not scraping.
@@ -512,10 +512,9 @@ build` (full feature set) is for self-hosted web only.
   `POST /api/auth/token` issues tokens against username+password.
 
 **App identity:**
-- Bundle ID: `com.morrisfamily.comics` (note: "comics" not "comic-reader" —
-  matches the App Store name)
-- Display name: **Comics**
-- Subtitle: "Library viewer"
+- Bundle ID: `com.morrisfamily.bindery`
+- Display name: **Bindery**
+- Subtitle: "Self-hosted comic library"
 
 **Key design rules:**
 - App is a thin WKWebView shell wrapping the App Store build. NO scraping
@@ -555,10 +554,10 @@ the most important — it's the one a determined reviewer can't bypass.
 ### What it takes
 
 **App identity:**
-- App Store name: **Comics — Library Viewer** (or just **Comics**)
+- App Store name: **Bindery — Library Viewer** (or just **Bindery**)
 - Subtitle: "Read your self-hosted comic library"
 - Description (opening paragraph):
-  > Comics is a viewer for your self-hosted Comic Reader server. Connect
+  > Bindery is a viewer for your self-hosted Bindery server. Connect
   > to your home library and read on iPhone. New content is added to your
   > library on your computer; this app reads what's already there.
 - Description should explicitly call out: "Like Plex / Jellyfin / Komga
@@ -586,7 +585,7 @@ the most important — it's the one a determined reviewer can't bypass.
   read a chapter → export a CRZ → import a CRZ via Files app. No discovery
   surfaces. Identical to what a Plex client does, just for comics.
 - Reviewer notes (free-text field on App Store Connect):
-  > Comics is a viewer for self-hosted Comic Reader servers — similar in
+  > Bindery is a viewer for self-hosted Bindery servers — similar in
   > concept to Plex, Jellyfin, and Komga clients. All content shown is
   > served from the user's own server. The app does not download, scrape,
   > or browse third-party content. Library management (adding new content)
@@ -631,8 +630,8 @@ pick any subset based on actual pain.
   you have NAS at home + somewhere else, or want to consume a friend's NAS
   occasionally.
 - **Share Extension target** — separate from Capacitor Share plugin: lets
-  Comic Reader appear in iOS Share Sheets system-wide (e.g. share a URL from
-  Safari to "import into Comic Reader" — would need server-side URL handler).
+  Bindery appear in iOS Share Sheets system-wide (e.g. share a URL from
+  Safari to "import into Bindery" — would need server-side URL handler).
 - **Spotlight indexing** — `CSSearchableItem` makes series searchable from
   the iPhone home screen swipe-down search.
 
@@ -677,7 +676,7 @@ These don't block any phase but are worth deciding before they bite.
    when the app cold-starts after a week? iOS UX expects no re-login; server
    admin probably wants the option to revoke. Pick before Phase 3.
 
-3. **Server URL discovery** — Bonjour / mDNS for "find Comic Reader on this
+3. **Server URL discovery** — Bonjour / mDNS for "find Bindery on this
    network" (Plex pattern) vs always typing the URL. Quality-of-life win for
    first-run; ~1 week to implement via `@capacitor-community/zeroconf`.
 

@@ -1,5 +1,5 @@
 /**
- * Handle .crz (Comic Reader Zip) file imports — both v1 (legacy) and v2.
+ * Handle .crz (Bindery archive) file imports — both v1 (legacy) and v2.
  *
  * Top-level flow:
  *   1. Read manifest.json from the zip

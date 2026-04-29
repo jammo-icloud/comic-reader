@@ -1,11 +1,11 @@
 #!/bin/bash
-# Check status of all comic-reader dev services
+# Check status of all bindery dev services
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 VITE_PORT=5880
 [ -f "$DIR/.vite-port" ] && VITE_PORT=$(cat "$DIR/.vite-port")
 
-echo "Comic Reader Dev Status"
+echo "Bindery Dev Status"
 echo "======================="
 
 for port_name in "3000:Express server" "${VITE_PORT}:Vite client" "3001:Orchestrator"; do

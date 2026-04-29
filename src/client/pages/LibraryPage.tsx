@@ -19,11 +19,11 @@ export default function LibraryPage() {
 
   // Persisted prefs — survive cross-page navigation
   const [typeFilter, setTypeFilter] = useState<'comic' | 'magazine'>(() => {
-    const saved = localStorage.getItem('comic-reader-type-filter');
+    const saved = localStorage.getItem('bindery-type-filter');
     return saved === 'magazine' ? 'magazine' : 'comic';
   });
   const [sortBy, setSortBy] = useState<SortMode>(() => {
-    const saved = localStorage.getItem('comic-reader-library-sort');
+    const saved = localStorage.getItem('bindery-library-sort');
     if (saved === 'name-asc' || saved === 'name-desc' || saved === 'score-desc'
       || saved === 'year-desc' || saved === 'count-desc' || saved === 'new-desc') {
       return saved;
@@ -35,8 +35,8 @@ export default function LibraryPage() {
   const [search, setSearch] = useState('');
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
 
-  useEffect(() => { localStorage.setItem('comic-reader-type-filter', typeFilter); }, [typeFilter]);
-  useEffect(() => { localStorage.setItem('comic-reader-library-sort', sortBy); }, [sortBy]);
+  useEffect(() => { localStorage.setItem('bindery-type-filter', typeFilter); }, [typeFilter]);
+  useEffect(() => { localStorage.setItem('bindery-library-sort', sortBy); }, [sortBy]);
 
   // ----- Data load -----
 
@@ -133,7 +133,7 @@ export default function LibraryPage() {
       >
         <div className="max-w-7xl mx-auto px-4 py-1.5 flex items-center gap-2 h-12">
           <Link to="/" className="shrink-0">
-            <img src="/logo.png" alt="Comic Reader" className="h-8 w-8 rounded-md" />
+            <img src="/logo.png" alt="Bindery" className="h-8 w-8 rounded-md" />
           </Link>
           <div className="flex-1" />
           <NotificationDropdown />

@@ -100,7 +100,7 @@ warmCache();
 runCleanup();
 
 app.listen(PORT, () => {
-  console.log(`Comic Reader running on http://localhost:${PORT}`);
+  console.log(`Bindery running on http://localhost:${PORT}`);
 
   // Resume any incomplete downloads from previous session
   resumeIncompleteDownloads();

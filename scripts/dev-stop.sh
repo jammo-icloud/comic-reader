@@ -1,5 +1,5 @@
 #!/bin/bash
-# Stop all comic-reader dev services — kills parent and all child processes
+# Stop all bindery dev services — kills parent and all child processes
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 VITE_PORT=5880
@@ -37,11 +37,11 @@ for port in 3000 3001 $VITE_PORT; do
   fi
 done
 
-# Kill ALL orphaned comic-reader processes (tsx, vite, concurrently, node)
+# Kill ALL orphaned bindery processes (tsx, vite, concurrently, node)
 # Match by the project directory path — won't touch other projects
 ORPHANS=$(pgrep -f "$DIR" 2>/dev/null)
 if [ -n "$ORPHANS" ]; then
-  echo "Killing orphaned comic-reader processes:"
+  echo "Killing orphaned bindery processes:"
   echo "$ORPHANS" | while read pid; do
     CMD=$(ps -p $pid -o command= 2>/dev/null)
     echo "  PID $pid: $CMD"

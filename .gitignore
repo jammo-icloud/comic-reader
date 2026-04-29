@@ -15,3 +15,8 @@ local-library/
 .orchestrator.log
 .orchestrator.pid
 .vite-port
+
+# Login background art — original 3 files at the root are tracked (project
+# defaults), but the curated subdirectories (shinkai/, brutalist-scifi/,
+# cyberpunk-neon/, etc.) are user-generated and live on the NAS, not in git.
+public/login-bg/*/

@@ -180,26 +180,131 @@ router.get('/auth/check', (req, res) => {
   res.json({ authenticated: true, username: session.username, isAdmin: session.isAdmin });
 });
 
-// Random login background
-router.get('/auth/login-bg', (_req, res) => {
-  // Check multiple possible locations
+// ============================================================
+// Login background art
+//
+// Three layers:
+//   /auth/login-bg              — single random image (legacy; root files only)
+//   /auth/login-bg/spread       — JSON with 3 establishing-shot panels from a
+//                                 random aesthetic subdir + 1 manga-panel accent
+//                                 (used by the comic-panel login layout)
+//   /auth/login-bg/img/:dir/:f  — serves a specific file by aesthetic + filename
+//                                 (path-traversal guarded — validates dir is a
+//                                 real subdir and filename matches image regex)
+// ============================================================
+
+const IMAGE_EXT_RE = /\.(png|jpg|jpeg|webp)$/i;
+const SAFE_FILENAME_RE = /^[a-zA-Z0-9_.-]+\.(png|jpg|jpeg|webp)$/i;
+const SAFE_DIRNAME_RE = /^[a-zA-Z0-9_-]+$/;
+
+function loginBgRoot(): string | null {
   const publicDir = path.resolve(__dirname, '../../../public/login-bg');
   const clientDir = path.resolve(__dirname, '../../client/login-bg');
-  const bgDir = fs.existsSync(publicDir) ? publicDir : fs.existsSync(clientDir) ? clientDir : null;
+  if (fs.existsSync(publicDir)) return publicDir;
+  if (fs.existsSync(clientDir)) return clientDir;
+  return null;
+}
 
-  if (!bgDir) {
-    res.status(404).end();
-    return;
-  }
-
-  const files = fs.readdirSync(bgDir).filter((f) => /\.(png|jpg|jpeg|webp)$/i.test(f));
-  if (files.length === 0) {
-    res.status(404).end();
-    return;
-  }
-
+// Single random — kept for backwards-compat (Option B / cinematic uses it).
+router.get('/auth/login-bg', (_req, res) => {
+  const bgDir = loginBgRoot();
+  if (!bgDir) { res.status(404).end(); return; }
+  const files = fs.readdirSync(bgDir).filter((f) => IMAGE_EXT_RE.test(f));
+  if (files.length === 0) { res.status(404).end(); return; }
   const pick = files[Math.floor(Math.random() * files.length)];
   res.sendFile(path.join(bgDir, pick));
+});
+
+// Comic-panel spread: random aesthetic + 3 panels + 1 accent
+router.get('/auth/login-bg/spread', (_req, res) => {
+  const bgDir = loginBgRoot();
+  if (!bgDir) { res.status(404).end(); return; }
+
+  // List subdirectories — each is one aesthetic (shinkai / brutalist-scifi / …)
+  // The "manga-panel" subdir is used for accent panels regardless of aesthetic.
+  const allSubdirs = fs.readdirSync(bgDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && SAFE_DIRNAME_RE.test(d.name))
+    .map((d) => d.name);
+
+  const aestheticDirs = allSubdirs.filter((d) => d !== 'manga-panel');
+  if (aestheticDirs.length === 0) {
+    // No subdirs configured — fall back to root files as a single "pool"
+    const files = fs.readdirSync(bgDir).filter((f) => IMAGE_EXT_RE.test(f));
+    if (files.length < 3) { res.status(404).end(); return; }
+    const shuffled = [...files].sort(() => Math.random() - 0.5).slice(0, 3);
+    res.json({
+      aesthetic: 'mixed',
+      panels: shuffled.map((f) => `/api/auth/login-bg/img/_root/${encodeURIComponent(f)}`),
+      accents: [],
+    });
+    return;
+  }
+
+  // Pick an aesthetic, then 3 panels from it
+  const aesthetic = aestheticDirs[Math.floor(Math.random() * aestheticDirs.length)];
+  const aestheticPath = path.join(bgDir, aesthetic);
+  const panels = fs.readdirSync(aestheticPath).filter((f) => IMAGE_EXT_RE.test(f));
+  if (panels.length === 0) { res.status(404).end(); return; }
+
+  const pickN = (arr: string[], n: number): string[] =>
+    [...arr].sort(() => Math.random() - 0.5).slice(0, Math.min(n, arr.length));
+
+  const heroPicks = pickN(panels, 3);
+
+  // Accent panel from manga-panel/ (universal across aesthetics)
+  let accents: string[] = [];
+  if (allSubdirs.includes('manga-panel')) {
+    const accentFiles = fs.readdirSync(path.join(bgDir, 'manga-panel'))
+      .filter((f) => IMAGE_EXT_RE.test(f));
+    if (accentFiles.length > 0) {
+      accents = pickN(accentFiles, 1).map((f) => `/api/auth/login-bg/img/manga-panel/${encodeURIComponent(f)}`);
+    }
+  }
+
+  res.json({
+    aesthetic,
+    panels: heroPicks.map((f) => `/api/auth/login-bg/img/${encodeURIComponent(aesthetic)}/${encodeURIComponent(f)}`),
+    accents,
+  });
+});
+
+// Per-file serving with path-traversal guards.
+// `_root` is a sentinel for the root directory (used in fallback above).
+router.get('/auth/login-bg/img/:dir/:filename', (req, res) => {
+  const bgDir = loginBgRoot();
+  if (!bgDir) { res.status(404).end(); return; }
+
+  const { dir, filename } = req.params;
+
+  // Validate inputs strictly — never trust path components.
+  if (!SAFE_FILENAME_RE.test(filename)) {
+    res.status(400).end();
+    return;
+  }
+  if (dir !== '_root' && !SAFE_DIRNAME_RE.test(dir)) {
+    res.status(400).end();
+    return;
+  }
+
+  const filePath = dir === '_root'
+    ? path.join(bgDir, filename)
+    : path.join(bgDir, dir, filename);
+
+  // Belt-and-suspenders: resolved path MUST be inside the login-bg root.
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(bgDir + path.sep) && resolved !== bgDir) {
+    res.status(400).end();
+    return;
+  }
+  if (!fs.existsSync(resolved)) {
+    res.status(404).end();
+    return;
+  }
+
+  res.sendFile(resolved, {
+    // Aggressive cache — these files don't change after generation.
+    maxAge: '1d',
+  });
 });
 
 // Export session lookup for middleware use

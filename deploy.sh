@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-# Comic Reader — Deploy to Synology NAS
+# Bindery — Deploy to Synology NAS
 #
 # Usage:
 #   ./deploy.sh user@nas-ip
-#   ./deploy.sh user@nas-ip /volume1/docker/comic-reader
+#   ./deploy.sh user@nas-ip /volume1/docker/bindery
 #
 # What this does:
 #   1. Copies only the source files needed for Docker to build
@@ -18,10 +18,10 @@
 set -e
 
 NAS_HOST="${1:?Usage: ./deploy.sh user@nas-ip [remote-path]}"
-REMOTE_DIR="${2:-/volume1/docker/comic-reader}"
+REMOTE_DIR="${2:-/volume1/docker/bindery}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "🦊 Comic Reader — Deploy"
+echo "🦊 Bindery — Deploy"
 echo "   Target: ${NAS_HOST}:${REMOTE_DIR}"
 echo ""
 

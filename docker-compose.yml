@@ -1,8 +1,8 @@
 version: "3.8"
 services:
-  comic-reader:
+  bindery:
     build: .
-    container_name: comic-reader
+    container_name: bindery
     ports:
       - "8580:3000"
     volumes:

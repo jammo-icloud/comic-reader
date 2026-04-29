@@ -27,9 +27,20 @@ function getPairedTheme(themeId: string): string {
   return isDarkTheme(themeId) ? 'latte' : 'midnight';
 }
 
+// Theme localStorage key. Renamed from "comic-reader-theme" during the v4
+// rename. Old key is read once as a fallback so existing users don't lose
+// their theme on first reload after the rename — then we write the new key
+// and forget about the old one.
+const THEME_KEY = 'bindery-theme';
+const LEGACY_THEME_KEY = 'comic-reader-theme';
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState(() => {
-    return localStorage.getItem('comic-reader-theme') || 'midnight';
+    return (
+      localStorage.getItem(THEME_KEY) ??
+      localStorage.getItem(LEGACY_THEME_KEY) ??
+      'midnight'
+    );
   });
   const [username, setUsername] = useState('');
 
@@ -40,7 +51,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       const serverTheme = preferences.theme || 'midnight';
       setThemeState(serverTheme);
       applyTheme(serverTheme);
-      localStorage.setItem('comic-reader-theme', serverTheme);
+      localStorage.setItem(THEME_KEY, serverTheme);
     }).catch(() => {
       // Use localStorage fallback
       applyTheme(theme);
@@ -49,7 +60,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     applyTheme(theme);
-    localStorage.setItem('comic-reader-theme', theme);
+    localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
   const setTheme = (id: string) => {

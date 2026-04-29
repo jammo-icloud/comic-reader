@@ -34,10 +34,10 @@ export default function SeriesPage() {
 
   // View prefs (persisted)
   const [viewMode, setViewMode] = useState<ViewMode>(() =>
-    (localStorage.getItem('comic-reader-series-view') as ViewMode) || 'list',
+    (localStorage.getItem('bindery-series-view') as ViewMode) || 'list',
   );
   const [sortMode, setSortMode] = useState<SortMode>(() =>
-    (localStorage.getItem('comic-reader-series-sort') as SortMode) || 'order-asc',
+    (localStorage.getItem('bindery-series-sort') as SortMode) || 'order-asc',
   );
 
   // Filter state
@@ -83,8 +83,8 @@ export default function SeriesPage() {
 
   // ----- Persist prefs -----
 
-  useEffect(() => { localStorage.setItem('comic-reader-series-view', viewMode); }, [viewMode]);
-  useEffect(() => { localStorage.setItem('comic-reader-series-sort', sortMode); }, [sortMode]);
+  useEffect(() => { localStorage.setItem('bindery-series-view', viewMode); }, [viewMode]);
+  useEffect(() => { localStorage.setItem('bindery-series-sort', sortMode); }, [sortMode]);
 
   // ----- Sticky toolbar pinned state -----
 

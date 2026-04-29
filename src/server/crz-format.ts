@@ -1,5 +1,10 @@
 /**
- * Comic Reader Zip (.crz) format spec.
+ * Bindery archive (.crz) format spec.
+ *
+ * NOTE on the .crz extension: the format originated as "Comic Reader Zip"
+ * before the Bindery rename. The extension is preserved for backwards
+ * compatibility with .crz files already in the wild — the "CRZ" letters
+ * are now just the format identifier, not a literal acronym.
  *
  * v1: import-only legacy format. Carries the bare minimum (title, tags, synopsis,
  *     chapters, cover) plus a sourceId hint. Loses score/malId/englishTitle/etc.
@@ -28,7 +33,7 @@
  *
  * --- Multi-part contract (Pattern A: self-contained parts) ---
  *
- * Multi-part export is a *producer-side* concern — comic-reader's server can
+ * Multi-part export is a *producer-side* concern — Bindery's server can
  * stream gigabytes to HTTP with no memory pressure, so it always emits a single
  * part (partIndex: 0, totalParts: 1). Manga-finder MUST split because Chrome
  * MV3 service workers cap working memory and JSZip builds zips in memory.
@@ -231,7 +236,7 @@ export function validateManifest(input: unknown): ValidationResult {
 
 export const CRZ_V2_JSON_SCHEMA = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
-  $id: 'https://comic-reader.local/schemas/crz-v2.json',
+  $id: 'https://bindery.local/schemas/crz-v2.json',
   title: 'CrzManifestV2',
   type: 'object',
   required: [

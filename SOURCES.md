@@ -1,6 +1,6 @@
 # Sources
 
-Comic Reader pulls from two tiers of sources: **server-side HTTP** (the
+Bindery pulls from two tiers of sources: **server-side HTTP** (the
 NAS does the fetching, listed below) and the **manga-finder Chrome
 extension** (browser-side, for sites that need a real session — Cloudflare,
 encrypted-page sources, sites with strict bot detection). Discovery in
@@ -39,7 +39,7 @@ per-page image fetch + PDF assembly.
 
 Browser-side connector for sites the server can't reach. Runs in the
 user's Chrome session, downloads chapters, packages them as v2 CRZ, posts
-them to your Comic Reader instance. Bundled with every install at
+them to your Bindery instance. Bundled with every install at
 `/manga-finder-extension.zip` and prompted from the Discover page.
 
 Connectors (`manga-finder/src/connectors/`):

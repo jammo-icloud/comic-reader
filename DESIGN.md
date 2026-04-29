@@ -1,4 +1,4 @@
-# Comic Reader — Design Tokens & Patterns
+# Bindery — Design Tokens & Patterns
 
 The single source of truth for visual language. **Read this before adding new UI.** If you find yourself reaching for `bg-blue-600`, you're probably looking for `bg-accent`. If you're reaching for `100vh`, you want `100dvh`.
 
@@ -320,7 +320,7 @@ Used in: ConfirmSheet, ProfileMenu sheet, multi-select footer, Reader bottom too
 <header className="sticky top-0 z-30 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
   <div className="max-w-7xl mx-auto px-4 py-1.5 flex items-center gap-2 h-12">
     <Link to="/" className="shrink-0">
-      <img src="/logo.png" alt="Comic Reader" className="h-8 w-8 rounded-md" />
+      <img src="/logo.png" alt="Bindery" className="h-8 w-8 rounded-md" />
     </Link>
     <div className="flex-1" />
     <NotificationDropdown />

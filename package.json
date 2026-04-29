@@ -1,6 +1,6 @@
 {
-  "name": "comic-reader",
-  "version": "3.23.0",
+  "name": "bindery",
+  "version": "4.0.0",
   "private": true,
   "type": "module",
   "scripts": {

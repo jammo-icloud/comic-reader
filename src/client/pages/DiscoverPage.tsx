@@ -206,7 +206,7 @@ export default function DiscoverPage() {
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-1.5">
-          <img src="/logo.png" alt="Comic Reader" className="h-10 w-10 rounded-lg shrink-0" />
+          <img src="/logo.png" alt="Bindery" className="h-10 w-10 rounded-lg shrink-0" />
           <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-1" />
 
           <ToolbarIconButton
@@ -452,7 +452,7 @@ export default function DiscoverPage() {
                     <h3 className="text-sm font-semibold">Manga Finder Chrome extension</h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                       Adds 10 more sources directly into Discover — MangaHub, OmegaScans, HentaiNexus, and more.
-                      Downloads route through Comic Reader; no manual import needed.
+                      Downloads route through Bindery; no manual import needed.
                     </p>
                   </div>
                 </div>
