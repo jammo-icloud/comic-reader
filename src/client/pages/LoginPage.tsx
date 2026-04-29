@@ -323,7 +323,7 @@ function LoginPanel(props: {
       //    panel that visually belongs in the comic spread)
       className="
         login-panel-elevated
-        relative z-20
+        relative z-30
         bg-white
         border-[5px] sm:border-[6px] border-black
         shadow-[0_18px_44px_rgba(0,0,0,0.7),0_4px_10px_rgba(0,0,0,0.5)]
@@ -335,6 +335,13 @@ function LoginPanel(props: {
         gridArea,
         transformOrigin: 'center center',
         transform: 'perspective(1800px) rotateY(-4deg) rotateX(0.5deg) rotate(0.6deg) scale(1.02)',
+        // align-self: start lets the panel size to its content from the top
+        // of the grid cell instead of stretching to fill it. When OTP appears,
+        // form content grows past the row's natural height and the panel
+        // expands DOWN over p3 (z-30 > p3's default z-auto, so visually layers
+        // on top — p3 stays put, panel just overlaps. Mobile is fine here:
+        // login lives in its own row anyway, no overlap to manage.)
+        alignSelf: 'start',
       }}
     >
       {/* Halftone dot pattern overlay across the entire panel — sells the
@@ -349,7 +356,7 @@ function LoginPanel(props: {
         }}
       />
 
-      <div className="relative h-full flex flex-col">
+      <div className="relative flex flex-col">
         {/* Comic-style title bar — solid black with white type, halftone dots
             at higher contrast inside the bar. Reads as a panel header / cover
             stripe rather than a generic card-header. */}
@@ -381,10 +388,14 @@ function LoginPanel(props: {
           </p>
         </div>
 
-        {/* Form area */}
+        {/* Form area — sizes to its content. When OTP isn't required,
+            this is a compact stack (header + 2 inputs + button). When it
+            IS required, the OTP section grows the form vertically and
+            (combined with align-self: start on the parent) the panel
+            extends down past its grid cell, overlapping p3. */}
         <form
           onSubmit={onSubmit}
-          className="relative flex-1 flex flex-col gap-3 p-5 sm:p-6"
+          className="relative flex flex-col gap-3 p-5 sm:p-6"
         >
           <FieldLabel>USERNAME</FieldLabel>
           <input
@@ -437,7 +448,7 @@ function LoginPanel(props: {
             </div>
           )}
 
-          <div className="mt-auto flex flex-col gap-2 pt-3">
+          <div className="flex flex-col gap-2 pt-3">
             <button
               type="submit"
               disabled={loading || !username.trim() || !password.trim() || (otpRequired && !otpCode.trim())}
