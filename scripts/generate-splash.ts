@@ -66,6 +66,16 @@ function pickSplashSource(): string {
   return path.join(LOGIN_BG_DIR, files[0]);
 }
 
+// Brand watermark — apple-touch-icon at 180×180, scaled down per splash size
+// and dropped into the bottom-right corner with reduced opacity. iPhone
+// hardware safe-area is hard to predict in a static image (different home-
+// indicator clearances per model), so we use a generous margin (~5% of the
+// smaller dimension) that clears the indicator on every model in the matrix.
+const WATERMARK_PATH = path.join(ROOT, 'public', 'icons', 'apple-touch-icon-180.png');
+const WATERMARK_OPACITY = 0.7; // 0..1; 0.7 reads as a clear watermark without dominating
+const WATERMARK_SIZE_PCT = 0.10; // % of the splash's smaller dimension
+const WATERMARK_MARGIN_PCT = 0.05;
+
 async function generateOne(sourcePath: string, w: number, h: number): Promise<void> {
   // Backdrop: source resized to cover, blurred heavily — same trick as the
   // SeriesPage cover hero. Reads "premium" rather than letterboxed.
@@ -82,13 +92,35 @@ async function generateOne(sourcePath: string, w: number, h: number): Promise<vo
     .resize(foregroundSize, foregroundSize, { fit: 'cover' })
     .toBuffer();
 
-  // Composite backdrop + centered foreground
+  // Watermark: apple-touch-icon resized + alpha-multiplied into the bottom-right.
+  // ensureAlpha first so the multiply has something to apply to.
+  const watermarkSize = Math.round(Math.min(w, h) * WATERMARK_SIZE_PCT);
+  const margin = Math.round(Math.min(w, h) * WATERMARK_MARGIN_PCT);
+  const watermark = await sharp(WATERMARK_PATH)
+    .resize(watermarkSize, watermarkSize, { fit: 'cover' })
+    .ensureAlpha()
+    .composite([
+      {
+        // Apply opacity by multiplying the alpha channel with a flat overlay.
+        input: Buffer.from([255, 255, 255, Math.round(255 * WATERMARK_OPACITY)]),
+        raw: { width: 1, height: 1, channels: 4 },
+        tile: true,
+        blend: 'dest-in',
+      },
+    ])
+    .toBuffer();
+
   const out = await sharp(backdrop)
     .composite([
       {
         input: foreground,
         top: Math.round((h - foregroundSize) / 2),
         left: Math.round((w - foregroundSize) / 2),
+      },
+      {
+        input: watermark,
+        top: h - watermarkSize - margin,
+        left: w - watermarkSize - margin,
       },
     ])
     .png({ compressionLevel: 9 })

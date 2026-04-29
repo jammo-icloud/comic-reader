@@ -71,6 +71,19 @@ export default function LoginPage() {
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
         <div className="absolute inset-0 bg-gradient-to-br from-gray-950/80 via-gray-900/70 to-gray-950/90" />
+        {/* Brand watermark — bottom-right of the bg art, behind the login card.
+            Honors safe-area-inset on iPhone landscape (PWA standalone) so it
+            doesn't sit under the home indicator or the rounded corner curve. */}
+        <img
+          src="/icons/apple-touch-icon-180.png"
+          alt=""
+          aria-hidden="true"
+          className="absolute w-10 h-10 sm:w-12 sm:h-12 rounded-md opacity-60 pointer-events-none"
+          style={{
+            bottom: 'max(1rem, env(safe-area-inset-bottom))',
+            right: 'max(1rem, env(safe-area-inset-right))',
+          }}
+        />
       </div>
 
       {/* Login card */}
