@@ -219,6 +219,21 @@ export function syncSeriesNow(id: string): Promise<{ ok: boolean; newChapters: n
 }
 
 /**
+ * Admin-only — refresh series metadata from AniList (genres, tags, score,
+ * synopsis, year, status, cover). Tags are MERGED with existing user-added
+ * ones rather than replaced. Uses the series's malId if present, else
+ * searches by name.
+ */
+export function refreshSeriesMetadata(id: string): Promise<{
+  series: Series;
+  matched: boolean;
+  source: 'malId' | 'name-search';
+  warning?: string;
+}> {
+  return fetchJson(`/series/${id}/enrich`, { method: 'POST' });
+}
+
+/**
  * Admin-only — retry every partial chapter for this series in one job.
  * Returns the count of partials found + whether a retry job was queued.
  * Dedupe-on-enqueue means rapid clicks merge into a single job.

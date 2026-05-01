@@ -32,6 +32,32 @@ interface EnrichResult {
   imageUrl: string;
   score: number | null;
   synopsis: string | null;
+  // Below: added for the "Refresh metadata" feature. AniList genres are
+  // canonical (Action, Romance, etc.) and tags are the more thematic ones
+  // (Magic, Mecha, Time Skip…). We combine them after rank filtering.
+  tags: string[];
+  year: number | null;
+  status: string | null;
+}
+
+/** AniList tag rank cutoff. Tags below this are too niche to be useful
+ *  ("Lonely Protagonist" rank 30 vs "Magic" rank 92). 70 is the sweet spot. */
+const TAG_RANK_CUTOFF = 70;
+
+/** Normalize a tag for storage: lowercase, trimmed. Matches the NSFW_TAGS
+ *  comparison in data.ts which lowercases on read. */
+function normalizeTag(t: string): string {
+  return t.trim().toLowerCase();
+}
+
+/** Combine AniList genres + filtered tags into one deduplicated lowercase list. */
+function buildTagList(genres: string[] | null, anilistTags: Array<{ name: string; rank: number }> | null): string[] {
+  const set = new Set<string>();
+  for (const g of genres || []) set.add(normalizeTag(g));
+  for (const t of anilistTags || []) {
+    if (t.rank >= TAG_RANK_CUTOFF) set.add(normalizeTag(t.name));
+  }
+  return [...set].sort();
 }
 
 // --- AniList GraphQL queries ---
@@ -70,6 +96,11 @@ function parseMedia(media: any): EnrichResult | null {
     imageUrl: media.coverImage?.large || media.coverImage?.medium || '',
     score: media.averageScore ? media.averageScore / 10 : null, // AniList uses 0-100, we want 0-10
     synopsis: media.description ? media.description.replace(/<[^>]*>/g, '').trim() : null,
+    tags: buildTagList(media.genres, media.tags),
+    year: media.startDate?.year || null,
+    // AniList status: FINISHED / RELEASING / NOT_YET_RELEASED / CANCELLED / HIATUS
+    // Normalize to lowercase to match the existing series.status convention.
+    status: media.status ? String(media.status).toLowerCase() : null,
   };
 }
 
@@ -81,6 +112,8 @@ const MEDIA_FIELDS = `
   description(asHtml: false)
   status
   startDate { year }
+  genres
+  tags { name rank isAdult }
 `;
 
 /**
@@ -238,20 +271,44 @@ export async function enrichSeries(force = false): Promise<{ found: number; skip
     const filename = coverFilename(series.id);
     const downloaded = await downloadCover(result.imageUrl, filename);
 
-    series.name = result.title;
-    series.coverFile = downloaded ? filename : null;
-    series.score = result.score;
-    series.synopsis = result.synopsis;
-    series.englishTitle = result.englishTitle;
-    if (result.malId && !series.malId) series.malId = result.malId;
+    applyEnrichResult(series, result, downloaded ? filename : null);
     saveSeries(series);
 
     found++;
-    console.log(`  → "${result.title}" (${result.score})`);
+    console.log(`  → "${result.title}" (${result.score}, ${result.tags.length} tags)`);
   }
 
   console.log(`Enrichment: ${found} found, ${skipped} skipped, ${failed} failed`);
   return { found, skipped, failed };
+}
+
+/**
+ * Apply an EnrichResult to a series record. Shared logic between malId-based
+ * enrichment and name-search enrichment.
+ *
+ * Tag handling: MERGE rather than overwrite. Users may have manually added
+ * tags via SeriesEditModal that the source doesn't know about (custom tags,
+ * source-specific tags like "manga" / "manhwa"). Union them with the source's
+ * tag list and dedup.
+ *
+ * Other fields: refreshed in place. Cover only re-downloaded if the source
+ * provides one (the existing cover stays if the source has none).
+ */
+function applyEnrichResult(series: SeriesRecord, result: EnrichResult, downloadedCoverFile: string | null): void {
+  if (result.malId && !series.malId) series.malId = result.malId;
+  series.name = result.title;
+  if (downloadedCoverFile) series.coverFile = downloadedCoverFile;
+  series.score = result.score;
+  series.synopsis = result.synopsis;
+  series.englishTitle = result.englishTitle;
+  if (result.year != null) series.year = result.year;
+  if (result.status) series.status = result.status;
+
+  // Merge tags — keep existing user-added ones, add new ones from the source.
+  // Lowercase + dedup via Set so casing differences collapse.
+  const existing = new Set((series.tags || []).map((t) => t.toLowerCase()));
+  for (const t of result.tags) existing.add(t);
+  series.tags = [...existing].sort();
 }
 
 /**
@@ -274,14 +331,62 @@ export async function enrichSingle(seriesId: string, malId: number): Promise<{ s
   const downloaded = await downloadCover(result.imageUrl, filename);
 
   const oldName = series.name;
-  series.malId = malId;
-  series.name = result.title;
-  series.coverFile = downloaded ? filename : null;
-  series.score = result.score;
-  series.synopsis = result.synopsis;
-  series.englishTitle = result.englishTitle;
+  applyEnrichResult(series, result, downloaded ? filename : null);
   saveSeries(series);
 
   console.log(`  Updated "${oldName}" → "${result.title}" (${result.score})`);
   return { series };
+}
+
+/**
+ * "Refresh metadata" — re-fetch and apply AniList data for a series. Uses the
+ * series's malId if present, otherwise searches by name. Reuses applyEnrichResult
+ * so tags, year, status, score, synopsis all flow through with the same merge
+ * semantics as enrichSingle.
+ *
+ * Returns the updated series, or an error string if no match was found.
+ */
+export async function refreshSingleSeries(seriesId: string): Promise<{
+  series: SeriesRecord | null;
+  matched: boolean;
+  source: 'malId' | 'name-search';
+  error?: string;
+}> {
+  ensureCoversDir();
+  const allSeries = loadAllSeries();
+  const series = allSeries.find((s) => s.id === seriesId);
+  if (!series) return { series: null, matched: false, source: 'name-search', error: 'Series not found' };
+
+  const usedMalId = !!series.malId;
+  const result = usedMalId
+    ? await fetchByMalId(series.malId!)
+    : await searchManga(series.name);
+
+  if (!result) {
+    return {
+      series,
+      matched: false,
+      source: usedMalId ? 'malId' : 'name-search',
+      error: usedMalId
+        ? `MAL ID ${series.malId} returned no AniList match`
+        : `No AniList match for "${series.name}"`,
+    };
+  }
+
+  const filename = coverFilename(series.id);
+  const downloaded = await downloadCover(result.imageUrl, filename);
+
+  applyEnrichResult(series, result, downloaded ? filename : null);
+  saveSeries(series);
+
+  console.log(
+    `  Refreshed "${series.name}" via ${usedMalId ? `MAL ID ${series.malId}` : 'name search'}` +
+    ` — ${result.tags.length} tags, score ${result.score ?? 'n/a'}`,
+  );
+
+  return {
+    series,
+    matched: true,
+    source: usedMalId ? 'malId' : 'name-search',
+  };
 }

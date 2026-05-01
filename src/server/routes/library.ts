@@ -15,7 +15,7 @@ import {
 import { readPartial } from '../partial.js';
 import { shortHash } from '../hash.js';
 import { getThumbnailPath, generateThumbnail } from '../thumbnails.js';
-import { enrichSeries, enrichSingle } from '../enrich.js';
+import { enrichSeries, enrichSingle, refreshSingleSeries } from '../enrich.js';
 import { syncSeries, markSeriesSeen } from '../sync.js';
 
 const router = Router();
@@ -204,6 +204,36 @@ router.post('/enrich', async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Enrichment failed' });
+  }
+});
+
+/**
+ * Refresh metadata for a single series — admin action exposed on SeriesPage.
+ * Pulls AniList genre + tag data and applies it (merging tags rather than
+ * replacing user-set ones). Uses the series's malId if present, otherwise
+ * searches by name. Useful for series imported from raw folders that have
+ * empty tags / score / synopsis / year.
+ */
+router.post('/series/:id/enrich', async (req, res) => {
+  if (!req.isAdmin) {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+  try {
+    const result = await refreshSingleSeries(req.params.id);
+    if (!result.series) {
+      res.status(404).json({ error: result.error || 'Series not found' });
+      return;
+    }
+    res.json({
+      series: result.series,
+      matched: result.matched,
+      source: result.source,
+      ...(result.error ? { warning: result.error } : {}),
+    });
+  } catch (err) {
+    console.error(`  Refresh metadata failed for ${req.params.id}:`, (err as Error).message);
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 

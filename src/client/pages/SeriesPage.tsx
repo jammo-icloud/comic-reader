@@ -3,14 +3,14 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, LayoutGrid, List, Star, RefreshCw, Loader,
   Play, Search, ArrowUpDown, BookOpen, Pencil, Bell, BellOff, Trash2, X,
-  Download, CheckCircle, Package, Heart, Plus, Check, AlertTriangle,
+  Download, CheckCircle, Package, Heart, Plus, Check, AlertTriangle, Sparkles,
 } from 'lucide-react';
 import type { Series, Comic } from '../lib/types';
 import {
   getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl,
   deleteSeries, syncSeriesNow,
   addToCollection, addFavorite, removeFavorite,
-  retryPartialChapters,
+  retryPartialChapters, refreshSeriesMetadata,
 } from '../lib/api';
 import { useAuth } from '../App';
 import SyncSourcePicker from '../components/SyncSourcePicker';
@@ -166,6 +166,35 @@ export default function SeriesPage() {
     } finally {
       setSyncing(false);
       setTimeout(() => setSyncResult(''), 4000);
+    }
+  };
+
+  /**
+   * Refresh metadata from AniList — pulls genres, tags, score, synopsis,
+   * year, status, cover. Tags are merged with the existing set (so manual
+   * tags from SeriesEditModal aren't lost). Most useful for series imported
+   * from raw folders that have empty metadata.
+   *
+   * Reuses the syncing state — same UX shape as syncSeriesNow + retryPartials.
+   */
+  const handleRefreshMetadata = async () => {
+    if (!id || syncing) return;
+    setSyncing(true);
+    setSyncResult('');
+    try {
+      const result = await refreshSeriesMetadata(id);
+      if (result.matched) {
+        const tagCount = result.series.tags?.length ?? 0;
+        setSyncResult(`Refreshed via ${result.source} — ${tagCount} tags`);
+      } else {
+        setSyncResult(result.warning || 'No match found');
+      }
+      await refresh();
+    } catch (err) {
+      setSyncResult(`Error: ${(err as Error).message}`);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncResult(''), 5000);
     }
   };
 
@@ -357,6 +386,17 @@ export default function SeriesPage() {
                   icon: <Pencil size={15} />,
                   label: 'Edit metadata',
                   onClick: () => setShowEditModal(true),
+                },
+                {
+                  icon: syncing
+                    ? <Loader size={15} className="animate-spin" />
+                    : <Sparkles size={15} />,
+                  label: 'Refresh from AniList',
+                  hint: series.malId
+                    ? `MAL ID ${series.malId}`
+                    : 'matches by title',
+                  onClick: handleRefreshMetadata,
+                  disabled: syncing,
                 },
               ];
               if (typeof caches !== 'undefined' && comics.length > 0) {
