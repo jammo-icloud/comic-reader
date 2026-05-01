@@ -315,7 +315,13 @@ export function searchSource(sourceId: string, query: string): Promise<{
   year: number | null;
   tags: string[];
 }[]> {
-  return fetchJson(`/discover/search?q=${encodeURIComponent(query)}&source=${sourceId}`);
+  // The server endpoint returns { results, total } — the same shape
+  // discoverSearch consumes. Unwrap so callers (SyncSourcePicker) get the
+  // array they're typed against. Without this, .length and .map fail
+  // silently and the picker shows "Click Search to find matches" forever.
+  return fetchJson<{ results: any[]; total: number }>(
+    `/discover/search?q=${encodeURIComponent(query)}&source=${sourceId}`,
+  ).then((r) => r.results);
 }
 
 // ==================== Comics (within a series) ====================
