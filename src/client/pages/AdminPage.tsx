@@ -897,10 +897,23 @@ function LibraryToolbar({
   setSelectMode: (v: boolean) => void;
   selectedCount: number;
 }) {
-  if (showSearch) {
-    return (
-      <>
-        <div className="relative flex-1 min-w-0">
+  // Search and Select are NOT mutually exclusive — opening search expands the
+  // toolbar inline so the Select button stays reachable. Critical for the
+  // merge workflow where you usually want to type a few characters of a
+  // series name to find both halves of a duplicate pair.
+  return (
+    <>
+      {/* Title — compact when searching, hides on small screens to make room
+          for the search input. The result count stays visible at all sizes. */}
+      <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 shrink-0">
+        {!showSearch && <span className="hidden sm:inline">Library </span>}
+        <span className="text-gray-400 font-normal">({resultCount})</span>
+      </h2>
+
+      {/* Search input — inline when open, eats the flex-1 space; otherwise
+          just a flex-grow spacer keeps the right-side controls anchored. */}
+      {showSearch ? (
+        <div className="relative flex-1 min-w-0 mx-1 sm:mx-2">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
             type="text"
@@ -920,25 +933,24 @@ function LibraryToolbar({
             </button>
           )}
         </div>
-        <ToolbarIconButton
-          onClick={() => { setShowSearch(false); setSearch(''); }}
-          title="Close search"
-        >
-          <X size={16} />
-        </ToolbarIconButton>
-      </>
-    );
-  }
-  return (
-    <>
-      <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 shrink-0">
-        <span className="hidden sm:inline">Library </span>
-        <span className="text-gray-400 font-normal">({resultCount})</span>
-      </h2>
-      <div className="flex-1" />
-      <ToolbarIconButton onClick={() => setShowSearch(true)} title="Search">
-        <Search size={16} />
+      ) : (
+        <div className="flex-1" />
+      )}
+
+      {/* Search toggle — flips to a close-X when open. */}
+      <ToolbarIconButton
+        onClick={() => {
+          if (showSearch) { setSearch(''); setShowSearch(false); }
+          else setShowSearch(true);
+        }}
+        active={showSearch}
+        title={showSearch ? 'Close search' : 'Search'}
+      >
+        {showSearch ? <X size={16} /> : <Search size={16} />}
       </ToolbarIconButton>
+
+      {/* Select — always visible, including while searching. The whole point
+          of allowing both is to type-search and select within results. */}
       <ToolbarIconButton
         onClick={() => setSelectMode(!selectMode)}
         active={selectMode}
