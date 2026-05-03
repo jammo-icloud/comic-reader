@@ -96,8 +96,20 @@ export default function ReaderPage() {
 
   return (
     <div className="h-[100dvh] w-screen bg-white dark:bg-black overflow-hidden relative">
-      {/* PDF Viewer fills the screen */}
-      <div className="absolute inset-0">
+      {/* PDF Viewer fills the screen — but reserves room for the bottom toolbar
+          when it's visible so the page in fit-mode doesn't render behind the
+          scrubber. The PdfViewer's ResizeObserver re-renders the current page
+          at the new fit-scale when this bound changes. Toolbar height is
+          5.25rem of content + safe-area-inset-bottom; matches the chevron's
+          "up" position so content meets toolbar exactly at its top edge. */}
+      <div
+        className="absolute inset-x-0 top-0"
+        style={{
+          bottom: uiVisible
+            ? 'calc(env(safe-area-inset-bottom) + 5.25rem)'
+            : '0',
+        }}
+      >
         <PdfViewer
           ref={viewerRef}
           url={getPdfUrl(seriesId, file)}

@@ -190,6 +190,30 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     return () => window.removeEventListener('resize', handleResize);
   }, [currentPage, loading, renderPage]);
 
+  // ResizeObserver on the container — picks up parent layout changes that
+  // window.resize won't, e.g. ReaderPage shrinking this container by the
+  // toolbar height when the toolbar shows. Without this, fit-mode keeps
+  // rendering at the OLD container height and the page bottom hides behind
+  // the toolbar. Re-runs on the next animation frame to coalesce rapid
+  // resize bursts (e.g. CSS transitions, drag-resize) into a single render.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    let raf: number | null = null;
+    const ro = new ResizeObserver(() => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        if (!loading && pdfDocRef.current) renderPage(currentPage);
+      });
+    });
+    ro.observe(container);
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [currentPage, loading, renderPage]);
+
   // Reset zoom/pan on view-mode change (page-change resets happen synchronously inside goToPage below)
   useEffect(() => {
     setZoom(1);
