@@ -233,6 +233,25 @@ export function refreshSeriesMetadata(id: string): Promise<{
   return fetchJson(`/series/${id}/enrich`, { method: 'POST' });
 }
 
+export interface SimilarSeriesItem {
+  series: Series;
+  sharedTags: string[];
+  similarity: number;  // 0-100
+}
+
+/**
+ * "More like this" — server-computed Jaccard similarity over tag sets.
+ * Returns up to 10 in-library series with the most tag overlap. Empty
+ * list (with optional hint) if the target series has no tags or no
+ * library matches at the >=2-shared-tag threshold.
+ */
+export function getSimilarSeries(id: string): Promise<{
+  items: SimilarSeriesItem[];
+  hint?: string;
+}> {
+  return fetchJson(`/series/${id}/similar`);
+}
+
 /**
  * Admin-only — retry every partial chapter for this series in one job.
  * Returns the count of partials found + whether a retry job was queued.

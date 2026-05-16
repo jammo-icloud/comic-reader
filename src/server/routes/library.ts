@@ -75,6 +75,65 @@ router.get('/series/:id', (req, res) => {
   });
 });
 
+/**
+ * "More like this" — Jaccard similarity over tag sets across the in-library
+ * catalog. Returns up to 10 most-similar series ranked by overlap with the
+ * target's tags, gated to the same type (comic vs magazine) since they're
+ * not interchangeable to the reader.
+ *
+ * Requires at least 2 shared tags to surface a recommendation — single-tag
+ * matches are noise (every series probably shares "manga" with everything).
+ *
+ * NSFW filter: when the viewer is non-admin and has safeMode on, NSFW
+ * recommendations are stripped. Same rule the rest of the app uses.
+ *
+ * If the target series has no tags, returns an empty list with a hint —
+ * the SeriesPage's "Refresh from AniList" action will populate tags and
+ * the next call will return results.
+ */
+router.get('/series/:id/similar', (req, res) => {
+  const allSeries = loadAllSeries();
+  const target = allSeries.find((s) => s.id === req.params.id);
+  if (!target) { res.status(404).json({ error: 'Series not found' }); return; }
+
+  const targetTags = new Set((target.tags || []).map((t) => t.toLowerCase()));
+  if (targetTags.size === 0) {
+    res.json({
+      items: [],
+      hint: 'No tags on this series. Use "Refresh from AniList" in the admin menu to populate them.',
+    });
+    return;
+  }
+
+  const prefs = loadPreferences(req.username);
+  const stripNsfw = !req.isAdmin && prefs.safeMode;
+
+  const scored = allSeries
+    .filter((s) => s.id !== target.id)
+    .filter((s) => s.type === target.type)
+    .filter((s) => !stripNsfw || !isNsfwSeries(s))
+    .map((s) => {
+      const otherTags = new Set((s.tags || []).map((t) => t.toLowerCase()));
+      const shared: string[] = [];
+      for (const t of targetTags) if (otherTags.has(t)) shared.push(t);
+      // Jaccard: |A ∩ B| / |A ∪ B|. Higher = more similar tag profile.
+      const union = new Set([...targetTags, ...otherTags]);
+      const jaccard = union.size > 0 ? shared.length / union.size : 0;
+      return { series: s, shared, jaccard };
+    })
+    .filter((item) => item.shared.length >= 2)
+    .sort((a, b) => b.jaccard - a.jaccard)
+    .slice(0, 10);
+
+  res.json({
+    items: scored.map(({ series, shared, jaccard }) => ({
+      series,
+      sharedTags: shared.sort(),
+      similarity: Math.round(jaccard * 100),
+    })),
+  });
+});
+
 // List series with unseen new chapters for the notification dropdown
 router.get('/subscriptions/new', (req, res) => {
   const allSeries = loadAllSeries();

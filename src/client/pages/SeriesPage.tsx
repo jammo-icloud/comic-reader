@@ -11,6 +11,7 @@ import {
   deleteSeries, syncSeriesNow,
   addToCollection, addFavorite, removeFavorite,
   retryPartialChapters, refreshSeriesMetadata,
+  getSimilarSeries, type SimilarSeriesItem,
 } from '../lib/api';
 import { useAuth } from '../App';
 import SyncSourcePicker from '../components/SyncSourcePicker';
@@ -80,6 +81,19 @@ export default function SeriesPage() {
   }, [id]);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  // ----- "More like this" — server-computed tag-similarity recommendations.
+  // Fetched once per series-id change. Empty list (or absent tags) renders
+  // no UI, so this is cheap when there's nothing to show. -----
+  const [similar, setSimilar] = useState<SimilarSeriesItem[]>([]);
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    getSimilarSeries(id)
+      .then((r) => { if (!cancelled) setSimilar(r.items); })
+      .catch(() => { /* silent — strip just won't render */ });
+    return () => { cancelled = true; };
+  }, [id]);
 
   // ----- Persist prefs -----
 
@@ -812,6 +826,48 @@ export default function SeriesPage() {
               />
             ))}
           </div>
+        )}
+
+        {/* ===== More like this — tag-similarity recs from your own library ===== */}
+        {similar.length > 0 && (
+          <section className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-800">
+            <div className="flex items-baseline gap-3 mb-3">
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                More like this
+              </h2>
+              <span className="text-[10px] uppercase tracking-wider font-mono text-gray-400">
+                from your library
+              </span>
+            </div>
+            {/* Horizontal scroll strip — same pattern as ContinueShelf.
+                Each card is a thumb + title + tiny "similarity" pill. */}
+            <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-4 px-4 pb-3 snap-x snap-mandatory">
+              {similar.map(({ series: s, sharedTags, similarity }) => (
+                <Link
+                  key={s.id}
+                  to={`/series/${s.id}`}
+                  className="group shrink-0 w-[130px] sm:w-[150px] snap-start"
+                  title={`${s.name}\n${similarity}% tag similarity · shares: ${sharedTags.join(', ')}`}
+                >
+                  <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-800 group-hover:ring-accent transition-all">
+                    <img
+                      src={s.coverFile ? getSeriesCoverUrl(s.id, s.coverFile) : getPlaceholderUrl(s.placeholder)}
+                      alt=""
+                      loading="lazy"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                    <div className="absolute top-1.5 right-1.5 bg-black/70 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums backdrop-blur-sm">
+                      {similarity}%
+                    </div>
+                  </div>
+                  <p className="text-xs font-medium mt-1.5 line-clamp-2 group-hover:text-accent transition-colors">{s.name}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5 truncate">
+                    {sharedTags.slice(0, 3).join(' · ')}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </section>
         )}
       </main>
 
