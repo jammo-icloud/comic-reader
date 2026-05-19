@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Search, X, Tag as TagIcon, ArrowUpDown, BookOpen, Newspaper, Check } from 'lucide-react';
+import { Search, X, Tag as TagIcon, ArrowUpDown, BookOpen, Newspaper, Check, BookOpenCheck } from 'lucide-react';
 import StickyToolbar from './StickyToolbar';
 import ToolbarIconButton from './ToolbarIconButton';
 
@@ -49,6 +49,12 @@ interface LibraryToolbarProps {
   // Sort
   sortBy: SortMode;
   onSortChange: (mode: SortMode) => void;
+
+  // Hide caught-up: when true, series with every chapter read AND no new
+  // chapters waiting are filtered out. Makes the library feel like an
+  // "active reading" view instead of a full archive.
+  hideCaughtUp: boolean;
+  onHideCaughtUpChange: (v: boolean) => void;
 }
 
 /**
@@ -70,6 +76,7 @@ export default function LibraryToolbar({
   search, onSearchChange,
   allTags, activeTags, onToggleTag, onClearTags,
   sortBy, onSortChange,
+  hideCaughtUp, onHideCaughtUpChange,
 }: LibraryToolbarProps) {
   const [showSearch, setShowSearch] = useState(false);
   const [showTagMenu, setShowTagMenu] = useState(false);
@@ -162,6 +169,23 @@ export default function LibraryToolbar({
             >
               <Search size={16} />
             </ToolbarIconButton>
+
+            {/* Hide caught-up — only series with unread chapters or new
+                subscription chapters. When active, an accent-tinted chip;
+                otherwise muted. */}
+            <button
+              onClick={() => onHideCaughtUpChange(!hideCaughtUp)}
+              aria-pressed={hideCaughtUp}
+              title={hideCaughtUp ? 'Showing only series with something to read' : 'Hide series you\'re caught up on'}
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 min-h-[36px] rounded-md text-xs font-medium transition-colors shrink-0 ${
+                hideCaughtUp
+                  ? 'bg-accent/15 text-accent'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+              }`}
+            >
+              <BookOpenCheck size={14} />
+              <span className="hidden sm:inline">{hideCaughtUp ? 'Unread' : 'Hide read'}</span>
+            </button>
 
             {/* Tags */}
             <div className="relative" ref={tagAnchorRef}>

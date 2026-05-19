@@ -35,8 +35,16 @@ export default function LibraryPage() {
   const [search, setSearch] = useState('');
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
 
+  // Persisted: hide series that are "all caught up" — every chapter read AND
+  // no new chapters waiting in the subscription queue. Lets the library feel
+  // like an "active reading" surface instead of a full archive.
+  const [hideCaughtUp, setHideCaughtUp] = useState<boolean>(() => {
+    return localStorage.getItem('bindery-hide-caught-up') === '1';
+  });
+
   useEffect(() => { localStorage.setItem('bindery-type-filter', typeFilter); }, [typeFilter]);
   useEffect(() => { localStorage.setItem('bindery-library-sort', sortBy); }, [sortBy]);
+  useEffect(() => { localStorage.setItem('bindery-hide-caught-up', hideCaughtUp ? '1' : '0'); }, [hideCaughtUp]);
 
   // ----- Data load -----
 
@@ -90,8 +98,20 @@ export default function LibraryPage() {
     if (tagFilters.size > 0) {
       list = list.filter((s) => (s.tags || []).some((t) => tagFilters.has(t)));
     }
+    if (hideCaughtUp) {
+      // "Caught up" = every chapter read AND no new chapters queued from sync.
+      // Series with no chapters yet (count === 0) stay visible — they're not
+      // "read", they're empty placeholders waiting for a download. A series
+      // with `newChapterCount > 0` also stays — there's something new to read
+      // even if everything previously available is read.
+      list = list.filter((s) => {
+        const allRead = s.count > 0 && s.readCount >= s.count;
+        const noNew = !s.newChapterCount || s.newChapterCount <= 0;
+        return !(allRead && noNew);
+      });
+    }
     return list;
-  }, [seriesList, search, tagFilters]);
+  }, [seriesList, search, tagFilters, hideCaughtUp]);
 
   const sortedFiltered = useMemo(() => {
     const arr = filtered.slice();
@@ -106,7 +126,7 @@ export default function LibraryPage() {
     return arr;
   }, [filtered, sortBy]);
 
-  const isFiltered = !!search || tagFilters.size > 0;
+  const isFiltered = !!search || tagFilters.size > 0 || hideCaughtUp;
   const showContinueShelf = continueReading.length > 0 && !isFiltered;
 
   const toggleTag = (tag: string) => {
@@ -157,6 +177,8 @@ export default function LibraryPage() {
         onClearTags={clearTags}
         sortBy={sortBy}
         onSortChange={setSortBy}
+        hideCaughtUp={hideCaughtUp}
+        onHideCaughtUpChange={setHideCaughtUp}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-6">

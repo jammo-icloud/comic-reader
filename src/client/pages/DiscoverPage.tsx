@@ -206,7 +206,9 @@ export default function DiscoverPage() {
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-1.5">
-          <img src="/logo.png" alt="Bindery" className="h-10 w-10 rounded-lg shrink-0" />
+          <Link to="/" aria-label="Back to library" title="Library" className="shrink-0">
+            <img src="/logo.png" alt="Bindery" className="h-10 w-10 rounded-lg" />
+          </Link>
           <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-1" />
 
           <ToolbarIconButton

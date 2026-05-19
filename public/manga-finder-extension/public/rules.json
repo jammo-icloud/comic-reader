@@ -1,0 +1,44 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://fanfox.net/" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "*://fmcdn.mfcdn.net/*",
+      "resourceTypes": ["image"]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://fanfox.net/" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "*://zjcdn.mangafox.me/*",
+      "resourceTypes": ["image"]
+    }
+  },
+  {
+    "id": 3,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://mangahub.io/" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "*://imgx.mghcdn.com/*",
+      "resourceTypes": ["image"]
+    }
+  }
+]

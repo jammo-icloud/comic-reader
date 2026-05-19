@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Manga Finder",
+  "version": "1.0.0",
+  "description": "Search and download manga to your Comic Reader library",
+  "permissions": [
+    "storage",
+    "alarms",
+    "scripting",
+    "downloads",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "referer_rules",
+        "enabled": true,
+        "path": "public/rules.json"
+      }
+    ]
+  },
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "service-worker-loader.js",
+    "type": "module"
+  },
+  "action": {
+    "default_icon": {
+      "48": "public/icons/icon48.png"
+    }
+  },
+  "icons": {
+    "16": "public/icons/icon16.png",
+    "48": "public/icons/icon48.png",
+    "128": "public/icons/icon128.png"
+  }
+}
