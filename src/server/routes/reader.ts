@@ -2,7 +2,7 @@ import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { resolveComicPath } from '../scanner.js';
-import { getComic, updateComic, updateUserProgress, addToCollection, isInCollection } from '../data.js';
+import { getComic, updateComic, updateUserProgress, addToCollection, isInCollection, addPin, loadProgressForSeries } from '../data.js';
 import {
   translatePage, translateChapter, getCachedTranslation, getCachedPageNumbers,
   getTranslationConfig, saveTranslationConfig, isTranslationEnabled,
@@ -90,11 +90,26 @@ router.patch('/comics/progress/:seriesId/{*file}', (req, res) => {
     progressUpdates.isRead = isRead;
   }
 
+  // Capture whether the user had ANY prior progress on this series BEFORE
+  // the write below. Used to gate the auto-pin: it should fire only on the
+  // first-ever read of a series, never again — so a series the user
+  // deliberately un-pinned (and therefore has progress on) is never
+  // re-pinned against their wishes. Un-pinning stays fully manual.
+  const isFirstEverRead = loadProgressForSeries(username, seriesId).size === 0;
+
   updateUserProgress(username, seriesId, file, progressUpdates);
 
   // Auto-add to collection on first read
   if (!isInCollection(username, seriesId)) {
     addToCollection(username, seriesId);
+  }
+
+  // Auto-pin on first-ever read — a no-fight automation. The "currently
+  // reading" set populates itself as you start new series; you only ever
+  // curate the removal side. addPin is idempotent, so a series the user
+  // pre-pinned manually just stays pinned.
+  if (isFirstEverRead) {
+    addPin(username, seriesId);
   }
 
   res.json({ ok: true });
