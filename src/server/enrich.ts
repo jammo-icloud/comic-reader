@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
-import { loadAllSeries, saveSeries, type SeriesRecord } from './data.js';
+import { loadAllSeries, saveSeries, type SeriesRecord, type SeriesCharacter } from './data.js';
 import { shortHash } from './hash.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -38,6 +38,8 @@ interface EnrichResult {
   tags: string[];
   year: number | null;
   status: string | null;
+  // Main + supporting cast, fed to the translation pipeline for name consistency.
+  characters: SeriesCharacter[];
 }
 
 /** AniList tag rank cutoff. Tags below this are too niche to be useful
@@ -87,6 +89,30 @@ async function anilistQuery(query: string, variables: Record<string, any>): Prom
   return json.data;
 }
 
+/**
+ * Extract the main + supporting cast from an AniList characters connection.
+ * Background characters are dropped — they rarely have dialogue and only add
+ * noise to the translation prompt. AniList sorts MAIN before SUPPORTING.
+ */
+function parseCharacters(conn: any): SeriesCharacter[] {
+  const edges = conn?.edges;
+  if (!Array.isArray(edges)) return [];
+  const out: SeriesCharacter[] = [];
+  for (const edge of edges) {
+    const role = String(edge?.role || '').toLowerCase();
+    if (role === 'background') continue;
+    const full = edge?.node?.name?.full;
+    if (typeof full !== 'string' || !full.trim()) continue;
+    const native = edge?.node?.name?.native;
+    out.push({
+      name: full.trim(),
+      nativeName: typeof native === 'string' && native.trim() ? native.trim() : null,
+      role: role || 'supporting',
+    });
+  }
+  return out;
+}
+
 function parseMedia(media: any): EnrichResult | null {
   if (!media) return null;
   return {
@@ -101,6 +127,7 @@ function parseMedia(media: any): EnrichResult | null {
     // AniList status: FINISHED / RELEASING / NOT_YET_RELEASED / CANCELLED / HIATUS
     // Normalize to lowercase to match the existing series.status convention.
     status: media.status ? String(media.status).toLowerCase() : null,
+    characters: parseCharacters(media.characters),
   };
 }
 
@@ -114,6 +141,9 @@ const MEDIA_FIELDS = `
   startDate { year }
   genres
   tags { name rank isAdult }
+  characters(sort: [ROLE, RELEVANCE], perPage: 25) {
+    edges { role node { name { full native } } }
+  }
 `;
 
 /**
@@ -309,6 +339,10 @@ function applyEnrichResult(series: SeriesRecord, result: EnrichResult, downloade
   const existing = new Set((series.tags || []).map((t) => t.toLowerCase()));
   for (const t of result.tags) existing.add(t);
   series.tags = [...existing].sort();
+
+  // Characters: overwrite when the source returned a cast, otherwise keep what
+  // we had — same "don't clobber on an empty result" rule as the cover above.
+  if (result.characters.length > 0) series.characters = result.characters;
 }
 
 /**

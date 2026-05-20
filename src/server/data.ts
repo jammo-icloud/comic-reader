@@ -46,6 +46,17 @@ export interface SyncSource {
   mangaId: string;   // the source-specific ID or slug
 }
 
+/**
+ * A character pulled from AniList. Stored on the series so the translation
+ * pipeline can feed the model a canonical cast list — keeping names spelled
+ * consistently across a whole chapter is one of the biggest quality wins.
+ */
+export interface SeriesCharacter {
+  name: string;               // romaji / full name, e.g. "Sora Nagase"
+  nativeName: string | null;  // native-script name, e.g. "永瀬空"
+  role: string;               // 'main' | 'supporting'
+}
+
 export interface SeriesRecord {
   id: string;
   type: 'comic' | 'magazine';
@@ -59,6 +70,8 @@ export interface SeriesRecord {
   malId: number | null;
   mangaDexId: string | null;
   englishTitle: string | null;
+  // Cast list from AniList — optional, absent until the series is enriched.
+  characters?: SeriesCharacter[] | null;
   placeholder: string;
   // Subscription fields — optional, absent if not subscribed
   syncSource?: SyncSource | null;
