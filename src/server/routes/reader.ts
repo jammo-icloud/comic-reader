@@ -4,8 +4,8 @@ import fs from 'fs';
 import { resolveComicPath } from '../scanner.js';
 import { getComic, updateComic, updateUserProgress, addToCollection, isInCollection, addPin, loadProgressForSeries } from '../data.js';
 import {
-  translatePage, translateChapter, getCachedTranslation, getCachedPageNumbers,
-  getTranslationConfig, saveTranslationConfig, isTranslationEnabled,
+  translateChapter, getCachedTranslation, getCachedPageNumbers, getExtractedPageNumbers,
+  isChapterTranslating, getTranslationConfig, saveTranslationConfig, isTranslationEnabled,
 } from '../translate.js';
 
 const router = Router();
@@ -116,9 +116,13 @@ router.patch('/comics/progress/:seriesId/{*file}', (req, res) => {
 });
 
 // --- Translation ---
+//
+// Translation is a chapter-level, two-pass pipeline (OCR extract → localize).
+// The per-page GET below only serves what Pass 2 has already cached; there is
+// no on-demand single-page translation.
 
-// Get or generate a translation for a specific page
-router.get('/translate/:seriesId/:pageNum/{*file}', async (req, res) => {
+// Get a cached page translation.
+router.get('/translate/:seriesId/:pageNum/{*file}', (req, res) => {
   const { seriesId, pageNum } = req.params;
   const rawFile = req.params.file;
   const file = Array.isArray(rawFile) ? rawFile.join('/') : rawFile;
@@ -129,36 +133,38 @@ router.get('/translate/:seriesId/:pageNum/{*file}', async (req, res) => {
     return;
   }
 
-  if (!isTranslationEnabled()) {
-    res.status(503).json({ error: 'Translation service not configured' });
+  const cached = getCachedTranslation(seriesId, file, pageNumInt);
+  if (!cached) {
+    res.status(404).json({ error: 'Page not translated yet. Translate the chapter first.' });
     return;
   }
-
-  try {
-    const force = req.query.force === 'true';
-    const result = await translatePage(seriesId, file, pageNumInt, force);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
-  }
+  res.json(cached);
 });
 
-// Get status of translations for a chapter (which pages are cached)
+// Status of a chapter's translation: which pages are OCR'd, which are
+// localized, and whether a pass is running right now.
 router.get('/translate/:seriesId/status/{*file}', (req, res) => {
   const { seriesId } = req.params;
   const rawFile = req.params.file;
   const file = Array.isArray(rawFile) ? rawFile.join('/') : rawFile || '';
   if (!seriesId || !file) { res.status(400).json({ error: 'Missing params' }); return; }
-  const cachedPages = getCachedPageNumbers(seriesId, file);
-  res.json({ enabled: isTranslationEnabled(), cachedPages });
+  res.json({
+    enabled: isTranslationEnabled(),
+    cachedPages: getCachedPageNumbers(seriesId, file),
+    extractedPages: getExtractedPageNumbers(seriesId, file),
+    inProgress: isChapterTranslating(seriesId, file),
+  });
 });
 
-// Translate an entire chapter (runs in background, returns immediately)
+// Translate an entire chapter (runs in background, returns immediately).
+//   ?force=true       re-OCR every page, then re-localize
+//   ?relocalize=true  reuse cached OCR, only re-run the localize pass
 router.post('/translate/:seriesId/chapter/{*file}', (req, res) => {
   const { seriesId } = req.params;
   const rawFile = req.params.file;
   const file = Array.isArray(rawFile) ? rawFile.join('/') : rawFile || '';
   const force = req.query.force === 'true';
+  const relocalize = req.query.relocalize === 'true';
   if (!seriesId || !file) { res.status(400).json({ error: 'Missing params' }); return; }
 
   if (!isTranslationEnabled()) {
@@ -171,13 +177,21 @@ router.post('/translate/:seriesId/chapter/{*file}', (req, res) => {
 
   translateChapter(seriesId, file, {
     force,
+    relocalize,
     onProgress: (done, total) => {
       if (done % 5 === 0 || done === total) {
-        console.log(`  Translate "${seriesId}/${file}": ${done}/${total}`);
+        console.log(`  Extract "${seriesId}/${file}": ${done}/${total}`);
       }
     },
   }).then((stats) => {
-    console.log(`  Translate complete: ${stats.translated} new, ${stats.cached} cached, ${stats.failed} failed (${Math.round(stats.totalMs / 1000)}s)`);
+    console.log(
+      `  Translate complete "${seriesId}/${file}": ` +
+      `${stats.extracted}/${stats.totalPages} pages OCR'd` +
+      `${stats.ocrFailed ? ` (${stats.ocrFailed} failed)` : ''}, ` +
+      `${stats.localizedPages} localized` +
+      `${stats.localizeFailed ? ` (${stats.localizeFailed} failed)` : ''} ` +
+      `(${Math.round(stats.totalMs / 1000)}s)`,
+    );
   }).catch((err) => {
     console.error(`  Translate chapter failed: ${(err as Error).message}`);
   });

@@ -328,19 +328,40 @@ export function getAvailableSources(): Promise<{ id: string; name: string; color
 
 // ==================== Translation (admin only) ====================
 
-export function getTranslationStatus(seriesId: string, file: string): Promise<{ enabled: boolean; cachedPages: number[] }> {
+export function getTranslationStatus(seriesId: string, file: string): Promise<{
+  enabled: boolean;
+  cachedPages: number[];     // pages with a finished translation (Pass 2)
+  extractedPages: number[];  // pages with cached OCR (Pass 1)
+  inProgress: boolean;       // a translation pass is running right now
+}> {
   return fetchJson(`/translate/${seriesId}/status/${encodePath(file)}`);
 }
 
-export function translateWholeChapter(seriesId: string, file: string, force = false): Promise<{ ok: boolean; status: string }> {
-  const qs = force ? '?force=true' : '';
+/**
+ * Kick off a chapter translation (two-pass: OCR extract → localize).
+ *   force      — re-OCR every page, then re-localize
+ *   relocalize — reuse cached OCR, only re-run the localize pass (fast loop
+ *                for iterating on the localize prompt)
+ */
+export function translateWholeChapter(
+  seriesId: string,
+  file: string,
+  opts: { force?: boolean; relocalize?: boolean } = {},
+): Promise<{ ok: boolean; status: string }> {
+  const params = new URLSearchParams();
+  if (opts.force) params.set('force', 'true');
+  if (opts.relocalize) params.set('relocalize', 'true');
+  const qs = params.toString() ? `?${params}` : '';
   return fetchJson(`/translate/${seriesId}/chapter/${encodePath(file)}${qs}`, { method: 'POST' });
 }
 
+export type HonorificPolicy = 'keep' | 'drop' | 'localize';
+
 export interface TranslationConfig {
   url: string;
-  model: string;
-  prompt: string;
+  visionModel: string;   // Pass 1 — OCR/extract (vision-capable)
+  textModel: string;     // Pass 2 — localize
+  honorificPolicy: HonorificPolicy;
 }
 
 export function getTranslationConfig(): Promise<TranslationConfig> {

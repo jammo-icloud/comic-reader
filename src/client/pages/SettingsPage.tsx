@@ -194,8 +194,9 @@ export default function SettingsPage() {
                 <Languages size={14} /> Translation (Admin)
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Configure an Ollama server running a vision-capable model (e.g. Qwen2.5-VL).
-                Leave URL blank to disable the Translate feature.
+                Translation runs in two passes on an Ollama server: a vision model
+                OCRs each page, then a text model localizes the whole chapter at once.
+                Leave the URL blank to disable the Translate feature.
               </p>
             </div>
             <div className="px-4 py-4 space-y-3">
@@ -213,30 +214,56 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Model
+                  Vision model — Pass 1 (OCR)
                 </label>
                 <input
                   type="text"
-                  value={transConfig.model}
-                  onChange={(e) => setTransConfig({ ...transConfig, model: e.target.value })}
+                  value={transConfig.visionModel}
+                  onChange={(e) => setTransConfig({ ...transConfig, visionModel: e.target.value })}
                   placeholder="qwen2.5vl:7b"
                   className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent font-mono"
                 />
                 <p className="text-[10px] text-gray-400 mt-1">
-                  Suggested: <code>qwen2.5vl:7b</code> (fast) or <code>qwen2.5vl:32b</code> (higher quality)
+                  Must be vision-capable. Suggested: <code>qwen2.5vl:7b</code>
                 </p>
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Prompt (advanced)
+                  Text model — Pass 2 (localize)
                 </label>
-                <textarea
-                  value={transConfig.prompt}
-                  onChange={(e) => setTransConfig({ ...transConfig, prompt: e.target.value })}
-                  rows={6}
-                  className="w-full px-3 py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent font-mono resize-y"
+                <input
+                  type="text"
+                  value={transConfig.textModel}
+                  onChange={(e) => setTransConfig({ ...transConfig, textModel: e.target.value })}
+                  placeholder="qwen2.5:32b"
+                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent font-mono"
                 />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  A larger text model lifts quality here. May be the same model as Pass 1.
+                </p>
               </div>
+              <div>
+                <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Honorifics
+                </label>
+                <select
+                  value={transConfig.honorificPolicy}
+                  onChange={(e) => setTransConfig({ ...transConfig, honorificPolicy: e.target.value as TranslationConfig['honorificPolicy'] })}
+                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  <option value="keep">Keep (-san, -kun, -chan…)</option>
+                  <option value="drop">Drop entirely</option>
+                  <option value="localize">Localize (Mr./Ms., first names)</option>
+                </select>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Keeping honorifics preserves relationship beats — like a character
+                  dropping one as two people grow closer.
+                </p>
+              </div>
+              <p className="text-[10px] text-gray-400">
+                The translation prompts are editable markdown files under
+                <code> data/prompts/</code> — tune them without a rebuild.
+              </p>
               <div className="flex items-center gap-2">
                 <button
                   onClick={saveTransConfig}

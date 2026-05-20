@@ -55,8 +55,8 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
   const [uploadingCover, setUploadingCover] = useState(false);
   const [coverVersion, setCoverVersion] = useState(0); // cache-bust after upload
 
-  // Translation status per file: file -> { translating, cachedPages }
-  const [translationState, setTranslationState] = useState<Record<string, { translating: boolean; cached: number[] }>>({});
+  // Translation status per file: file -> { translating, extracted (OCR'd pages), cached (localized pages) }
+  const [translationState, setTranslationState] = useState<Record<string, { translating: boolean; cached: number[]; extracted: number[] }>>({});
   const [translationEnabled, setTranslationEnabled] = useState(false);
 
   // Sync source
@@ -79,9 +79,9 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
           try {
             const status = await getTranslationStatus(series.id, c.file);
             enabled = enabled || status.enabled;
-            state[c.file] = { translating: false, cached: status.cachedPages };
+            state[c.file] = { translating: false, cached: status.cachedPages, extracted: status.extractedPages };
           } catch {
-            state[c.file] = { translating: false, cached: [] };
+            state[c.file] = { translating: false, cached: [], extracted: [] };
           }
         }
         setTranslationEnabled(enabled);
@@ -90,24 +90,29 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
       .finally(() => setLoadingComics(false));
   }, [series.id]);
 
-  const handleTranslateChapter = async (file: string) => {
+  // relocalize = reuse cached OCR, only re-run the localize pass (fast loop
+  // for iterating on the localize prompt).
+  const handleTranslateChapter = async (file: string, relocalize = false) => {
     setTranslationState((prev) => ({ ...prev, [file]: { ...prev[file], translating: true } }));
     try {
-      await translateWholeChapter(series.id, file);
-      // Poll for completion — server runs in background
+      await translateWholeChapter(series.id, file, { relocalize });
+      // Poll for completion — server runs the two-pass pipeline in the
+      // background. inProgress is the authoritative "still running" signal
+      // (a count-based check breaks for re-localize, where p<N>.json already
+      // exists before Pass 2 overwrites it).
       const start = Date.now();
       const poll = async () => {
-        if (Date.now() - start > 10 * 60 * 1000) return; // 10 min timeout
-        const status = await getTranslationStatus(series.id, file).catch(() => null);
-        if (!status) return;
-        const comic = comics.find((c) => c.file === file);
-        const total = comic?.pages || 0;
-        const stillRunning = total === 0 || status.cachedPages.length < total;
+        const giveUp = Date.now() - start > 15 * 60 * 1000;
+        const status = giveUp ? null : await getTranslationStatus(series.id, file).catch(() => null);
+        if (!status) {
+          setTranslationState((prev) => ({ ...prev, [file]: { ...prev[file], translating: false } }));
+          return;
+        }
         setTranslationState((prev) => ({
           ...prev,
-          [file]: { translating: stillRunning, cached: status.cachedPages },
+          [file]: { translating: status.inProgress, cached: status.cachedPages, extracted: status.extractedPages },
         }));
-        if (stillRunning) setTimeout(poll, 3000);
+        if (status.inProgress) setTimeout(poll, 3000);
       };
       setTimeout(poll, 2000);
     } catch (err) {
@@ -367,21 +372,26 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                       {comics.map((c) => {
-                        const t = translationState[c.file] || { translating: false, cached: [] };
+                        const t = translationState[c.file] || { translating: false, cached: [], extracted: [] };
                         const total = c.pages || 0;
-                        const done = t.cached.length;
+                        const ocr = t.extracted.length;
+                        const loc = t.cached.length;
                         return (
                         <tr key={c.file} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                           <td className="px-3 py-1.5 text-gray-400 font-mono">{c.order}</td>
                           <td className="px-3 py-1.5 truncate max-w-[250px]">{c.file}</td>
                           <td className="px-3 py-1.5 text-gray-400">{c.pages || '?'}</td>
                           {translationEnabled && (
-                            <td className="px-3 py-1.5 text-[11px] text-gray-500">
+                            <td className="px-3 py-1.5 text-[11px]">
                               {t.translating
-                                ? <span className="text-accent">{done}/{total} ({total ? Math.round((done / total) * 100) : 0}%)</span>
-                                : done > 0
-                                  ? <span className="text-success dark:text-success">{done}/{total || '?'}</span>
-                                  : <span className="text-gray-400">—</span>}
+                                ? (total === 0 || ocr < total)
+                                  ? <span className="text-accent">OCR {ocr}/{total || '?'}</span>
+                                  : <span className="text-accent">Localizing…</span>
+                                : loc > 0
+                                  ? <span className="text-success dark:text-success">{loc}/{total || '?'}</span>
+                                  : ocr > 0
+                                    ? <span className="text-gray-500">OCR {ocr}/{total || '?'}</span>
+                                    : <span className="text-gray-400">—</span>}
                             </td>
                           )}
                           <td className="px-3 py-1.5 flex gap-1">
@@ -390,9 +400,19 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
                                 onClick={() => handleTranslateChapter(c.file)}
                                 disabled={t.translating}
                                 className="p-0.5 rounded hover:bg-accent/10 text-gray-400 hover:text-accent transition-colors disabled:opacity-50"
-                                title="Translate this chapter (admin)"
+                                title="Translate this chapter (OCR + localize)"
                               >
                                 {t.translating ? <Loader size={12} className="animate-spin" /> : <Languages size={12} />}
+                              </button>
+                            )}
+                            {translationEnabled && ocr > 0 && (
+                              <button
+                                onClick={() => handleTranslateChapter(c.file, true)}
+                                disabled={t.translating}
+                                className="p-0.5 rounded hover:bg-accent/10 text-gray-400 hover:text-accent transition-colors disabled:opacity-50"
+                                title="Re-localize from cached OCR (reuses Pass 1, re-runs Pass 2)"
+                              >
+                                <RefreshCw size={12} />
                               </button>
                             )}
                             <button
