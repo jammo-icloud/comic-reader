@@ -220,11 +220,11 @@ export default function SettingsPage() {
                   type="text"
                   value={transConfig.visionModel}
                   onChange={(e) => setTransConfig({ ...transConfig, visionModel: e.target.value })}
-                  placeholder="qwen2.5vl:7b"
+                  placeholder="qwen3.5:9b"
                   className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent font-mono"
                 />
                 <p className="text-[10px] text-gray-400 mt-1">
-                  Must be vision-capable. Suggested: <code>qwen2.5vl:7b</code>
+                  Must be vision-capable. Suggested: <code>qwen3.5:9b</code> (fast, multimodal)
                 </p>
               </div>
               <div>
@@ -235,11 +235,11 @@ export default function SettingsPage() {
                   type="text"
                   value={transConfig.textModel}
                   onChange={(e) => setTransConfig({ ...transConfig, textModel: e.target.value })}
-                  placeholder="qwen2.5:32b"
+                  placeholder="qwen3.6"
                   className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent font-mono"
                 />
                 <p className="text-[10px] text-gray-400 mt-1">
-                  A larger text model lifts quality here. May be the same model as Pass 1.
+                  A larger model lifts quality here. Suggested: <code>qwen3.6</code>. May be the same model as Pass 1.
                 </p>
               </div>
               <div>

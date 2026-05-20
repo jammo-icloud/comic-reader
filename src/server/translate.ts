@@ -79,10 +79,15 @@ export interface TranslationConfig {
 
 // ==================== Defaults ====================
 
+// Defaults point at the current natively-multimodal Qwen generation — one
+// model line handles both vision and text, so there is no separate "-VL"
+// variant to track. Pass 1 runs the small fast model page by page; Pass 2
+// runs the large model once over the whole chapter. Either field can be
+// pointed at the larger model if OCR accuracy needs it.
 const DEFAULT_CONFIG: TranslationConfig = {
   url: '',
-  visionModel: 'qwen2.5vl:7b',
-  textModel: 'qwen2.5:32b',
+  visionModel: 'qwen3.5:9b',
+  textModel: 'qwen3.6',
   honorificPolicy: 'keep',
 };
 
@@ -404,6 +409,11 @@ async function callOllama(opts: OllamaOpts): Promise<string> {
       prompt: opts.prompt,
       ...(opts.images && opts.images.length ? { images: opts.images } : {}),
       stream: false,
+      // think:false — the Qwen 3.5/3.6 generation is thinking-capable, but a
+      // chain-of-thought on an OCR / structured-JSON task only burns tokens
+      // and risks polluting the output. Disable it. Harmless on non-thinking
+      // models (verified: response stays clean, no separate thinking field).
+      think: false,
       // NOTE: no format:'json' — it makes Qwen-VL return an empty {} instead
       // of doing the vision work. We parse JSON from the response ourselves.
       options: {
