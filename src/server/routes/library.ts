@@ -8,6 +8,7 @@ import {
   loadUserProgress, updateUserProgress,
   loadPreferences, savePreferences,
   isFavorited,
+  isPinned, addPin, removePin, pinnedSet,
   resolveComicPath,
   isNsfwSeries, VALID_THEMES,
   type SeriesRecord,
@@ -48,10 +49,12 @@ router.get('/series', (req, res) => {
   }
 
   const collectionSet = new Set(loadCollection(username).map((e) => e.seriesId));
+  const pinned = pinnedSet(username);
   const result = filtered.map((s) => ({
     ...s,
     ...getSeriesStatsForUser(s.id, username),
     inCollection: collectionSet.has(s.id),
+    isPinned: pinned.has(s.id),
   }));
 
   res.json(result);
@@ -72,7 +75,22 @@ router.get('/series/:id', (req, res) => {
     ...getSeriesStatsForUser(series.id, req.username),
     inCollection: isInCollection(req.username, series.id),
     isFavorited: isFavorited(req.username, series.id),
+    isPinned: isPinned(req.username, series.id),
   });
+});
+
+// --- Pinned series — personal "currently reading" marker ---
+
+router.post('/pins/:seriesId', (req, res) => {
+  const series = loadAllSeries().find((s) => s.id === req.params.seriesId);
+  if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
+  addPin(req.username, req.params.seriesId);
+  res.json({ ok: true });
+});
+
+router.delete('/pins/:seriesId', (req, res) => {
+  removePin(req.username, req.params.seriesId);
+  res.status(204).end();
 });
 
 /**

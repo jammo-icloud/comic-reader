@@ -70,6 +70,23 @@ export function removeFavorite(seriesId: string): Promise<void> {
   });
 }
 
+// ==================== Pinned series ====================
+// Personal "currently reading" marker — distinct from favorites (which are
+// the shared/Recommended signal). Lets a user filter the library down to
+// what they're actively reading.
+
+export function pinSeries(seriesId: string): Promise<{ ok: true }> {
+  return fetchJson(`/pins/${encodeURIComponent(seriesId)}`, { method: 'POST' });
+}
+
+export function unpinSeries(seriesId: string): Promise<void> {
+  return fetch(`${BASE}/pins/${encodeURIComponent(seriesId)}`, {
+    method: 'DELETE',
+  }).then((res) => {
+    if (!res.ok && res.status !== 204) throw new Error(`Unpin failed: ${res.status}`);
+  });
+}
+
 export function getMyFavorites(): Promise<Series[]> {
   return fetchJson(`/favorites`);
 }

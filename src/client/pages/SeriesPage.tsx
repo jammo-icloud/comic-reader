@@ -3,13 +3,14 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, LayoutGrid, List, Star, RefreshCw, Loader,
   Play, Search, ArrowUpDown, BookOpen, Pencil, Bell, BellOff, Trash2, X,
-  Download, CheckCircle, Package, Heart, Plus, Check, AlertTriangle, Sparkles,
+  Download, CheckCircle, Package, Heart, Plus, Check, AlertTriangle, Sparkles, Pin,
 } from 'lucide-react';
 import type { Series, Comic } from '../lib/types';
 import {
   getSeriesDetail, getComics, getSeriesCoverUrl, getPlaceholderUrl,
   deleteSeries, syncSeriesNow,
   addToCollection, addFavorite, removeFavorite,
+  pinSeries, unpinSeries,
   retryPartialChapters, refreshSeriesMetadata,
   getSimilarSeries, type SimilarSeriesItem,
 } from '../lib/api';
@@ -69,6 +70,7 @@ export default function SeriesPage() {
 
   // Favorite + Add-to-library state (any logged-in user — not gated to admin)
   const [favBusy, setFavBusy] = useState(false);
+  const [pinBusy, setPinBusy] = useState(false);
   const [addBusy, setAddBusy] = useState(false);
 
   // ----- Data load -----
@@ -250,6 +252,27 @@ export default function SeriesPage() {
       setSeries((prev) => (prev ? { ...prev, isFavorited: wasFavorited } : prev));
     } finally {
       setFavBusy(false);
+    }
+  };
+
+  /**
+   * Toggle the "currently reading" pin. Personal marker — surfaces in the
+   * library's Pinned filter so the user can drop straight back into a
+   * series they're mid-way through. Optimistic, same pattern as favorite.
+   */
+  const handleTogglePin = async () => {
+    if (!series || pinBusy) return;
+    setPinBusy(true);
+    const wasPinned = !!series.isPinned;
+    setSeries((prev) => (prev ? { ...prev, isPinned: !wasPinned } : prev));
+    try {
+      if (wasPinned) await unpinSeries(series.id);
+      else await pinSeries(series.id);
+    } catch (err) {
+      console.error('Toggle pin failed:', err);
+      setSeries((prev) => (prev ? { ...prev, isPinned: wasPinned } : prev));
+    } finally {
+      setPinBusy(false);
     }
   };
 
@@ -615,6 +638,33 @@ export default function SeriesPage() {
                 />
               )}
               <span className="hidden sm:inline">{series.isFavorited ? 'Recommended' : 'Recommend'}</span>
+            </button>
+
+            {/* Pin toggle — personal "currently reading" marker. Distinct from
+                Recommend: this is private, just surfaces the series in the
+                library's Pinned filter so you can drop back into it. */}
+            <button
+              onClick={handleTogglePin}
+              disabled={pinBusy}
+              className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm transition-colors min-h-[44px] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                series.isPinned
+                  ? 'bg-accent/10 border-accent/30 text-accent hover:bg-accent/15'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-accent hover:text-accent'
+              }`}
+              title={series.isPinned ? 'Unpin — remove from "currently reading"' : 'Pin — mark as currently reading'}
+              aria-label={series.isPinned ? 'Unpin series' : 'Pin series as currently reading'}
+              aria-pressed={!!series.isPinned}
+            >
+              {pinBusy ? (
+                <Loader size={15} className="animate-spin" />
+              ) : (
+                <Pin
+                  size={15}
+                  fill={series.isPinned ? 'currentColor' : 'none'}
+                  strokeWidth={series.isPinned ? 0 : 2}
+                />
+              )}
+              <span className="hidden sm:inline">{series.isPinned ? 'Pinned' : 'Pin'}</span>
             </button>
 
             {/* Subscribe quick action — admin only since updating sync source is admin-only */}

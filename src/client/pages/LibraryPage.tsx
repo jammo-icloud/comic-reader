@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Download } from 'lucide-react';
+import { Download, Pin } from 'lucide-react';
 import type { Series, ContinueReadingItem } from '../lib/types';
 import { getSeries, getContinueReading, getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
 import NotificationDropdown from '../components/NotificationDropdown';
@@ -42,9 +42,16 @@ export default function LibraryPage() {
     return localStorage.getItem('bindery-hide-caught-up') === '1';
   });
 
+  // Persisted: show only pinned series — the user's hand-curated
+  // "currently reading" set. The reliable answer to "what was I reading?"
+  const [pinnedOnly, setPinnedOnly] = useState<boolean>(() => {
+    return localStorage.getItem('bindery-pinned-only') === '1';
+  });
+
   useEffect(() => { localStorage.setItem('bindery-type-filter', typeFilter); }, [typeFilter]);
   useEffect(() => { localStorage.setItem('bindery-library-sort', sortBy); }, [sortBy]);
   useEffect(() => { localStorage.setItem('bindery-hide-caught-up', hideCaughtUp ? '1' : '0'); }, [hideCaughtUp]);
+  useEffect(() => { localStorage.setItem('bindery-pinned-only', pinnedOnly ? '1' : '0'); }, [pinnedOnly]);
 
   // ----- Data load -----
 
@@ -110,8 +117,11 @@ export default function LibraryPage() {
         return !(allRead && noNew);
       });
     }
+    if (pinnedOnly) {
+      list = list.filter((s) => s.isPinned);
+    }
     return list;
-  }, [seriesList, search, tagFilters, hideCaughtUp]);
+  }, [seriesList, search, tagFilters, hideCaughtUp, pinnedOnly]);
 
   const sortedFiltered = useMemo(() => {
     const arr = filtered.slice();
@@ -126,7 +136,7 @@ export default function LibraryPage() {
     return arr;
   }, [filtered, sortBy]);
 
-  const isFiltered = !!search || tagFilters.size > 0 || hideCaughtUp;
+  const isFiltered = !!search || tagFilters.size > 0 || hideCaughtUp || pinnedOnly;
   const showContinueShelf = continueReading.length > 0 && !isFiltered;
 
   const toggleTag = (tag: string) => {
@@ -179,6 +189,8 @@ export default function LibraryPage() {
         onSortChange={setSortBy}
         hideCaughtUp={hideCaughtUp}
         onHideCaughtUpChange={setHideCaughtUp}
+        pinnedOnly={pinnedOnly}
+        onPinnedOnlyChange={setPinnedOnly}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-6">
@@ -246,6 +258,17 @@ function SeriesGrid({ items, offlineSeries }: { items: Series[]; offlineSeries: 
               {s.newChapterCount != null && s.newChapterCount > 0 && (
                 <div className="absolute top-2 right-2 flex items-center gap-1 bg-accent text-white text-[10px] px-2 py-0.5 rounded-full font-semibold shadow-lg">
                   +{s.newChapterCount} NEW
+                </div>
+              )}
+              {/* Pin marker — bottom-left, free corner (Saved badge is top-left,
+                  NEW is top-right). At-a-glance "this is in my reading set." */}
+              {s.isPinned && (
+                <div
+                  className="absolute bottom-2 left-2 flex items-center justify-center bg-accent/90 text-white w-5 h-5 rounded-full shadow-sm"
+                  title="Pinned — currently reading"
+                  aria-label="Pinned — currently reading"
+                >
+                  <Pin size={10} fill="currentColor" strokeWidth={0} />
                 </div>
               )}
             </div>

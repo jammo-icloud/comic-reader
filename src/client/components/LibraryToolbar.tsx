@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Search, X, Tag as TagIcon, ArrowUpDown, BookOpen, Newspaper, Check, BookOpenCheck } from 'lucide-react';
+import { Search, X, Tag as TagIcon, ArrowUpDown, BookOpen, Newspaper, Check, BookOpenCheck, Pin } from 'lucide-react';
 import StickyToolbar from './StickyToolbar';
 import ToolbarIconButton from './ToolbarIconButton';
 
@@ -55,6 +55,11 @@ interface LibraryToolbarProps {
   // "active reading" view instead of a full archive.
   hideCaughtUp: boolean;
   onHideCaughtUpChange: (v: boolean) => void;
+
+  // Pinned only: when true, show only series the user has pinned —
+  // their hand-curated "currently reading" set.
+  pinnedOnly: boolean;
+  onPinnedOnlyChange: (v: boolean) => void;
 }
 
 /**
@@ -77,6 +82,7 @@ export default function LibraryToolbar({
   allTags, activeTags, onToggleTag, onClearTags,
   sortBy, onSortChange,
   hideCaughtUp, onHideCaughtUpChange,
+  pinnedOnly, onPinnedOnlyChange,
 }: LibraryToolbarProps) {
   const [showSearch, setShowSearch] = useState(false);
   const [showTagMenu, setShowTagMenu] = useState(false);
@@ -169,6 +175,21 @@ export default function LibraryToolbar({
             >
               <Search size={16} />
             </ToolbarIconButton>
+
+            {/* Pinned-only — the user's hand-curated "currently reading" set. */}
+            <button
+              onClick={() => onPinnedOnlyChange(!pinnedOnly)}
+              aria-pressed={pinnedOnly}
+              title={pinnedOnly ? 'Showing only pinned series' : 'Show only series you\'ve pinned as currently reading'}
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 min-h-[36px] rounded-md text-xs font-medium transition-colors shrink-0 ${
+                pinnedOnly
+                  ? 'bg-accent/15 text-accent'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+              }`}
+            >
+              <Pin size={14} fill={pinnedOnly ? 'currentColor' : 'none'} strokeWidth={pinnedOnly ? 0 : 2} />
+              <span className="hidden sm:inline">Pinned</span>
+            </button>
 
             {/* Hide caught-up — only series with unread chapters or new
                 subscription chapters. When active, an accent-tinted chip;

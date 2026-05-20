@@ -29,6 +29,7 @@ export interface Series {
   inProgress: number;
   inCollection: boolean;
   isFavorited?: boolean; // populated by /api/series/:id, optional elsewhere
+  isPinned?: boolean;    // personal "currently reading" marker
 }
 
 /**

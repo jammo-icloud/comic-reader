@@ -85,6 +85,17 @@ export interface FavoriteEntry {
   favoritedAt: string;
 }
 
+/**
+ * A pinned series — the user's personal "I'm reading this, surface it for me"
+ * marker. Distinct from FavoriteEntry: favorites feed the cross-user
+ * Recommended feed (a social signal); pins are private and exist purely so a
+ * user can filter the library down to what they're actively reading.
+ */
+export interface PinEntry {
+  seriesId: string;
+  pinnedAt: string;
+}
+
 export interface UserProgressRecord {
   seriesId: string;
   file: string;
@@ -124,6 +135,7 @@ const collectionCache = new Map<string, CollectionEntry[]>();
 const progressCache = new Map<string, UserProgressRecord[]>();
 const preferencesCache = new Map<string, UserPreferences>();
 const favoritesCache = new Map<string, FavoriteEntry[]>();
+const pinnedCache = new Map<string, PinEntry[]>();
 
 // --- Series cache ops ---
 
@@ -199,6 +211,8 @@ export function removeSeries(id: string): void {
   // Cascade: drop this series from every user's favorites so the Recommended
   // feed doesn't reference dangling IDs.
   purgeSeriesFromAllFavorites(id);
+  // Cascade: drop it from every user's pinned list too.
+  purgeSeriesFromAllPins(id);
 }
 
 // --- Comics cache ops ---
@@ -457,6 +471,89 @@ function purgeSeriesFromAllFavorites(seriesId: string): void {
     if (filtered.length !== entries.length) {
       favoritesCache.set(username, filtered);
       flushFavoritesToDisk(username, filtered);
+    }
+  }
+}
+
+// --- Pinned series cache ops ---
+//
+// Mirrors the favorites cache exactly. Per-user JSONL at
+// data/users/<username>/pinned.jsonl. A pin is the user's private
+// "currently reading / get me back here" marker — no cross-user
+// aggregation (that's what favorites + the Recommended feed are for).
+
+function pinnedPath(username: string): string {
+  return path.join(userDir(username), 'pinned.jsonl');
+}
+
+function loadPinnedFromDisk(username: string): PinEntry[] {
+  const p = pinnedPath(username);
+  if (!fs.existsSync(p)) return [];
+  try {
+    return fs.readFileSync(p, 'utf-8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  } catch {
+    console.error(`Corrupt pinned list for "${username}", resetting`);
+    return [];
+  }
+}
+
+function flushPinnedToDisk(username: string, entries: PinEntry[]): void {
+  ensureUserDir(username);
+  fs.writeFileSync(
+    pinnedPath(username),
+    entries.map((e) => JSON.stringify(e)).join('\n') + (entries.length ? '\n' : ''),
+  );
+}
+
+function getPinnedCached(username: string): PinEntry[] {
+  let cached = pinnedCache.get(username);
+  if (!cached) {
+    cached = loadPinnedFromDisk(username);
+    pinnedCache.set(username, cached);
+  }
+  return cached;
+}
+
+export function loadPinned(username: string): PinEntry[] {
+  return getPinnedCached(username).map(clone);
+}
+
+export function addPin(username: string, seriesId: string): void {
+  const entries = getPinnedCached(username);
+  if (entries.some((e) => e.seriesId === seriesId)) return;
+  entries.push({ seriesId, pinnedAt: new Date().toISOString() });
+  flushPinnedToDisk(username, entries);
+}
+
+export function removePin(username: string, seriesId: string): void {
+  const entries = getPinnedCached(username);
+  const filtered = entries.filter((e) => e.seriesId !== seriesId);
+  if (filtered.length === entries.length) return;
+  pinnedCache.set(username, filtered);
+  flushPinnedToDisk(username, filtered);
+}
+
+export function isPinned(username: string, seriesId: string): boolean {
+  return getPinnedCached(username).some((e) => e.seriesId === seriesId);
+}
+
+/** Set of pinned series IDs — for annotating the /api/series list in one pass. */
+export function pinnedSet(username: string): Set<string> {
+  return new Set(getPinnedCached(username).map((e) => e.seriesId));
+}
+
+/** Cascade-delete a series from every user's pins. Called from removeSeries. */
+function purgeSeriesFromAllPins(seriesId: string): void {
+  if (!fs.existsSync(USERS_DIR)) return;
+  const usernames = fs.readdirSync(USERS_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+  for (const username of usernames) {
+    const entries = getPinnedCached(username);
+    const filtered = entries.filter((e) => e.seriesId !== seriesId);
+    if (filtered.length !== entries.length) {
+      pinnedCache.set(username, filtered);
+      flushPinnedToDisk(username, filtered);
     }
   }
 }
