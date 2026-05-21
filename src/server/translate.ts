@@ -1,20 +1,20 @@
 /**
- * Manga translation — per-page vision pipeline with a living story bible.
+ * Manga narration — per-page vision pipeline with a living story bible.
  *
- * The translator SEES each page. One vision-model call per page reads every
- * bubble in true layout order, locates it, and writes the English — with the
- * page's art in front of it (who is speaking, their expression, the scene).
- * That visual context is what a flat text transcript could never give.
+ * Bindery does not "translate" a page so much as NARRATE it. One vision-model
+ * call per page sees the art — panels, faces, action — and tells that page's
+ * story in strong English. It is source-agnostic: Japanese, Korean, or rough
+ * English bubbles all become good English narration (a poor English scan is
+ * simply retold properly). The bubbles are still recorded as a citation layer.
  *
  * Consistency across pages comes from the story bible (see bible.ts): each
  * page call is handed the current bible — cast, glossary, story-so-far — and
- * returns, alongside the translation, proposed additions. The bible threads
- * forward page to page and is persisted per series, so it deepens as the
- * model reads and a later chapter starts already knowing the world.
+ * returns proposed additions. The bible threads forward and is persisted per
+ * series, so it deepens as the model reads and a later chapter starts knowing
+ * the world.
  *
- * Output is written per page as p<N>.json — the format the reader overlay
- * consumes. The translation prompt is an editable markdown file under
- * data/prompts/, seeded from the default below on first run.
+ * Output is written per page as p<N>.json. The narration prompt is an
+ * editable markdown file under data/prompts/, seeded from the default below.
  */
 import fs from 'fs';
 import path from 'path';
@@ -32,7 +32,7 @@ const DATA_DIR = process.env.DATA_DIR || './data';
 const TRANSLATIONS_DIR = path.join(DATA_DIR, 'translations');
 const PROMPTS_DIR = path.join(DATA_DIR, 'prompts');
 const CONFIG_FILE = path.join(DATA_DIR, 'translation-config.json');
-const TRANSLATE_PROMPT_FILE = path.join(PROMPTS_DIR, 'translate-page.md');
+const NARRATION_PROMPT_FILE = path.join(PROMPTS_DIR, 'narrate-page.md');
 
 // ==================== Types ====================
 
@@ -61,8 +61,14 @@ export interface TranslatedBubble {
   bbox: BBox | null;
 }
 
-/** One page's translation — cached as p<N>.json, consumed by the reader. */
+/**
+ * One page's narration — cached as p<N>.json, consumed by the reader.
+ * `narration` is the told-story passage; `bubbles` is the citation layer
+ * (each text element with its location), kept so the reader can show which
+ * bubble a line came from.
+ */
 export interface PageTranslation {
+  narration: string;
   bubbles: TranslatedBubble[];
   modelUsed: string;
   translatedAt: string;
@@ -93,34 +99,42 @@ function isHonorificPolicy(v: any): v is HonorificPolicy {
 }
 
 /**
- * The translation prompt — the tunable one. Placeholders filled per call:
- * {{title}} {{honorificPolicy}} {{bible}}. Edit data/prompts/translate-page.md
+ * The narration prompt — the tunable one. Placeholders filled per call:
+ * {{title}} {{honorificPolicy}} {{bible}}. Edit data/prompts/narrate-page.md
  * to iterate without a rebuild.
  */
-const DEFAULT_TRANSLATE_PROMPT = `# Manga Page Translation
+const DEFAULT_NARRATION_PROMPT = `# Manga Page — Narration
 
-You are translating one page of the manga **{{title}}** into natural English.
-You can SEE the page — the panels, the characters' faces and body language,
-the action. Use all of it. Manga is a visual medium: the art tells you who is
-speaking, their mood, and the beat of the scene.
+You are telling the story of one page of **{{title}}** in strong, natural
+English, for a reader who is looking at the page while you narrate.
 
-## What matters most
+You can SEE the page — the panels, the characters, their faces, the action,
+the mood. The text in the bubbles may be Japanese, Korean, or already in
+(often rough) English. Whatever it is: read it, and tell this page's story
+WELL.
 
-**Narration over literal accuracy.** The goal is an enjoyable, natural read —
-the reader should forget this was ever another language. Rephrase freely,
-localize idioms, and let each character's dialogue sound like a real person in
-that moment. Word-for-word fidelity is NOT the goal; a translation that reads
-well and stays true to the scene is.
+## Narration — the heart of the job
 
-Read every text element on the page — speech, thought, narration, signs and
-sound effects — in correct reading order (Japanese manga reads right-to-left,
-top-to-bottom; Korean/Chinese webtoons top-to-bottom).
+Write a flowing passage that tells what happens on this page. Render dialogue
+vividly and in each character's voice; carry the action and the scene with
+light narration where the art shows it. It should read like a gifted
+storyteller telling you the page — not a list of translated lines.
 
-## The story so far
+- If the page is not in English, translate as you narrate.
+- If the page is ALREADY in English but the writing is poor or pidgin, retell
+  it properly — never pass bad prose through.
+- Tell what is on the page, told well. Do not invent events that aren't there.
 
-This is what is known about this series. Treat the character names and the
-glossary as canon — use those exact spellings, and never invent a new
-romanization for a character or term already listed.
+## Also record
+
+- **bubbles** — every text element: reading order, the original text, a clean
+  English line, its type, and its box. This is the citation layer, so the
+  reader can show which bubble a line came from.
+- **bible** — anything new for the story bible (below): characters (each with
+  a short *voice* note — how they speak), glossary terms, and a refreshed
+  one-or-two sentence recap. Omit a field if this page added nothing to it.
+
+## The story so far — canon: use these exact names and voices
 
 {{bible}}
 
@@ -128,34 +142,28 @@ romanization for a character or term already listed.
 
 {{honorificPolicy}}
 
-## Your job — two things
-
-1. **Translate the page.** For every text element give its reading order, the
-   original text, your English, its type, and its bounding box.
-2. **Grow the story bible.** As you read this page, note what is NEW: a
-   character who appears (with a short *voice* note — how they speak), a place,
-   technique or term worth keeping consistent, and a refreshed one-or-two
-   sentence recap of the story including this page. Only report what is new or
-   changed; omit a field if this page added nothing to it.
-
 ## Output
 
-Return STRICT JSON only — no prose, no markdown code fences. A single object:
+Return STRICT JSON only — no prose outside the JSON, no markdown code fences.
+A single object:
 
 {
+  "narration": "Papa steps between his daughter and the smoking rubble. ...",
   "bubbles": [
     {"order": 1, "original": "こんにちは", "english": "Hi there.", "type": "speech", "box": [610, 80, 880, 300]}
   ],
   "bible": {
     "characters": [{"name": "Sora", "native": "ソラ", "role": "main", "voice": "casual, warm"}],
-    "glossary": [{"term": "...", "english": "...", "note": "..."}],
+    "glossary": [{"term": "原文の用語", "english": "your English rendering", "note": "what it is"}],
     "recap": "..."
   }
 }
 
 - \`type\` is one of: speech, thought, narration, sfx, sign.
-- \`box\` is [x1, y1, x2, y2] in pixels of this image — the text's bounding box.
-- If the page has no text, return \`"bubbles": []\`.
+- \`box\` is [x1, y1, x2, y2] in pixels of this image.
+- In \`glossary\`, "term" is the original-language term and "english" is your
+  chosen English rendering.
+- If the page has no text, narrate the art and return \`"bubbles": []\`.
 - If this page added nothing to the bible, return \`"bible": {}\`.
 `;
 
@@ -228,20 +236,20 @@ export function isTranslationEnabled(): boolean {
 // ==================== Prompt file ====================
 
 /**
- * Read the translation prompt, seeding it with the bundled default the first
+ * Read the narration prompt, seeding it with the bundled default the first
  * time. After the first run the file exists on disk for the admin to edit.
  */
-function getTranslatePrompt(): string {
-  if (fs.existsSync(TRANSLATE_PROMPT_FILE)) {
+function getNarrationPrompt(): string {
+  if (fs.existsSync(NARRATION_PROMPT_FILE)) {
     // A read failure here is a real error and must surface — never silently
     // re-seed, that would clobber an admin's edited prompt.
-    const content = fs.readFileSync(TRANSLATE_PROMPT_FILE, 'utf-8');
-    return content.trim() ? content : DEFAULT_TRANSLATE_PROMPT;
+    const content = fs.readFileSync(NARRATION_PROMPT_FILE, 'utf-8');
+    return content.trim() ? content : DEFAULT_NARRATION_PROMPT;
   }
   ensureDir(PROMPTS_DIR);
-  fs.writeFileSync(TRANSLATE_PROMPT_FILE, DEFAULT_TRANSLATE_PROMPT);
-  console.log(`  Seeded default translation prompt: ${TRANSLATE_PROMPT_FILE}`);
-  return DEFAULT_TRANSLATE_PROMPT;
+  fs.writeFileSync(NARRATION_PROMPT_FILE, DEFAULT_NARRATION_PROMPT);
+  console.log(`  Seeded default narration prompt: ${NARRATION_PROMPT_FILE}`);
+  return DEFAULT_NARRATION_PROMPT;
 }
 
 /** Substitute {{placeholder}} tokens; unknown placeholders are left intact. */
@@ -436,33 +444,46 @@ function scanObjects(text: string): any[] {
 }
 
 /**
- * Parse a page-translation response: a JSON object with `bubbles` (required)
- * and `bible` (optional). Falls back, for a malformed/truncated response, to
- * recovering the bubble objects by their shape — the bible is sacrificed in
- * that case, which is harmless (the next page still carries the prior bible).
+ * Parse a page-narration response: a JSON object with `narration` and
+ * `bubbles`, plus optional `bible`. Falls back, for a malformed/truncated
+ * response, to recovering the bubble objects by their shape and the narration
+ * string by a best-effort match — the bible is sacrificed, which is harmless
+ * (the next page still carries the prior bible).
  */
-function parseTranslateResponse(raw: string): { bubbles: any[]; bible: BibleUpdates | null } {
+function parseNarrationResponse(
+  raw: string,
+): { narration: string; bubbles: any[]; bible: BibleUpdates | null } {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)```/);
   const text = (fenced ? fenced[1] : raw).trim();
 
   try {
     const v = JSON.parse(text);
     if (v && typeof v === 'object' && !Array.isArray(v) && Array.isArray(v.bubbles)) {
-      return { bubbles: v.bubbles, bible: (v.bible && typeof v.bible === 'object') ? v.bible : null };
+      return {
+        narration: typeof v.narration === 'string' ? v.narration.trim() : '',
+        bubbles: v.bubbles,
+        bible: (v.bible && typeof v.bible === 'object') ? v.bible : null,
+      };
     }
-    if (Array.isArray(v)) return { bubbles: v, bible: null }; // model returned a bare array
+    if (Array.isArray(v)) return { narration: '', bubbles: v, bible: null };
   } catch { /* fall through to recovery */ }
 
   // Recovery — scan every object, keep the bubble-shaped ones (have english /
-  // original). Bible-update objects are dropped; that's an acceptable loss.
+  // original); recover the narration best-effort from its JSON string value.
+  // Bible updates are dropped; that's an acceptable loss.
   const bubbles = scanObjects(text).filter(
     (o) => o && (typeof o.english === 'string' || typeof o.original === 'string'),
   );
-  if (bubbles.length === 0) {
+  let narration = '';
+  const nm = text.match(/"narration"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (nm) {
+    try { narration = JSON.parse(`"${nm[1]}"`); } catch { /* leave empty */ }
+  }
+  if (bubbles.length === 0 && !narration) {
     throw new Error(`Model returned unparseable output: ${raw.slice(0, 200)}`);
   }
-  console.warn(`  Translate: recovered ${bubbles.length} bubbles from a malformed response`);
-  return { bubbles, bible: null };
+  console.warn(`  Narrate: recovered ${bubbles.length} bubbles from a malformed response`);
+  return { narration, bubbles, bible: null };
 }
 
 /**
@@ -486,9 +507,9 @@ function parseBox(box: any, imgW: number, imgH: number): BBox | null {
 // ==================== Per-page translation ====================
 
 /**
- * Translate a single page: render it, hand the image + the current story
- * bible to the vision model, and parse back the page's bubbles and the
- * bible updates the model proposes.
+ * Narrate a single page: render it, hand the image + the current story bible
+ * to the vision model, and parse back the page's narration, its bubbles (the
+ * citation layer), and the bible updates the model proposes.
  */
 async function translatePage(
   seriesId: string,
@@ -504,7 +525,7 @@ async function translatePage(
   const t0 = Date.now();
   const { jpeg, width, height } = await renderPageToJpeg(pdfPath, page);
 
-  const prompt = fillTemplate(getTranslatePrompt(), {
+  const prompt = fillTemplate(getNarrationPrompt(), {
     title: series?.englishTitle || series?.name || '(unknown title)',
     honorificPolicy: HONORIFIC_INSTRUCTIONS[cfg.honorificPolicy],
     bible: formatBibleForPrompt(bible),
@@ -521,7 +542,7 @@ async function translatePage(
     repeatPenalty: 1.1,
   });
 
-  const { bubbles: rawBubbles, bible: bibleUpdates } = parseTranslateResponse(raw);
+  const { narration, bubbles: rawBubbles, bible: bibleUpdates } = parseNarrationResponse(raw);
 
   const bubbles: TranslatedBubble[] = rawBubbles
     .filter((b) => b && (typeof b.english === 'string' || typeof b.original === 'string'))
@@ -536,6 +557,7 @@ async function translatePage(
 
   return {
     translation: {
+      narration,
       bubbles,
       modelUsed: cfg.translateModel,
       translatedAt: new Date().toISOString(),
