@@ -95,12 +95,15 @@ export interface TranslationConfig {
 
 // ==================== Defaults ====================
 
-// Pass 1 needs more than vision — it must LOCATE each text box on the page,
-// so the default is qwen3-vl, the grounding-tuned model. Pass 2 is pure text
-// (no image), so the larger qwen3.6 carries the localization quality.
+// Pass 1 must both OCR and LOCATE each text box. qwen2.5-VL grounds in
+// absolute pixels and — crucially — is not a "thinking" model, so it answers
+// directly. (qwen3-vl grounds better, but on Ollama its chain-of-thought
+// cannot be turned off — not by think:false, not by a /no_think directive —
+// so it spends the whole token budget reasoning and never emits the JSON.)
+// Pass 2 is pure text, so the larger qwen3.6 carries the localization quality.
 const DEFAULT_CONFIG: TranslationConfig = {
   url: '',
-  visionModel: 'qwen3-vl',
+  visionModel: 'qwen2.5vl:7b',
   textModel: 'qwen3.6',
   honorificPolicy: 'keep',
 };
@@ -127,12 +130,11 @@ record four things:
 - **text** — the original text exactly as printed, in its original language.
   Do not translate, romanize, or "correct" it.
 - **type** — one of: speech, thought, narration, sfx, sign.
-- **box** — the bounding box of the text, as [x1, y1, x2, y2]: the top-left
-  and bottom-right corners enclosing the printed characters. Coordinates are
-  integers from 0 to 1000, measured from the top-left of the page (0,0 is the
-  top-left corner, 1000,1000 the bottom-right). Enclose the text snugly — the
-  translation is drawn into this box, so it should sit within the bubble's
-  clear interior, not spill onto the artwork.
+- **box** — the bounding box of the text, as [x1, y1, x2, y2] in pixels: the
+  top-left and bottom-right corners enclosing the printed characters, in the
+  image's own pixel coordinates. Enclose the text snugly — the translation is
+  drawn into this box, so it should sit within the bubble's clear interior,
+  not spill onto the artwork.
 
 Rules:
 
@@ -385,7 +387,11 @@ export function isChapterTranslating(seriesId: string, file: string): boolean {
  * and text is unreadable; too large wastes time and tokens. ~1600px on the
  * long edge is a good balance.
  */
-async function renderPageToJpeg(pdfPath: string, pageNum: number, maxDim = 1600): Promise<Buffer> {
+async function renderPageToJpeg(
+  pdfPath: string,
+  pageNum: number,
+  maxDim = 1600,
+): Promise<{ jpeg: Buffer; width: number; height: number }> {
   const data = fs.readFileSync(pdfPath);
   const doc = mupdf.Document.openDocument(data, 'application/pdf');
   const page = doc.loadPage(pageNum);
@@ -394,7 +400,11 @@ async function renderPageToJpeg(pdfPath: string, pageNum: number, maxDim = 1600)
   const w = bounds[2] - bounds[0];
   const h = bounds[3] - bounds[1];
   const longest = Math.max(w, h);
-  const scale = longest > maxDim ? maxDim / longest : 2.0; // upscale small PDFs to 2x
+  // Cap the long edge at maxDim; upscale small pages up to 2x but never past
+  // maxDim. (The old `longest > maxDim ? ... : 2.0` upscaled a page sitting
+  // exactly at maxDim to 2x — a 4x pixel blowup that made vision prompt-eval
+  // crawl: a 1600pt page rendered at 3200px instead of 1600px.)
+  const scale = Math.min(2.0, maxDim / longest);
 
   const pixmap = page.toPixmap(
     mupdf.Matrix.scale(scale, scale),
@@ -402,9 +412,13 @@ async function renderPageToJpeg(pdfPath: string, pageNum: number, maxDim = 1600)
     false,
     true,
   );
-  return await sharp(Buffer.from(pixmap.asPNG()))
+  const jpeg = await sharp(Buffer.from(pixmap.asPNG()))
     .jpeg({ quality: 85 })
     .toBuffer();
+  // The grounding model reports boxes in pixels of this image, so the caller
+  // needs its exact dimensions to normalize them.
+  const meta = await sharp(jpeg).metadata();
+  return { jpeg, width: meta.width || 0, height: meta.height || 0 };
 }
 
 // ==================== Ollama ====================
@@ -528,18 +542,19 @@ function parseModelArray(raw: string): any[] {
 
 /**
  * Convert a model-supplied bounding box to a normalized BBox (0–1 page
- * fractions). The extract prompt asks for [x1,y1,x2,y2] integers on a 0–1000
- * grid; this tolerates swapped corners and clamps the result inside the page.
- * Returns null for a missing or degenerate box so the reader can skip it.
+ * fractions). qwen2.5-VL grounds in absolute pixels of the input image, so
+ * the box is divided by the rendered image's dimensions. Tolerates swapped
+ * corners and clamps inside the page; returns null for a missing or
+ * degenerate box so the reader can simply skip it.
  */
-function parseBox(box: any): BBox | null {
-  if (!Array.isArray(box) || box.length < 4) return null;
+function parseBox(box: any, imgW: number, imgH: number): BBox | null {
+  if (!Array.isArray(box) || box.length < 4 || imgW <= 0 || imgH <= 0) return null;
   const n = box.slice(0, 4).map(Number);
   if (n.some((v) => !Number.isFinite(v))) return null;
-  const x = Math.max(0, Math.min(1, Math.min(n[0], n[2]) / 1000));
-  const y = Math.max(0, Math.min(1, Math.min(n[1], n[3]) / 1000));
-  const w = Math.max(0, Math.min(1 - x, Math.abs(n[2] - n[0]) / 1000));
-  const h = Math.max(0, Math.min(1 - y, Math.abs(n[3] - n[1]) / 1000));
+  const x = Math.max(0, Math.min(1, Math.min(n[0], n[2]) / imgW));
+  const y = Math.max(0, Math.min(1, Math.min(n[1], n[3]) / imgH));
+  const w = Math.max(0, Math.min(1 - x, Math.abs(n[2] - n[0]) / imgW));
+  const h = Math.max(0, Math.min(1 - y, Math.abs(n[3] - n[1]) / imgH));
   if (w <= 0 || h <= 0) return null;
   return { x, y, w, h };
 }
@@ -566,7 +581,7 @@ export async function extractPage(
   if (!pdfPath || !fs.existsSync(pdfPath)) throw new Error(`File not found: ${seriesId}/${file}`);
 
   const t0 = Date.now();
-  const jpeg = await renderPageToJpeg(pdfPath, page);
+  const { jpeg, width, height } = await renderPageToJpeg(pdfPath, page);
   const raw = await callOllama({
     cfg,
     model: cfg.visionModel,
@@ -584,7 +599,7 @@ export async function extractPage(
       order: typeof b.order === 'number' ? b.order : i + 1,
       text: String(b.text).trim(),
       type: typeof b.type === 'string' ? b.type : 'speech',
-      bbox: parseBox(b.box),
+      bbox: parseBox(b.box, width, height),
     }))
     .sort((a, b) => a.order - b.order);
 

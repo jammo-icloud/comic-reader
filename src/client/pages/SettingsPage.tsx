@@ -220,11 +220,11 @@ export default function SettingsPage() {
                   type="text"
                   value={transConfig.visionModel}
                   onChange={(e) => setTransConfig({ ...transConfig, visionModel: e.target.value })}
-                  placeholder="qwen3-vl"
+                  placeholder="qwen2.5vl:7b"
                   className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent font-mono"
                 />
                 <p className="text-[10px] text-gray-400 mt-1">
-                  Needs grounding — it locates each text box. Suggested: <code>qwen3-vl</code>
+                  Must locate text boxes (grounding). Suggested: <code>qwen2.5vl:7b</code>
                 </p>
               </div>
               <div>
