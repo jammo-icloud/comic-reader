@@ -194,8 +194,8 @@ export default function SettingsPage() {
                 <Languages size={14} /> Translation (Admin)
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Translation runs in two passes on an Ollama server: a vision model
-                OCRs each page, then a text model localizes the whole chapter at once.
+                Point at an Ollama server running a multimodal model. It translates
+                each page with the page in view, building a story bible as it reads.
                 Leave the URL blank to disable the Translate feature.
               </p>
             </div>
@@ -214,32 +214,18 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Vision model — Pass 1 (OCR)
+                  Translation model
                 </label>
                 <input
                   type="text"
-                  value={transConfig.visionModel}
-                  onChange={(e) => setTransConfig({ ...transConfig, visionModel: e.target.value })}
-                  placeholder="qwen2.5vl:7b"
-                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent font-mono"
-                />
-                <p className="text-[10px] text-gray-400 mt-1">
-                  Must locate text boxes (grounding). Suggested: <code>qwen2.5vl:7b</code>
-                </p>
-              </div>
-              <div>
-                <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Text model — Pass 2 (localize)
-                </label>
-                <input
-                  type="text"
-                  value={transConfig.textModel}
-                  onChange={(e) => setTransConfig({ ...transConfig, textModel: e.target.value })}
+                  value={transConfig.translateModel}
+                  onChange={(e) => setTransConfig({ ...transConfig, translateModel: e.target.value })}
                   placeholder="qwen3.6"
                   className="w-full px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent font-mono"
                 />
                 <p className="text-[10px] text-gray-400 mt-1">
-                  A larger model lifts quality here. Suggested: <code>qwen3.6</code>. May be the same model as Pass 1.
+                  A multimodal model — it reads each page and translates it in one pass.
+                  A bigger model lifts quality; suggested: <code>qwen3.6</code>.
                 </p>
               </div>
               <div>
@@ -261,8 +247,8 @@ export default function SettingsPage() {
                 </p>
               </div>
               <p className="text-[10px] text-gray-400">
-                The translation prompts are editable markdown files under
-                <code> data/prompts/</code> — tune them without a rebuild.
+                The translation prompt is an editable markdown file at
+                <code> data/prompts/translate-page.md</code> — tune it without a rebuild.
               </p>
               <div className="flex items-center gap-2">
                 <button

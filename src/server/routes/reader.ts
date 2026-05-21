@@ -4,7 +4,7 @@ import fs from 'fs';
 import { resolveComicPath } from '../scanner.js';
 import { getComic, updateComic, updateUserProgress, addToCollection, isInCollection, addPin, loadProgressForSeries } from '../data.js';
 import {
-  translateChapter, getCachedTranslation, getCachedPageNumbers, getExtractedPageNumbers,
+  translateChapter, getCachedTranslation, getCachedPageNumbers,
   isChapterTranslating, getTranslationConfig, saveTranslationConfig, isTranslationEnabled,
 } from '../translate.js';
 
@@ -117,12 +117,11 @@ router.patch('/comics/progress/:seriesId/{*file}', (req, res) => {
 
 // --- Translation ---
 //
-// Translation is a chapter-level, two-pass pipeline (OCR extract → localize).
-// The per-page GET below only serves what Pass 2 has already cached; there is
-// no on-demand single-page translation.
+// Translation is chapter-level: one vision-model call per page (see
+// translate.ts). The per-page GET below only serves what's already cached.
 
-// Status of a chapter's translation: which pages are OCR'd, which are
-// localized, and whether a pass is running right now.
+// Status of a chapter's translation: which pages are done, and whether a
+// translation run is in progress right now.
 //
 // NOTE: this MUST be registered before the /:pageNum/ route below. Express
 // matches routes in registration order, and ":pageNum" happily captures the
@@ -136,7 +135,6 @@ router.get('/translate/:seriesId/status/{*file}', (req, res) => {
   res.json({
     enabled: isTranslationEnabled(),
     cachedPages: getCachedPageNumbers(seriesId, file),
-    extractedPages: getExtractedPageNumbers(seriesId, file),
     inProgress: isChapterTranslating(seriesId, file),
   });
 });
@@ -162,14 +160,12 @@ router.get('/translate/:seriesId/:pageNum/{*file}', (req, res) => {
 });
 
 // Translate an entire chapter (runs in background, returns immediately).
-//   ?force=true       re-OCR every page, then re-localize
-//   ?relocalize=true  reuse cached OCR, only re-run the localize pass
+//   ?force=true  re-translate every page, even already-cached ones
 router.post('/translate/:seriesId/chapter/{*file}', (req, res) => {
   const { seriesId } = req.params;
   const rawFile = req.params.file;
   const file = Array.isArray(rawFile) ? rawFile.join('/') : rawFile || '';
   const force = req.query.force === 'true';
-  const relocalize = req.query.relocalize === 'true';
   if (!seriesId || !file) { res.status(400).json({ error: 'Missing params' }); return; }
 
   if (!isTranslationEnabled()) {
@@ -182,19 +178,16 @@ router.post('/translate/:seriesId/chapter/{*file}', (req, res) => {
 
   translateChapter(seriesId, file, {
     force,
-    relocalize,
     onProgress: (done, total) => {
       if (done % 5 === 0 || done === total) {
-        console.log(`  Extract "${seriesId}/${file}": ${done}/${total}`);
+        console.log(`  Translate "${seriesId}/${file}": ${done}/${total}`);
       }
     },
   }).then((stats) => {
     console.log(
       `  Translate complete "${seriesId}/${file}": ` +
-      `${stats.extracted}/${stats.totalPages} pages OCR'd` +
-      `${stats.ocrFailed ? ` (${stats.ocrFailed} failed)` : ''}, ` +
-      `${stats.localizedPages} localized` +
-      `${stats.localizeFailed ? ` (${stats.localizeFailed} failed)` : ''} ` +
+      `${stats.translated}/${stats.totalPages} pages` +
+      `${stats.failed ? ` (${stats.failed} failed)` : ''} ` +
       `(${Math.round(stats.totalMs / 1000)}s)`,
     );
   }).catch((err) => {
