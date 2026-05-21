@@ -121,6 +121,26 @@ router.patch('/comics/progress/:seriesId/{*file}', (req, res) => {
 // The per-page GET below only serves what Pass 2 has already cached; there is
 // no on-demand single-page translation.
 
+// Status of a chapter's translation: which pages are OCR'd, which are
+// localized, and whether a pass is running right now.
+//
+// NOTE: this MUST be registered before the /:pageNum/ route below. Express
+// matches routes in registration order, and ":pageNum" happily captures the
+// literal "status" segment — parseInt("status") is NaN, so the page route
+// would 400 every status request and this endpoint would be unreachable.
+router.get('/translate/:seriesId/status/{*file}', (req, res) => {
+  const { seriesId } = req.params;
+  const rawFile = req.params.file;
+  const file = Array.isArray(rawFile) ? rawFile.join('/') : rawFile || '';
+  if (!seriesId || !file) { res.status(400).json({ error: 'Missing params' }); return; }
+  res.json({
+    enabled: isTranslationEnabled(),
+    cachedPages: getCachedPageNumbers(seriesId, file),
+    extractedPages: getExtractedPageNumbers(seriesId, file),
+    inProgress: isChapterTranslating(seriesId, file),
+  });
+});
+
 // Get a cached page translation.
 router.get('/translate/:seriesId/:pageNum/{*file}', (req, res) => {
   const { seriesId, pageNum } = req.params;
@@ -139,21 +159,6 @@ router.get('/translate/:seriesId/:pageNum/{*file}', (req, res) => {
     return;
   }
   res.json(cached);
-});
-
-// Status of a chapter's translation: which pages are OCR'd, which are
-// localized, and whether a pass is running right now.
-router.get('/translate/:seriesId/status/{*file}', (req, res) => {
-  const { seriesId } = req.params;
-  const rawFile = req.params.file;
-  const file = Array.isArray(rawFile) ? rawFile.join('/') : rawFile || '';
-  if (!seriesId || !file) { res.status(400).json({ error: 'Missing params' }); return; }
-  res.json({
-    enabled: isTranslationEnabled(),
-    cachedPages: getCachedPageNumbers(seriesId, file),
-    extractedPages: getExtractedPageNumbers(seriesId, file),
-    inProgress: isChapterTranslating(seriesId, file),
-  });
 });
 
 // Translate an entire chapter (runs in background, returns immediately).
