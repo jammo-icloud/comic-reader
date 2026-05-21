@@ -102,15 +102,24 @@ function compactComics(): number {
     const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
     const seriesDir = path.join(LIBRARY_DIR, typeDir, series.id);
 
-    // Remove comics whose files don't exist
-    const valid = comics.filter((c) => {
-      const filePath = path.join(seriesDir, c.file);
-      if (!fs.existsSync(filePath)) {
-        fixed++;
-        return false;
-      }
-      return true;
-    });
+    // If the series directory isn't reachable — volume unmounted, LIBRARY_DIR
+    // misconfigured — every file would look "missing" and we'd delete the
+    // entire comic registry. Never treat an inaccessible directory as proof
+    // the files are gone. Skip the existence check; only dedup in memory.
+    // (compactSeries has the same guard for exactly this reason.)
+    const dirAccessible = fs.existsSync(seriesDir);
+
+    // Remove comics whose files don't exist (only when the dir is reachable)
+    const valid = dirAccessible
+      ? comics.filter((c) => {
+          const filePath = path.join(seriesDir, c.file);
+          if (!fs.existsSync(filePath)) {
+            fixed++;
+            return false;
+          }
+          return true;
+        })
+      : comics;
 
     // Deduplicate by filename
     const byFile = new Map<string, ComicRecord>();
