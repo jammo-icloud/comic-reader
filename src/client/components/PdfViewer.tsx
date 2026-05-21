@@ -1,10 +1,70 @@
-import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import type { TranslatedBubble } from '../lib/api';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 export type ViewMode = 'fit' | 'scroll';
 export type ReadingDirection = 'ltr' | 'rtl';
+
+/**
+ * One translated bubble drawn over the page: an opaque white box at the
+ * bubble's location with the English auto-fit to fill it. Positioned in
+ * page-fraction percentages, so it scales with zoom for free.
+ */
+function BubbleBox({ bubble }: { bubble: TranslatedBubble }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLDivElement>(null);
+  const box = bubble.bbox!; // caller only renders bubbles with a box
+
+  useLayoutEffect(() => {
+    const boxEl = boxRef.current, textEl = textRef.current;
+    if (!boxEl || !textEl) return;
+    // Binary-search the largest font size at which the text still fits.
+    const fit = () => {
+      const availW = boxEl.clientWidth - 4;
+      const availH = boxEl.clientHeight - 4;
+      if (availW < 2 || availH < 2) return;
+      let lo = 5, hi = 32, best = 5;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        textEl.style.fontSize = `${mid}px`;
+        if (textEl.scrollWidth <= availW && textEl.scrollHeight <= availH) {
+          best = mid; lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      textEl.style.fontSize = `${best}px`;
+    };
+    fit();
+    // Re-fit whenever the box resizes — zoom, container resize, rotation.
+    const ro = new ResizeObserver(fit);
+    ro.observe(boxEl);
+    return () => ro.disconnect();
+  }, [bubble.english]);
+
+  return (
+    <div
+      ref={boxRef}
+      className="absolute flex items-center justify-center overflow-hidden bg-white rounded-[2px] p-0.5"
+      style={{
+        left: `${box.x * 100}%`,
+        top: `${box.y * 100}%`,
+        width: `${box.w * 100}%`,
+        height: `${box.h * 100}%`,
+      }}
+    >
+      <div
+        ref={textRef}
+        className="max-w-full text-center font-medium leading-tight text-black"
+        style={{ wordBreak: 'break-word' }}
+      >
+        {bubble.english}
+      </div>
+    </div>
+  );
+}
 
 export interface PdfViewerHandle {
   prevPage: () => void;
@@ -23,6 +83,9 @@ interface PdfViewerProps {
   readingDirection?: ReadingDirection;
   onPageChange?: (page: number, totalPages: number) => void;
   onTotalPagesChange?: (total: number) => void;
+  // Translation overlay for one page. `page` is checked against the page
+  // actually on screen so a stale fetch never paints onto the wrong page.
+  overlay?: { page: number; bubbles: TranslatedBubble[] } | null;
 }
 
 /**
@@ -43,7 +106,7 @@ const DOUBLE_TAP_DIST = 40;
 const DOUBLE_TAP_ZOOM = 2.5;
 
 const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer(
-  { url, initialPage = 0, viewMode, readingDirection = 'ltr', onPageChange, onTotalPagesChange },
+  { url, initialPage = 0, viewMode, readingDirection = 'ltr', onPageChange, onTotalPagesChange, overlay },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -514,17 +577,30 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       <div
         className={`w-full h-full flex items-center justify-center ${viewMode === 'scroll' ? 'overflow-y-auto overflow-x-hidden no-scrollbar' : ''}`}
       >
-        <canvas
-          ref={canvasRef}
-          // No CSS transition on transform — a stale pan state from a previous
-          // page would otherwise animate during the page swap and look broken.
-          // Double-tap zoom snaps; pinch/pan are already direct-manipulation.
+        {/* Page wrapper — shrink-wraps the canvas so the translation overlay
+            can position bubbles in page-fraction percentages. The pan
+            transform lives here so canvas and overlay move as one.
+            No CSS transition — a stale pan from the previous page would
+            otherwise animate during a page swap and look broken. */}
+        <div
+          className="relative"
           style={
             viewMode === 'fit'
               ? { transform: `translate(${pan.x}px, ${pan.y}px)` }
               : undefined
           }
-        />
+        >
+          <canvas ref={canvasRef} className="block" />
+          {overlay && overlay.page === currentPage && overlay.bubbles.length > 0 && (
+            <div className="absolute inset-0 pointer-events-none">
+              {overlay.bubbles.map((b, i) =>
+                b.bbox && b.english && b.type !== 'sfx'
+                  ? <BubbleBox key={`${b.order}-${i}`} bubble={b} />
+                  : null,
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

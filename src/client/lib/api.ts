@@ -355,6 +355,47 @@ export function translateWholeChapter(
   return fetchJson(`/translate/${seriesId}/chapter/${encodePath(file)}${qs}`, { method: 'POST' });
 }
 
+/** A bounding box as fractions of the page (0–1); x,y is the top-left corner. */
+export interface BBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** One translated text region. `japanese` holds the original text, any language. */
+export interface TranslatedBubble {
+  order: number;
+  japanese: string;
+  english: string;
+  type: string;
+  bbox: BBox | null;
+}
+
+export interface PageTranslation {
+  bubbles: TranslatedBubble[];
+  modelUsed: string;
+  translatedAt: string;
+  durationMs: number;
+}
+
+/**
+ * Fetch a cached page translation for the reader overlay. Returns null when
+ * the page has not been translated yet (server answers 404) rather than
+ * throwing — the reader simply shows no overlay for that page.
+ */
+export function getPageTranslation(
+  seriesId: string,
+  file: string,
+  page: number,
+): Promise<PageTranslation | null> {
+  return fetch(`${BASE}/translate/${seriesId}/${page}/${encodePath(file)}`).then((res) => {
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Translation fetch failed: ${res.status}`);
+    return res.json();
+  });
+}
+
 export type HonorificPolicy = 'keep' | 'drop' | 'localize';
 
 export interface TranslationConfig {

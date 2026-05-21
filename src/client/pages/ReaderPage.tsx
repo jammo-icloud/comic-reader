@@ -2,9 +2,12 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  ChevronUp, ChevronDown, Maximize2, ScrollText, Sun, Moon,
+  ChevronUp, ChevronDown, Maximize2, ScrollText, Sun, Moon, Languages,
 } from 'lucide-react';
-import { getPdfUrl, updateProgress, getComics, getSeriesDetail } from '../lib/api';
+import {
+  getPdfUrl, updateProgress, getComics, getSeriesDetail,
+  getTranslationStatus, getPageTranslation, type TranslatedBubble,
+} from '../lib/api';
 import PdfViewer, { type PdfViewerHandle, type ViewMode, type ReadingDirection } from '../components/PdfViewer';
 import { useTheme } from '../lib/theme';
 import type { Comic, Series } from '../lib/types';
@@ -26,6 +29,12 @@ export default function ReaderPage() {
   const [uiVisible, setUiVisible] = useState(true);
   const lastSavedPage = useRef(-1);
   const viewerRef = useRef<PdfViewerHandle | null>(null);
+
+  // Translation overlay
+  const [translateAvailable, setTranslateAvailable] = useState(false);
+  const [translateOn, setTranslateOn] = useState(false);
+  const [currentBubbles, setCurrentBubbles] = useState<TranslatedBubble[] | null>(null);
+  const translationsRef = useRef<Map<number, TranslatedBubble[]>>(new Map());
 
   // Auto-detect reading direction from series tags
   const readingDirection: ReadingDirection = useMemo(() => {
@@ -50,6 +59,16 @@ export default function ReaderPage() {
     getComics(seriesId).then(setComics);
   }, [seriesId]);
 
+  // ----- Translation availability — drives whether the toolbar toggle shows -----
+  useEffect(() => {
+    if (!seriesId || !file) return;
+    let cancelled = false;
+    getTranslationStatus(seriesId, file)
+      .then((s) => { if (!cancelled) setTranslateAvailable(s.cachedPages.length > 0); })
+      .catch(() => { if (!cancelled) setTranslateAvailable(false); });
+    return () => { cancelled = true; };
+  }, [seriesId, file]);
+
   const currentIndex = useMemo(
     () => comics.findIndex((c) => c.file === file),
     [comics, file],
@@ -73,7 +92,27 @@ export default function ReaderPage() {
 
   useEffect(() => {
     lastSavedPage.current = -1;
+    translationsRef.current.clear();
+    setCurrentBubbles(null);
   }, [file]);
+
+  // ----- Fetch the current page's translation while the overlay is on -----
+  useEffect(() => {
+    if (!translateOn) { setCurrentBubbles(null); return; }
+    const cached = translationsRef.current.get(currentPage);
+    if (cached) { setCurrentBubbles(cached); return; }
+    setCurrentBubbles(null); // clear any stale overlay while the fetch is in flight
+    let cancelled = false;
+    getPageTranslation(seriesId, file, currentPage)
+      .then((pt) => {
+        if (cancelled) return;
+        const bubbles = pt?.bubbles ?? [];
+        translationsRef.current.set(currentPage, bubbles);
+        setCurrentBubbles(bubbles);
+      })
+      .catch(() => { if (!cancelled) setCurrentBubbles(null); });
+    return () => { cancelled = true; };
+  }, [translateOn, currentPage, seriesId, file]);
 
   // ----- UI toggle (drawer chevron on the toolbar is the only way to show/hide) -----
   const toggleUi = useCallback(() => {
@@ -118,6 +157,7 @@ export default function ReaderPage() {
           readingDirection={readingDirection}
           onPageChange={handlePageChange}
           onTotalPagesChange={setTotalPages}
+          overlay={translateOn && currentBubbles ? { page: currentPage, bubbles: currentBubbles } : null}
         />
       </div>
 
@@ -248,6 +288,18 @@ export default function ReaderPage() {
               <ScrollText size={16} />
             </button>
           </div>
+
+          {/* Translate overlay toggle — only shown when this chapter has
+              translated pages cached. */}
+          {translateAvailable && (
+            <button
+              onClick={() => setTranslateOn((v) => !v)}
+              className={`p-2.5 rounded transition-colors shrink-0 ml-0.5 ${translateOn ? 'bg-accent' : 'hover:bg-white/10'}`}
+              title={translateOn ? 'Hide translation' : 'Show translation'}
+            >
+              <Languages size={16} />
+            </button>
+          )}
 
           {/* Theme toggle (desktop only — small mobile is too cramped) */}
           <button
