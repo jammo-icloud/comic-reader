@@ -33,11 +33,24 @@ const LOCALIZE_PROMPT_FILE = path.join(PROMPTS_DIR, 'translate-localize.md');
 
 // ==================== Types ====================
 
+/**
+ * A bounding box, expressed as fractions of the page (0–1). x,y is the
+ * top-left corner. Lets the reader draw the translation back over the
+ * original text regardless of how big the page is rendered.
+ */
+export interface BBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 /** A single text region found on a page during Pass 1 (OCR/extract). */
 export interface ExtractedBubble {
   order: number;
-  text: string;   // original-language text, transcribed verbatim
-  type: string;   // speech | thought | narration | sfx | sign
+  text: string;       // original-language text, transcribed verbatim
+  type: string;       // speech | thought | narration | sfx | sign
+  bbox: BBox | null;  // where the text sits on the page (null if not located)
 }
 
 /** Pass 1 result for one page — cached as extract-p<N>.json. */
@@ -52,12 +65,15 @@ export interface PageExtraction {
 /**
  * A translated bubble. `japanese` holds the ORIGINAL text whatever the source
  * language actually is — the field name is kept for backwards compatibility
- * with the reader's cached p<N>.json files.
+ * with the reader's cached p<N>.json files. `type` and `bbox` ride through
+ * from Pass 1 so the reader can draw the English back into the bubble.
  */
 export interface TranslatedBubble {
   order: number;
   japanese: string;
   english: string;
+  type: string;
+  bbox: BBox | null;
 }
 
 /** Pass 2 result for one page — cached as p<N>.json, consumed by the reader. */
@@ -79,14 +95,12 @@ export interface TranslationConfig {
 
 // ==================== Defaults ====================
 
-// Defaults point at the current natively-multimodal Qwen generation — one
-// model line handles both vision and text, so there is no separate "-VL"
-// variant to track. Pass 1 runs the small fast model page by page; Pass 2
-// runs the large model once over the whole chapter. Either field can be
-// pointed at the larger model if OCR accuracy needs it.
+// Pass 1 needs more than vision — it must LOCATE each text box on the page,
+// so the default is qwen3-vl, the grounding-tuned model. Pass 2 is pure text
+// (no image), so the larger qwen3.6 carries the localization quality.
 const DEFAULT_CONFIG: TranslationConfig = {
   url: '',
-  visionModel: 'qwen3.5:9b',
+  visionModel: 'qwen3-vl',
   textModel: 'qwen3.6',
   honorificPolicy: 'keep',
 };
@@ -95,15 +109,16 @@ function isHonorificPolicy(v: any): v is HonorificPolicy {
   return v === 'keep' || v === 'drop' || v === 'localize';
 }
 
-/** Pass 1 default. Stable — this is an OCR instruction, not the tunable one. */
+/** Pass 1 default. Stable — this is an OCR + grounding instruction. */
 const DEFAULT_EXTRACT_PROMPT = `# Manga Page Text Extraction
 
 You are extracting text from a single comic page so it can be translated
-later. This is an OCR pass only — do not translate anything.
+later, and locating each piece of text so the translation can be drawn back
+in its place. This is an OCR + grounding pass — do not translate anything.
 
 Find every piece of text on the page: speech bubbles, thought bubbles,
 narration boxes, sound effects, and signs or background text. For each one,
-record three things:
+record four things:
 
 - **order** — reading order as a 1-indexed number. Japanese manga reads
   right-to-left, top-to-bottom. Korean and Chinese webtoons read
@@ -112,6 +127,12 @@ record three things:
 - **text** — the original text exactly as printed, in its original language.
   Do not translate, romanize, or "correct" it.
 - **type** — one of: speech, thought, narration, sfx, sign.
+- **box** — the bounding box of the text, as [x1, y1, x2, y2]: the top-left
+  and bottom-right corners enclosing the printed characters. Coordinates are
+  integers from 0 to 1000, measured from the top-left of the page (0,0 is the
+  top-left corner, 1000,1000 the bottom-right). Enclose the text snugly — the
+  translation is drawn into this box, so it should sit within the bubble's
+  clear interior, not spill onto the artwork.
 
 Rules:
 
@@ -123,7 +144,7 @@ Rules:
 Return STRICT JSON only — no prose, no markdown code fences. An array of
 objects:
 
-[{"order": 1, "text": "こんにちは", "type": "speech"}]
+[{"order": 1, "text": "こんにちは", "type": "speech", "box": [610, 80, 880, 300]}]
 `;
 
 /**
@@ -506,6 +527,24 @@ function parseModelArray(raw: string): any[] {
 // ==================== Pass 1 — Extract ====================
 
 /**
+ * Convert a model-supplied bounding box to a normalized BBox (0–1 page
+ * fractions). The extract prompt asks for [x1,y1,x2,y2] integers on a 0–1000
+ * grid; this tolerates swapped corners and clamps the result inside the page.
+ * Returns null for a missing or degenerate box so the reader can skip it.
+ */
+function parseBox(box: any): BBox | null {
+  if (!Array.isArray(box) || box.length < 4) return null;
+  const n = box.slice(0, 4).map(Number);
+  if (n.some((v) => !Number.isFinite(v))) return null;
+  const x = Math.max(0, Math.min(1, Math.min(n[0], n[2]) / 1000));
+  const y = Math.max(0, Math.min(1, Math.min(n[1], n[3]) / 1000));
+  const w = Math.max(0, Math.min(1 - x, Math.abs(n[2] - n[0]) / 1000));
+  const h = Math.max(0, Math.min(1 - y, Math.abs(n[3] - n[1]) / 1000));
+  if (w <= 0 || h <= 0) return null;
+  return { x, y, w, h };
+}
+
+/**
  * Pass 1 — OCR a single page into ordered text bubbles. Returns the cached
  * extraction unless `force` is set.
  */
@@ -545,6 +584,7 @@ export async function extractPage(
       order: typeof b.order === 'number' ? b.order : i + 1,
       text: String(b.text).trim(),
       type: typeof b.type === 'string' ? b.type : 'speech',
+      bbox: parseBox(b.box),
     }))
     .sort((a, b) => a.order - b.order);
 
@@ -652,6 +692,8 @@ async function localizeChapter(
       order: b.order,
       japanese: b.text,
       english: englishByKey.get(`${ex.page}.${b.order}`) || '',
+      type: b.type,
+      bbox: b.bbox,
     }));
 
     // A page that had text but got nothing back was missed by Pass 2. Leave
