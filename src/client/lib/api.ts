@@ -377,6 +377,9 @@ export interface TranslatedBubble {
 }
 
 export interface PageTranslation {
+  /** The told-story passage for this page — the heart of Story mode. */
+  narration: string;
+  /** The citation layer: each text element with its original/English + box. */
   bubbles: TranslatedBubble[];
   modelUsed: string;
   translatedAt: string;
@@ -384,9 +387,9 @@ export interface PageTranslation {
 }
 
 /**
- * Fetch a cached page translation for the reader overlay. Returns null when
- * the page has not been translated yet (server answers 404) rather than
- * throwing — the reader simply shows no overlay for that page.
+ * Fetch a cached page translation for the reader. Returns null when the page
+ * has not been narrated yet (server answers 404) rather than throwing — the
+ * reader simply shows no Story panel for that page.
  */
 export function getPageTranslation(
   seriesId: string,

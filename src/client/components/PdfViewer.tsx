@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import type { TranslatedBubble } from '../lib/api';
+import type { BBox } from '../lib/api';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
@@ -8,61 +8,25 @@ export type ViewMode = 'fit' | 'scroll';
 export type ReadingDirection = 'ltr' | 'rtl';
 
 /**
- * One translated bubble drawn over the page: an opaque white box at the
- * bubble's location with the English auto-fit to fill it. Positioned in
- * page-fraction percentages, so it scales with zoom for free.
+ * A Story-mode citation highlight: a pulsing, glowing outline drawn over the
+ * bubble the reader tapped in the Story panel — a "where on the page is this?"
+ * pointer. Positioned in page-fraction percentages, so it tracks zoom/pan for
+ * free. It deliberately does NOT cover the art (Story mode is for enjoying the
+ * page) — it only rings the source bubble.
  */
-function BubbleBox({ bubble }: { bubble: TranslatedBubble }) {
-  const boxRef = useRef<HTMLDivElement>(null);
-  const textRef = useRef<HTMLDivElement>(null);
-  const box = bubble.bbox!; // caller only renders bubbles with a box
-
-  useLayoutEffect(() => {
-    const boxEl = boxRef.current, textEl = textRef.current;
-    if (!boxEl || !textEl) return;
-    // Binary-search the largest font size at which the text still fits.
-    const fit = () => {
-      const availW = boxEl.clientWidth - 4;
-      const availH = boxEl.clientHeight - 4;
-      if (availW < 2 || availH < 2) return;
-      let lo = 5, hi = 32, best = 5;
-      while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        textEl.style.fontSize = `${mid}px`;
-        if (textEl.scrollWidth <= availW && textEl.scrollHeight <= availH) {
-          best = mid; lo = mid + 1;
-        } else {
-          hi = mid - 1;
-        }
-      }
-      textEl.style.fontSize = `${best}px`;
-    };
-    fit();
-    // Re-fit whenever the box resizes — zoom, container resize, rotation.
-    const ro = new ResizeObserver(fit);
-    ro.observe(boxEl);
-    return () => ro.disconnect();
-  }, [bubble.english]);
-
+function BubbleHighlight({ box }: { box: BBox }) {
   return (
     <div
-      ref={boxRef}
-      className="absolute flex items-center justify-center overflow-hidden bg-white rounded-[2px] p-0.5"
+      className="absolute animate-pulse rounded text-accent ring-2 ring-current"
       style={{
         left: `${box.x * 100}%`,
         top: `${box.y * 100}%`,
         width: `${box.w * 100}%`,
         height: `${box.h * 100}%`,
+        boxShadow: '0 0 16px 3px currentColor',
       }}
-    >
-      <div
-        ref={textRef}
-        className="max-w-full text-center font-medium leading-tight text-black"
-        style={{ wordBreak: 'break-word' }}
-      >
-        {bubble.english}
-      </div>
-    </div>
+      aria-hidden
+    />
   );
 }
 
@@ -83,9 +47,13 @@ interface PdfViewerProps {
   readingDirection?: ReadingDirection;
   onPageChange?: (page: number, totalPages: number) => void;
   onTotalPagesChange?: (total: number) => void;
-  // Translation overlay for one page. `page` is checked against the page
-  // actually on screen so a stale fetch never paints onto the wrong page.
-  overlay?: { page: number; bubbles: TranslatedBubble[] } | null;
+  // Story-mode citation overlay: a single glowing box over the bubble the
+  // reader tapped in the Story panel. `page` is checked against the page
+  // actually on screen so a stale highlight never paints onto the wrong page.
+  overlay?: { page: number; highlight: BBox | null } | null;
+  // Tiny downscaled JPEG dataURL of each rendered page — Story mode uses it as
+  // a blurred ambient backdrop. Pass undefined when it isn't needed.
+  onAmbient?: (dataUrl: string) => void;
 }
 
 /**
@@ -106,7 +74,7 @@ const DOUBLE_TAP_DIST = 40;
 const DOUBLE_TAP_ZOOM = 2.5;
 
 const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer(
-  { url, initialPage = 0, viewMode, readingDirection = 'ltr', onPageChange, onTotalPagesChange, overlay },
+  { url, initialPage = 0, viewMode, readingDirection = 'ltr', onPageChange, onTotalPagesChange, overlay, onAmbient },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -165,6 +133,24 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       renderTaskRef.current = task;
       try {
         await task.promise;
+        // A completed render — sample a tiny thumbnail for Story mode's
+        // ambient backdrop. Purely decorative, so a failure here only warns.
+        if (onAmbient) {
+          try {
+            const tw = 32;
+            const th = Math.max(1, Math.round((canvas.height / canvas.width) * tw));
+            const small = document.createElement('canvas');
+            small.width = tw;
+            small.height = th;
+            const sctx = small.getContext('2d');
+            if (sctx) {
+              sctx.drawImage(canvas, 0, 0, tw, th);
+              onAmbient(small.toDataURL('image/jpeg', 0.6));
+            }
+          } catch (e) {
+            console.warn('Ambient thumbnail extraction failed:', e);
+          }
+        }
       } catch (err) {
         // Cancellation is expected when changing pages quickly — ignore it.
         if ((err as { name?: string })?.name !== 'RenderingCancelledException') throw err;
@@ -172,7 +158,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         if (renderTaskRef.current === task) renderTaskRef.current = null;
       }
     },
-    [viewMode, zoom],
+    [viewMode, zoom, onAmbient],
   );
 
   // ----- Pan clamping: keep the canvas covering the container -----
@@ -591,13 +577,9 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           }
         >
           <canvas ref={canvasRef} className="block" />
-          {overlay && overlay.page === currentPage && overlay.bubbles.length > 0 && (
-            <div className="absolute inset-0 pointer-events-none">
-              {overlay.bubbles.map((b, i) =>
-                b.bbox && b.english && b.type !== 'sfx'
-                  ? <BubbleBox key={`${b.order}-${i}`} bubble={b} />
-                  : null,
-              )}
+          {overlay && overlay.page === currentPage && overlay.highlight && (
+            <div className="pointer-events-none absolute inset-0">
+              <BubbleHighlight box={overlay.highlight} />
             </div>
           )}
         </div>
