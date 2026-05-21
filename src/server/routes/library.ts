@@ -175,6 +175,30 @@ router.get('/subscriptions/new', (req, res) => {
   res.json(result);
 });
 
+// Dismiss a single "new chapters" notification without opening the series.
+// Same effect as markSeriesSeen — clears newChapterCount back to 0.
+router.post('/subscriptions/:id/seen', (req, res) => {
+  const series = loadAllSeries().find((s) => s.id === req.params.id);
+  if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
+  markSeriesSeen(series.id);
+  res.json({ ok: true });
+});
+
+// Clear every "new chapters" notification in one go — the dropdown's
+// "Clear all" action. Scoped to the user's collection so it only touches
+// series they're actually subscribed to.
+router.post('/subscriptions/seen-all', (req, res) => {
+  const collection = new Set(loadCollection(req.username).map((e) => e.seriesId));
+  let cleared = 0;
+  for (const s of loadAllSeries()) {
+    if (s.newChapterCount && s.newChapterCount > 0 && collection.has(s.id)) {
+      markSeriesSeen(s.id);
+      cleared++;
+    }
+  }
+  res.json({ ok: true, cleared });
+});
+
 // Manual sync trigger — check source for new chapters now
 router.post('/series/:id/sync', async (req, res) => {
   try {

@@ -305,6 +305,16 @@ export function getSubscriptionsWithNew(): Promise<{
   return fetchJson('/subscriptions/new');
 }
 
+/** Dismiss a single "new chapters" notification without opening the series. */
+export function dismissNewChapter(seriesId: string): Promise<{ ok: boolean }> {
+  return fetchJson(`/subscriptions/${seriesId}/seen`, { method: 'POST' });
+}
+
+/** Clear every "new chapters" notification at once. */
+export function dismissAllNewChapters(): Promise<{ ok: boolean; cleared: number }> {
+  return fetchJson('/subscriptions/seen-all', { method: 'POST' });
+}
+
 export function getAdminSubscriptions(): Promise<{
   id: string;
   name: string;

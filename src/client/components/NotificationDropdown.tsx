@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Loader, Check, AlertCircle, X, Square, ChevronRight, BookOpen } from 'lucide-react';
-import { getImportCount, getDownloadQueue, cancelDownload, removeDownloadJob, getSeriesCoverUrl, getPlaceholderUrl, getSubscriptionsWithNew } from '../lib/api';
+import { getImportCount, getDownloadQueue, cancelDownload, removeDownloadJob, getSeriesCoverUrl, getPlaceholderUrl, getSubscriptionsWithNew, dismissNewChapter, dismissAllNewChapters } from '../lib/api';
 
 interface DownloadJob {
   id: string;
@@ -95,6 +95,16 @@ export default function NotificationDropdown() {
     setJobs((prev) => prev.filter((j) => j.id !== id));
   };
 
+  const handleDismissNewChapter = async (seriesId: string) => {
+    await dismissNewChapter(seriesId).catch(() => {});
+    setNewChapters((prev) => prev.filter((s) => s.id !== seriesId));
+  };
+
+  const handleClearAllNewChapters = async () => {
+    await dismissAllNewChapters().catch(() => {});
+    setNewChapters([]);
+  };
+
   const activeJobs = jobs.filter((j) => j.status === 'queued' || j.status === 'downloading');
   const doneJobs = jobs.filter((j) => j.status === 'complete' || j.status === 'error');
   const newChaptersTotal = newChapters.reduce((sum, s) => sum + s.newChapterCount, 0);
@@ -162,31 +172,51 @@ export default function NotificationDropdown() {
               </div>
               <div className="divide-y divide-gray-100 dark:divide-gray-800">
                 {newChapters.slice(0, 5).map((s) => (
-                  <button
+                  <div
                     key={s.id}
-                    onClick={() => { setOpen(false); navigate(`/series/${s.id}`); }}
-                    className="flex items-center gap-3 w-full px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+                    className="flex items-center gap-3 w-full px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                   >
-                    <div className="w-8 h-12 rounded overflow-hidden bg-gray-100 dark:bg-gray-800 shrink-0">
-                      <img
-                        src={getSeriesCoverUrl(s.id, s.coverFile)}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        onError={(e) => { (e.target as HTMLImageElement).src = getPlaceholderUrl('manga.png'); }}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{s.name}</p>
-                      <p className="text-[11px] text-accent">+{s.newChapterCount} new</p>
-                    </div>
-                    <ChevronRight size={14} className="text-gray-400 shrink-0" />
-                  </button>
-                ))}
-                {newChapters.length > 5 && (
-                  <div className="px-4 py-1.5 text-[10px] text-gray-400 text-center">
-                    + {newChapters.length - 5} more
+                    <button
+                      onClick={() => { setOpen(false); navigate(`/series/${s.id}`); }}
+                      className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                    >
+                      <div className="w-8 h-12 rounded overflow-hidden bg-gray-100 dark:bg-gray-800 shrink-0">
+                        <img
+                          src={getSeriesCoverUrl(s.id, s.coverFile)}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).src = getPlaceholderUrl('manga.png'); }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{s.name}</p>
+                        <p className="text-[11px] text-accent">+{s.newChapterCount} new</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleDismissNewChapter(s.id)}
+                      className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors shrink-0"
+                      title="Dismiss"
+                    >
+                      <X size={13} />
+                    </button>
                   </div>
-                )}
+                ))}
+                <div className="flex items-center justify-between px-4 py-1.5">
+                  {newChapters.length > 5 ? (
+                    <span className="text-[10px] text-gray-400">
+                      + {newChapters.length - 5} more
+                    </span>
+                  ) : (
+                    <span />
+                  )}
+                  <button
+                    onClick={handleClearAllNewChapters}
+                    className="text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-danger transition-colors"
+                  >
+                    Clear all
+                  </button>
+                </div>
               </div>
             </div>
           )}
