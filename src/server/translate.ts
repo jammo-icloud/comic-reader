@@ -24,7 +24,7 @@ import { resolveComicPath } from './scanner.js';
 import { getSeries } from './data.js';
 import { shortHash } from './hash.js';
 import {
-  loadBible, saveBible, applyBibleUpdates, formatBibleForPrompt,
+  loadBible, saveBible, applyBibleUpdates, formatBibleForPrompt, emptyBible,
   type StoryBible, type BibleUpdates,
 } from './bible.js';
 
@@ -33,6 +33,7 @@ const TRANSLATIONS_DIR = path.join(DATA_DIR, 'translations');
 const PROMPTS_DIR = path.join(DATA_DIR, 'prompts');
 const CONFIG_FILE = path.join(DATA_DIR, 'translation-config.json');
 const NARRATION_PROMPT_FILE = path.join(PROMPTS_DIR, 'narrate-page.md');
+const RECALIBRATION_PROMPT_FILE = path.join(PROMPTS_DIR, 'recalibrate-chapter.md');
 
 // ==================== Types ====================
 
@@ -167,6 +168,54 @@ A single object:
 - If this page added nothing to the bible, return \`"bible": {}\`.
 `;
 
+/**
+ * The re-calibration prompt — the "tell it" pass. Placeholders: {{title}}
+ * {{bible}} {{pages}}. Edit data/prompts/recalibrate-chapter.md to iterate.
+ */
+const DEFAULT_RECALIBRATION_PROMPT = `# Chapter Re-Calibration
+
+A chapter of **{{title}}** has just been narrated page by page. The early
+pages were written before the story bible was complete — names were guessed,
+voices not yet known, the arc unclear. Now that the whole chapter has been
+read, go back over it and make it consistent.
+
+This is a POLISH, not a rewrite. Do NOT re-translate, do NOT invent events,
+do NOT add or drop story content. Only:
+
+- Fix every character name and term to match the canonical bible exactly.
+- Align each character's voice and tone so they hold from the first page to
+  the last.
+- Smooth the narration so the chapter reads as one continuous story told in a
+  single, strong narratorial voice.
+- Tighten — trim the repetition a page-by-page pass inevitably leaves.
+
+## The story bible — canon
+
+{{bible}}
+
+## The chapter, page by page
+
+{{pages}}
+
+## Output
+
+Return STRICT JSON only — no prose outside the JSON, no markdown code fences:
+
+{
+  "pages": [
+    {"page": 0, "narration": "the harmonized narration for page 0"},
+    {"page": 1, "narration": "..."}
+  ],
+  "bible": { "characters": [...], "glossary": [...], "recap": "..." }
+}
+
+- Every page from the input must appear exactly once in "pages", with the
+  same page numbers.
+- "bible" is the finalized, canonical bible: merge duplicate characters, fix
+  any glossary entry whose fields look reversed, and give one coherent recap
+  of the whole chapter.
+`;
+
 /** Honorific policy → an instruction paragraph for the {{honorificPolicy}} slot. */
 const HONORIFIC_INSTRUCTIONS: Record<HonorificPolicy, string> = {
   keep:
@@ -250,6 +299,18 @@ function getNarrationPrompt(): string {
   fs.writeFileSync(NARRATION_PROMPT_FILE, DEFAULT_NARRATION_PROMPT);
   console.log(`  Seeded default narration prompt: ${NARRATION_PROMPT_FILE}`);
   return DEFAULT_NARRATION_PROMPT;
+}
+
+/** Read the re-calibration prompt, seeding the default the first time. */
+function getRecalibrationPrompt(): string {
+  if (fs.existsSync(RECALIBRATION_PROMPT_FILE)) {
+    const content = fs.readFileSync(RECALIBRATION_PROMPT_FILE, 'utf-8');
+    return content.trim() ? content : DEFAULT_RECALIBRATION_PROMPT;
+  }
+  ensureDir(PROMPTS_DIR);
+  fs.writeFileSync(RECALIBRATION_PROMPT_FILE, DEFAULT_RECALIBRATION_PROMPT);
+  console.log(`  Seeded default re-calibration prompt: ${RECALIBRATION_PROMPT_FILE}`);
+  return DEFAULT_RECALIBRATION_PROMPT;
 }
 
 /** Substitute {{placeholder}} tokens; unknown placeholders are left intact. */
@@ -487,6 +548,36 @@ function parseNarrationResponse(
 }
 
 /**
+ * Parse a re-calibration response: `{ pages: [{page, narration}], bible }`.
+ * Recovery scans for the page-shaped objects; the bible is sacrificed on a
+ * malformed response (the chapter keeps its model-built bible).
+ */
+function parseRecalibrationResponse(
+  raw: string,
+): { pages: Array<{ page: number; narration: string }>; bible: BibleUpdates | null } {
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]+?)```/);
+  const text = (fenced ? fenced[1] : raw).trim();
+
+  const pick = (arr: any[]) => arr
+    .filter((p) => p && typeof p.page === 'number' && typeof p.narration === 'string')
+    .map((p) => ({ page: p.page as number, narration: String(p.narration).trim() }));
+
+  try {
+    const v = JSON.parse(text);
+    if (v && typeof v === 'object' && !Array.isArray(v) && Array.isArray(v.pages)) {
+      return { pages: pick(v.pages), bible: (v.bible && typeof v.bible === 'object') ? v.bible : null };
+    }
+  } catch { /* fall through to recovery */ }
+
+  const pages = pick(scanObjects(text));
+  if (pages.length === 0) {
+    throw new Error(`Re-calibration returned unparseable output: ${raw.slice(0, 200)}`);
+  }
+  console.warn(`  Recalibrate: recovered ${pages.length} pages from a malformed response`);
+  return { pages, bible: null };
+}
+
+/**
  * Convert a model-supplied bounding box to a normalized BBox (0–1 page
  * fractions). The box is divided by the rendered image's dimensions; swapped
  * corners are tolerated and the result is clamped inside the page. Returns
@@ -567,12 +658,77 @@ async function translatePage(
   };
 }
 
+// ==================== Re-calibration ====================
+
+/**
+ * The "tell it" pass: after a chapter has been narrated page by page,
+ * harmonize the whole thing against the now-complete bible. One text call (no
+ * images) — fix what early pages guessed, unify the narrator's voice, smooth
+ * the arc, finalize the bible. A polish, never a re-translation.
+ *
+ * Writes the harmonized narration back into each p<N>.json and replaces the
+ * bible with the finalized one. Safe to fail: the per-page narration already
+ * stands on its own; this only improves consistency.
+ */
+export async function recalibrateChapter(
+  seriesId: string,
+  file: string,
+): Promise<{ recalibrated: number }> {
+  const cfg = getTranslationConfig();
+
+  // Gather the per-page narration already on disk.
+  const pageNums = getCachedPageNumbers(seriesId, file);
+  const pages: Array<{ page: number; narration: string }> = [];
+  for (const n of pageNums) {
+    const t = getCachedTranslation(seriesId, file, n);
+    if (t && t.narration && t.narration.trim()) pages.push({ page: n, narration: t.narration });
+  }
+  if (pages.length === 0) return { recalibrated: 0 };
+
+  const series = getSeries(seriesId);
+  const prompt = fillTemplate(getRecalibrationPrompt(), {
+    title: series?.englishTitle || series?.name || '(unknown title)',
+    bible: formatBibleForPrompt(loadBible(seriesId)),
+    pages: pages.map((p) => `--- Page ${p.page} ---\n${p.narration}`).join('\n\n'),
+  });
+
+  const raw = await callOllama({
+    cfg,
+    model: cfg.translateModel,
+    prompt,
+    numCtx: 32768,     // the whole chapter's narration + the bible + the response
+    numPredict: 12288, // the harmonized chapter can be long
+    temperature: 0.4,
+    repeatPenalty: 1.1,
+  });
+
+  const { pages: harmonized, bible: finalBible } = parseRecalibrationResponse(raw);
+
+  // Write the harmonized narration back, leaving the bubbles untouched.
+  const byPage = new Map(harmonized.map((h) => [h.page, h.narration]));
+  let recalibrated = 0;
+  for (const n of pageNums) {
+    const next = byPage.get(n);
+    if (!next) continue; // a page the pass missed keeps its per-page narration
+    const t = getCachedTranslation(seriesId, file, n);
+    if (!t) continue;
+    saveTranslation(seriesId, file, n, { ...t, narration: next });
+    recalibrated++;
+  }
+
+  // Replace the bible with the finalized, deduplicated one.
+  if (finalBible) saveBible(seriesId, applyBibleUpdates(emptyBible(), finalBible));
+
+  return { recalibrated };
+}
+
 // ==================== Orchestration ====================
 
 export interface ChapterTranslateStats {
   totalPages: number;
-  translated: number; // pages translated this run (or already cached)
-  failed: number;     // pages the model could not translate
+  translated: number;   // pages narrated this run (or already cached)
+  failed: number;       // pages the model could not narrate
+  recalibrated: number; // pages harmonized by the re-calibration pass
   totalMs: number;
 }
 
@@ -641,7 +797,19 @@ export async function translateChapter(
       opts.onProgress?.(i + 1, totalPages);
     }
 
-    return { totalPages, translated, failed, totalMs: Date.now() - t0 };
+    // Read -> tell: harmonize the whole chapter against the finished bible.
+    // A polish — if it fails, the per-page narration still stands on its own.
+    let recalibrated = 0;
+    if (translated > 0) {
+      try {
+        console.log(`  Re-calibrating "${seriesId}/${file}"...`);
+        recalibrated = (await recalibrateChapter(seriesId, file)).recalibrated;
+      } catch (err) {
+        console.error(`  Re-calibration failed: ${(err as Error).message}`);
+      }
+    }
+
+    return { totalPages, translated, failed, recalibrated, totalMs: Date.now() - t0 };
   } finally {
     activeChapters.delete(chapterKey(seriesId, file));
   }

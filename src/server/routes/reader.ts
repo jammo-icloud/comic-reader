@@ -187,7 +187,8 @@ router.post('/translate/:seriesId/chapter/{*file}', (req, res) => {
     console.log(
       `  Translate complete "${seriesId}/${file}": ` +
       `${stats.translated}/${stats.totalPages} pages` +
-      `${stats.failed ? ` (${stats.failed} failed)` : ''} ` +
+      `${stats.failed ? ` (${stats.failed} failed)` : ''}` +
+      `${stats.recalibrated ? ` (${stats.recalibrated} re-calibrated)` : ''} ` +
       `(${Math.round(stats.totalMs / 1000)}s)`,
     );
   }).catch((err) => {
