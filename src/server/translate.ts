@@ -554,6 +554,11 @@ export interface ChapterTranslateStats {
   totalMs: number;
 }
 
+// A translation run is long and talks to a local model server over the
+// network; transient drops ("fetch failed" / "terminated") are expected.
+// Each page gets a few attempts before it's counted as failed.
+const MAX_PAGE_ATTEMPTS = 3;
+
 /**
  * Translate an entire chapter, page by page in reading order. The story bible
  * is loaded once, threaded through every page, and persisted after each page
@@ -588,17 +593,28 @@ export async function translateChapter(
         opts.onProgress?.(i + 1, totalPages);
         continue;
       }
-      try {
-        const { translation, bibleUpdates } = await translatePage(seriesId, file, i, bible, cfg);
-        saveTranslation(seriesId, file, i, translation);
-        if (bibleUpdates) {
-          bible = applyBibleUpdates(bible, bibleUpdates);
-          saveBible(seriesId, bible);
+      // Retry a page a few times with a backoff — a transient network drop
+      // mid-chapter shouldn't abandon it.
+      for (let attempt = 1; attempt <= MAX_PAGE_ATTEMPTS; attempt++) {
+        try {
+          const { translation, bibleUpdates } = await translatePage(seriesId, file, i, bible, cfg);
+          saveTranslation(seriesId, file, i, translation);
+          if (bibleUpdates) {
+            bible = applyBibleUpdates(bible, bibleUpdates);
+            saveBible(seriesId, bible);
+          }
+          translated++;
+          break;
+        } catch (err) {
+          const msg = (err as Error).message;
+          if (attempt < MAX_PAGE_ATTEMPTS) {
+            console.warn(`  Translate page ${i + 1}/${totalPages} attempt ${attempt} failed (${msg}) — retrying in ${15 * attempt}s`);
+            await new Promise((r) => setTimeout(r, 15000 * attempt));
+          } else {
+            console.error(`  Translate page ${i + 1}/${totalPages} failed after ${MAX_PAGE_ATTEMPTS} attempts: ${msg}`);
+            failed++;
+          }
         }
-        translated++;
-      } catch (err) {
-        console.error(`  Translate page ${i + 1}/${totalPages} failed: ${(err as Error).message}`);
-        failed++;
       }
       opts.onProgress?.(i + 1, totalPages);
     }
