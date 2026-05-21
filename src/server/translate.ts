@@ -443,11 +443,16 @@ async function callOllama(opts: OllamaOpts): Promise<string> {
       model: opts.model,
       prompt: opts.prompt,
       ...(opts.images && opts.images.length ? { images: opts.images } : {}),
-      stream: false,
+      // Stream the response. With stream:false the HTTP headers don't arrive
+      // until generation is completely finished — a multi-minute local-LLM
+      // call then trips undici's 300s headers timeout (UND_ERR_HEADERS_TIMEOUT)
+      // and the request dies. Streaming keeps data flowing the whole time.
+      stream: true,
       // think:false — the Qwen 3.5/3.6 generation is thinking-capable, but a
-      // chain-of-thought on an OCR / structured-JSON task only burns tokens
-      // and risks polluting the output. Disable it. Harmless on non-thinking
-      // models (verified: response stays clean, no separate thinking field).
+      // chain-of-thought on an OCR / structured-JSON task only burns tokens.
+      // Disable it. Harmless on non-thinking models. (If a model ignores the
+      // flag, its reasoning streams in `thinking` chunks, which we drop — only
+      // `response` chunks are accumulated below.)
       think: false,
       // NOTE: no format:'json' — it makes Qwen-VL return an empty {} instead
       // of doing the vision work. We parse JSON from the response ourselves.
@@ -464,8 +469,30 @@ async function callOllama(opts: OllamaOpts): Promise<string> {
   if (!res.ok) {
     throw new Error(`Ollama returned ${res.status}: ${await res.text().catch(() => '')}`);
   }
-  const json = await res.json();
-  return (json.response || '').trim();
+  if (!res.body) throw new Error('Ollama returned an empty response stream');
+
+  // Ollama streams newline-delimited JSON: one object per line, each carrying
+  // a `response` fragment; the final object has done:true.
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let full = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (!line) continue;
+      let obj: any;
+      try { obj = JSON.parse(line); } catch { continue; } // skip a partial line
+      if (obj.error) throw new Error(`Ollama error: ${obj.error}`);
+      if (typeof obj.response === 'string') full += obj.response;
+    }
+  }
+  return full.trim();
 }
 
 // ==================== JSON recovery ====================
@@ -590,7 +617,12 @@ export async function extractPage(
     numCtx: 8192,
     numPredict: 2048,
     temperature: 0.2,
-    repeatPenalty: 1.3, // suppresses "あああ..."-style SFX repetition loops
+    // Mild penalty only. A high repeat_penalty (1.3) penalizes the repetition
+    // JSON structurally needs — `}`, `"order":`, `"type":` recur on every
+    // object — so the model can't cleanly close the array and runs away
+    // emitting dozens of junk objects to the token cap. Long SFX loops are
+    // held back by the prompt's "4-5 characters max" rule instead.
+    repeatPenalty: 1.1,
   });
 
   const bubbles: ExtractedBubble[] = parseModelArray(raw)
