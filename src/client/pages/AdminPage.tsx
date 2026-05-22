@@ -65,6 +65,7 @@ export default function AdminPage() {
   const [catalog, setCatalog] = useState<any[]>([]);
   const [catalogSearch, setCatalogSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [attentionOnly, setAttentionOnly] = useState(false);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [rescanning, setRescanning] = useState(false);
@@ -128,10 +129,17 @@ export default function AdminPage() {
   // ----- Filtered catalog -----
 
   const filteredCatalog = useMemo(() => {
+    let list = catalog;
     const q = catalogSearch.trim().toLowerCase();
-    if (!q) return catalog;
-    return catalog.filter((s) => s.name.toLowerCase().includes(q) || s.englishTitle?.toLowerCase().includes(q));
-  }, [catalog, catalogSearch]);
+    if (q) {
+      list = list.filter((s) => s.name.toLowerCase().includes(q) || s.englishTitle?.toLowerCase().includes(q));
+    }
+    if (attentionOnly) {
+      // "Needs attention" — a missing cover or no MAL link.
+      list = list.filter((s) => !s.coverFile || !s.malId);
+    }
+    return list;
+  }, [catalog, catalogSearch, attentionOnly]);
 
   // ----- Tab-specific stat computations -----
 
@@ -445,6 +453,8 @@ export default function AdminPage() {
               search={catalogSearch}
               setSearch={setCatalogSearch}
               resultCount={filteredCatalog.length}
+              attentionOnly={attentionOnly}
+              setAttentionOnly={setAttentionOnly}
               selectMode={selectMode}
               setSelectMode={(v) => {
                 setSelectMode(v);
@@ -612,6 +622,7 @@ export default function AdminPage() {
                         selected={isSelected}
                         selectable={canSelect}
                         onEdit={() => setEditTarget(s)}
+                        onEditBible={() => navigate(`/admin/bible/${s.id}`)}
                         onPurge={() => askConfirm({
                           title: `Delete "${s.name}"?`,
                           message: `Permanently removes ${s.count} chapter${s.count === 1 ? '' : 's'} and the series metadata.`,
@@ -885,7 +896,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 
 function LibraryToolbar({
   showSearch, setShowSearch, search, setSearch, resultCount,
-  selectMode, setSelectMode, selectedCount,
+  selectMode, setSelectMode, selectedCount, attentionOnly, setAttentionOnly,
 }: {
   pinned: boolean;
   showSearch: boolean;
@@ -896,6 +907,8 @@ function LibraryToolbar({
   selectMode: boolean;
   setSelectMode: (v: boolean) => void;
   selectedCount: number;
+  attentionOnly: boolean;
+  setAttentionOnly: (v: boolean) => void;
 }) {
   // Search and Select are NOT mutually exclusive — opening search expands the
   // toolbar inline so the Select button stays reachable. Critical for the
@@ -947,6 +960,16 @@ function LibraryToolbar({
         title={showSearch ? 'Close search' : 'Search'}
       >
         {showSearch ? <X size={16} /> : <Search size={16} />}
+      </ToolbarIconButton>
+
+      {/* Needs-attention filter — series with a missing cover or no MAL link. */}
+      <ToolbarIconButton
+        onClick={() => setAttentionOnly(!attentionOnly)}
+        active={attentionOnly}
+        title="Show only series with a missing cover or no MAL match"
+        label="Attention"
+      >
+        <AlertCircle size={16} />
       </ToolbarIconButton>
 
       {/* Select — always visible, including while searching. The whole point

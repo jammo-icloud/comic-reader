@@ -1,6 +1,5 @@
 import { useState, useEffect, useId } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { X, Save, Loader, Trash2, ChevronDown, ChevronUp, Upload, Image as ImageIcon, RefreshCw, Languages, BookOpen } from 'lucide-react';
+import { X, Save, Loader, Trash2, ChevronDown, ChevronUp, Upload, Image as ImageIcon, RefreshCw, Languages } from 'lucide-react';
 import { updateAdminSeries, getAdminSeriesComics, deleteAdminComic, uploadSeriesCover, getSeriesCoverUrl, translateWholeChapter, getTranslationStatus } from '../lib/api';
 import SyncSourcePicker from './SyncSourcePicker';
 import ConfirmSheet from './ConfirmSheet';
@@ -32,8 +31,6 @@ interface ComicRecord {
 }
 
 export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditModalProps) {
-  const navigate = useNavigate();
-
   // Form state
   const [name, setName] = useState(series.name);
   const [englishTitle, setEnglishTitle] = useState(series.englishTitle || '');
@@ -340,17 +337,6 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
                 </button>
               )}
             </div>
-          </div>
-
-          {/* Story Bible — the narration cast, glossary, recap, narrator directive */}
-          <div>
-            <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">Story Bible</label>
-            <button
-              onClick={() => navigate(`/admin/bible/${series.id}`)}
-              className="flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
-            >
-              <BookOpen size={12} /> Edit narration bible
-            </button>
           </div>
 
           {/* Chapters */}

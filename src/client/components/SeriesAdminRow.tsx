@@ -1,5 +1,6 @@
-import { Pencil, Trash2, Check, MoreVertical } from 'lucide-react';
+import { Pencil, Trash2, Check, MoreVertical, BookOpen, ImageOff } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { getSeriesCoverUrl } from '../lib/api';
 
 interface SeriesRow {
   id: string;
@@ -8,6 +9,7 @@ interface SeriesRow {
   count: number;
   tags?: string[];
   malId?: number | null;
+  coverFile?: string | null;
 }
 
 interface SeriesAdminRowProps {
@@ -19,8 +21,37 @@ interface SeriesAdminRowProps {
   /** Whether selection is allowed (e.g. cap of 2). */
   selectable?: boolean;
   onEdit: () => void;
+  onEditBible: () => void;
   onPurge: () => void;
   onToggleSelect: () => void;
+}
+
+/**
+ * A small cover thumbnail for the admin row. Falls back to a clear
+ * placeholder when the cover is missing or fails to load — so broken covers
+ * are visible at a glance instead of hidden behind a text-only list.
+ */
+function CoverThumb({ id, coverFile }: { id: string; coverFile?: string | null }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) {
+    return (
+      <div
+        className="w-8 h-12 shrink-0 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-300 dark:text-gray-600"
+        title="No cover"
+      >
+        <ImageOff size={14} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={getSeriesCoverUrl(id, coverFile || undefined)}
+      alt=""
+      loading="lazy"
+      onError={() => setBroken(true)}
+      className="w-8 h-12 shrink-0 rounded object-cover bg-gray-100 dark:bg-gray-800"
+    />
+  );
 }
 
 /**
@@ -30,7 +61,7 @@ interface SeriesAdminRowProps {
  *     `md:grid md:grid-cols-[1fr_auto_minmax(140px,200px)_64px_88px]`
  */
 export default function SeriesAdminRow({
-  series, selectMode, selected, selectable = true, onEdit, onPurge, onToggleSelect,
+  series, selectMode, selected, selectable = true, onEdit, onEditBible, onPurge, onToggleSelect,
 }: SeriesAdminRowProps) {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -100,30 +131,33 @@ export default function SeriesAdminRow({
           </span>
         )}
 
-        {/* Name + english title */}
-        <div className={`min-w-0 ${selectMode ? 'pl-8 md:pl-0' : ''}`}>
-          <p className="text-sm font-medium truncate">{series.name}</p>
-          {series.englishTitle && series.englishTitle.toLowerCase() !== series.name.toLowerCase() && (
-            <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{series.englishTitle}</p>
-          )}
-          {/* Mobile-only secondary line: chapters · MAL · first tag (+N) */}
-          <div className="md:hidden mt-1 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400 flex-wrap">
-            <span>{series.count} ch</span>
-            {series.malId && (
-              <>
-                <span className="text-gray-300 dark:text-gray-700">·</span>
-                <span className="font-mono">MAL #{series.malId}</span>
-              </>
+        {/* Cover thumbnail + name + english title */}
+        <div className={`min-w-0 flex items-center gap-2.5 ${selectMode ? 'pl-8 md:pl-0' : ''}`}>
+          <CoverThumb id={series.id} coverFile={series.coverFile} />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium truncate">{series.name}</p>
+            {series.englishTitle && series.englishTitle.toLowerCase() !== series.name.toLowerCase() && (
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{series.englishTitle}</p>
             )}
-            {firstTag && (
-              <>
-                <span className="text-gray-300 dark:text-gray-700">·</span>
-                <span className="capitalize px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-[10px]">{firstTag}</span>
-                {extraTagCount > 0 && (
-                  <span className="text-[10px] text-gray-400">+{extraTagCount}</span>
-                )}
-              </>
-            )}
+            {/* Mobile-only secondary line: chapters · MAL · first tag (+N) */}
+            <div className="md:hidden mt-1 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400 flex-wrap">
+              <span>{series.count} ch</span>
+              {series.malId && (
+                <>
+                  <span className="text-gray-300 dark:text-gray-700">·</span>
+                  <span className="font-mono">MAL #{series.malId}</span>
+                </>
+              )}
+              {firstTag && (
+                <>
+                  <span className="text-gray-300 dark:text-gray-700">·</span>
+                  <span className="capitalize px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-[10px]">{firstTag}</span>
+                  {extraTagCount > 0 && (
+                    <span className="text-[10px] text-gray-400">+{extraTagCount}</span>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -150,15 +184,23 @@ export default function SeriesAdminRow({
         <div className="hidden md:flex items-center justify-end gap-1 col-start-5">
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            className="p-2 rounded-md hover:bg-accent/10 text-gray-400 hover:text-accent transition-colors"
+            className="p-1.5 rounded-md hover:bg-accent/10 text-gray-400 hover:text-accent transition-colors"
             title="Edit series"
             aria-label="Edit series"
           >
             <Pencil size={14} />
           </button>
           <button
+            onClick={(e) => { e.stopPropagation(); onEditBible(); }}
+            className="p-1.5 rounded-md hover:bg-accent/10 text-gray-400 hover:text-accent transition-colors"
+            title="Edit story bible"
+            aria-label="Edit story bible"
+          >
+            <BookOpen size={14} />
+          </button>
+          <button
             onClick={(e) => { e.stopPropagation(); onPurge(); }}
-            className="p-2 rounded-md hover:bg-danger/10 text-gray-400 hover:text-danger transition-colors"
+            className="p-1.5 rounded-md hover:bg-danger/10 text-gray-400 hover:text-danger transition-colors"
             title="Purge (delete files)"
             aria-label="Purge series"
           >
@@ -188,6 +230,13 @@ export default function SeriesAdminRow({
             >
               <Pencil size={15} className="text-gray-500 dark:text-gray-400" />
               <span>Edit metadata</span>
+            </button>
+            <button
+              onClick={() => { setShowMenu(false); onEditBible(); }}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              <BookOpen size={15} className="text-gray-500 dark:text-gray-400" />
+              <span>Edit story bible</span>
             </button>
             <button
               onClick={() => { setShowMenu(false); onToggleSelect(); }}
