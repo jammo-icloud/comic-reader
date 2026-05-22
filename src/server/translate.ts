@@ -24,7 +24,7 @@ import { resolveComicPath } from './scanner.js';
 import { getSeries } from './data.js';
 import { shortHash } from './hash.js';
 import {
-  loadBible, saveBible, applyBibleUpdates, formatBibleForPrompt, emptyBible,
+  loadBible, saveBible, applyBibleUpdates, formatBibleForPrompt,
   type StoryBible, type BibleUpdates,
 } from './bible.js';
 
@@ -727,8 +727,16 @@ export async function recalibrateChapter(
     recalibrated++;
   }
 
-  // Replace the bible with the finalized, deduplicated one.
-  if (finalBible) saveBible(seriesId, applyBibleUpdates(emptyBible(), finalBible));
+  // Refresh only the recap. Re-calibration does NOT rewrite characters or the
+  // glossary — re-emitting the whole bible structure makes the model drop
+  // fields (native names, glossary notes) and only half-merges duplicates. The
+  // cast and glossary are grown by the per-page pass and curated in the Bible
+  // admin UI; re-calibration must not clobber them.
+  if (finalBible && typeof finalBible.recap === 'string' && finalBible.recap.trim()) {
+    const current = loadBible(seriesId);
+    current.recap = finalBible.recap.trim();
+    saveBible(seriesId, current);
+  }
 
   return { recalibrated };
 }
