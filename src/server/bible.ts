@@ -42,7 +42,8 @@ export interface GlossaryEntry {
 export interface StoryBible {
   characters: BibleCharacter[];
   glossary: GlossaryEntry[];
-  recap: string;           // a running "story so far", a few sentences
+  recap: string;             // a running "story so far", a few sentences
+  narratorDirective: string; // admin-set guidance for the narrator's voice/tone
   updatedAt: string;
 }
 
@@ -67,7 +68,10 @@ function biblePath(seriesId: string): string {
 }
 
 export function emptyBible(): StoryBible {
-  return { characters: [], glossary: [], recap: '', updatedAt: new Date().toISOString() };
+  return {
+    characters: [], glossary: [], recap: '', narratorDirective: '',
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 /**
@@ -120,7 +124,7 @@ export function seedBible(seriesId: string): StoryBible {
 }
 
 /** Coerce a loaded or hand-edited JSON blob into a well-formed StoryBible. */
-function normalizeBible(raw: any): StoryBible {
+export function normalizeBible(raw: any): StoryBible {
   const b = emptyBible();
   if (Array.isArray(raw?.characters)) {
     b.characters = raw.characters
@@ -145,6 +149,7 @@ function normalizeBible(raw: any): StoryBible {
       }));
   }
   if (typeof raw?.recap === 'string') b.recap = raw.recap.trim();
+  if (typeof raw?.narratorDirective === 'string') b.narratorDirective = raw.narratorDirective.trim();
   return b;
 }
 
@@ -163,6 +168,7 @@ export function applyBibleUpdates(bible: StoryBible, updates: BibleUpdates | nul
     characters: bible.characters.map((c) => ({ ...c, aliases: [...c.aliases] })),
     glossary: bible.glossary.map((g) => ({ ...g })),
     recap: bible.recap,
+    narratorDirective: bible.narratorDirective,
     updatedAt: bible.updatedAt,
   };
 

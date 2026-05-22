@@ -6,6 +6,7 @@ import ReaderPage from './pages/ReaderPage';
 import DiscoverPage from './pages/DiscoverPage';
 import ImportPage from './pages/ImportPage';
 import AdminPage from './pages/AdminPage';
+import BibleEditorPage from './pages/BibleEditorPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import OfflineIndicator from './components/OfflineIndicator';
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="/discover" element={<AuthGuard><DiscoverPage /></AuthGuard>} />
         <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
         <Route path="/admin" element={<AuthGuard><AdminPage /></AuthGuard>} />
+        <Route path="/admin/bible/:seriesId" element={<AuthGuard><BibleEditorPage /></AuthGuard>} />
         <Route path="/series/:id" element={<AuthGuard><SeriesPage /></AuthGuard>} />
         <Route path="/read/:id/*" element={<AuthGuard><ReaderPage /></AuthGuard>} />
       </Routes>

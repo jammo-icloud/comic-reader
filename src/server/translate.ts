@@ -114,6 +114,10 @@ You can SEE the page — the panels, the characters, their faces, the action,
 the mood. The bubble text may be Japanese, Korean, or already in (often rough)
 English. Whatever it is: read it, and tell this page's story WELL.
 
+## The narrator
+
+{{narratorDirective}}
+
 ## Narration — the heart of the job
 
 Write a flowing passage that tells what happens on this page.
@@ -654,6 +658,8 @@ async function translatePage(
     title: series?.englishTitle || series?.name || '(unknown title)',
     honorificPolicy: HONORIFIC_INSTRUCTIONS[cfg.honorificPolicy],
     bible: formatBibleForPrompt(bible),
+    narratorDirective: bible.narratorDirective.trim()
+      || "Narrate in a strong, natural storyteller's voice — vivid but never overwrought.",
   });
 
   const raw = await callOllama({

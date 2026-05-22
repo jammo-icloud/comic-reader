@@ -7,6 +7,7 @@ import {
   translateChapter, getCachedTranslation, getCachedPageNumbers,
   isChapterTranslating, getTranslationConfig, saveTranslationConfig, isTranslationEnabled,
 } from '../translate.js';
+import { loadBible, saveBible, normalizeBible } from '../bible.js';
 
 const router = Router();
 
@@ -206,6 +207,27 @@ router.patch('/translate/config', (req, res) => {
   if (!req.isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
   const updated = saveTranslationConfig(req.body);
   res.json(updated);
+});
+
+// --- Story bible ---
+//
+// The per-series narration bible: cast, glossary, recap, narrator directive.
+// GET is open to any logged-in user (the reader's character pages will read
+// it); PUT — the admin Bible editor's save — is admin-only. normalizeBible
+// coerces hand-edited input into a safe, well-formed shape.
+router.get('/series/:seriesId/bible', (req, res) => {
+  const { seriesId } = req.params;
+  if (!seriesId) { res.status(400).json({ error: 'Missing seriesId' }); return; }
+  res.json(loadBible(seriesId));
+});
+
+router.put('/series/:seriesId/bible', (req, res) => {
+  if (!req.isAdmin) { res.status(403).json({ error: 'Admin only' }); return; }
+  const { seriesId } = req.params;
+  if (!seriesId) { res.status(400).json({ error: 'Missing seriesId' }); return; }
+  const bible = normalizeBible(req.body);
+  saveBible(seriesId, bible);
+  res.json(bible);
 });
 
 export default router;

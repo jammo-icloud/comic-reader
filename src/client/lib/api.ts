@@ -423,6 +423,47 @@ export function updateTranslationConfig(cfg: Partial<TranslationConfig>): Promis
   });
 }
 
+// ==================== Story bible ====================
+
+/** One member of a series' cast in the story bible. */
+export interface BibleCharacter {
+  name: string;
+  native: string | null;
+  aliases: string[];
+  role: string;     // main | supporting | minor
+  voice: string;    // how they speak — register, tone, verbal tics
+}
+
+/** One world term — a place, technique, concept, organization, etc. */
+export interface GlossaryEntry {
+  term: string;
+  english: string;
+  note: string;
+}
+
+/** The living per-series story bible the narration pipeline grows and reads. */
+export interface StoryBible {
+  characters: BibleCharacter[];
+  glossary: GlossaryEntry[];
+  recap: string;
+  narratorDirective: string;
+  updatedAt: string;
+}
+
+/** Load a series' story bible (cast, glossary, recap, narrator directive). */
+export function getBible(seriesId: string): Promise<StoryBible> {
+  return fetchJson(`/series/${seriesId}/bible`);
+}
+
+/** Save a series' story bible — admin only. */
+export function updateBible(seriesId: string, bible: StoryBible): Promise<StoryBible> {
+  return fetchJson(`/series/${seriesId}/bible`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(bible),
+  });
+}
+
 export function searchSource(sourceId: string, query: string): Promise<{
   sourceId: string;
   sourceName: string;
