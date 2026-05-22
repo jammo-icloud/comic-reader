@@ -54,6 +54,10 @@ interface PdfViewerProps {
   // Tiny downscaled JPEG dataURL of each rendered page — Story mode uses it as
   // a blurred ambient backdrop. Pass undefined when it isn't needed.
   onAmbient?: (dataUrl: string) => void;
+  // Fired when "next page" is invoked but the viewer is already on the last
+  // page — ReaderPage uses this to flow into the next chapter instead of
+  // letting the action dead-end at a disabled button.
+  onPastEnd?: () => void;
 }
 
 /**
@@ -74,7 +78,7 @@ const DOUBLE_TAP_DIST = 40;
 const DOUBLE_TAP_ZOOM = 2.5;
 
 const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer(
-  { url, initialPage = 0, viewMode, readingDirection = 'ltr', onPageChange, onTotalPagesChange, overlay, onAmbient },
+  { url, initialPage = 0, viewMode, readingDirection = 'ltr', onPageChange, onTotalPagesChange, overlay, onAmbient, onPastEnd },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -308,7 +312,10 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     [currentPage, totalPages],
   );
 
-  const nextPage = useCallback(() => goToPage(currentPage + 1), [goToPage, currentPage]);
+  const nextPage = useCallback(() => {
+    if (currentPage < totalPages - 1) goToPage(currentPage + 1);
+    else if (onPastEnd) onPastEnd();
+  }, [goToPage, currentPage, totalPages, onPastEnd]);
   const prevPage = useCallback(() => goToPage(currentPage - 1), [goToPage, currentPage]);
 
   // Imperative API for parent toolbar

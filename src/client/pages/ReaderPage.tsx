@@ -232,6 +232,7 @@ export default function ReaderPage() {
           onTotalPagesChange={handleTotalPages}
           overlay={storyOn ? { page: currentPage, highlight: highlightBox } : null}
           onAmbient={storyOn ? setAmbient : undefined}
+          onPastEnd={() => nextChapter && goToChapter(nextChapter)}
         />
       </div>
 
@@ -340,7 +341,7 @@ export default function ReaderPage() {
           {/* Next page */}
           <button
             onClick={() => viewerRef.current?.nextPage()}
-            disabled={currentPage >= totalPages - 1}
+            disabled={currentPage >= totalPages - 1 && !nextChapter}
             className="p-3 rounded hover:bg-white/10 disabled:opacity-20 transition-colors shrink-0"
             title="Next page"
           >
