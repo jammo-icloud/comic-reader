@@ -730,14 +730,16 @@ export async function recalibrateChapter(
 
   // Weld a run of pages at a time — a whole chapter in one call overruns the
   // model's reliable structured-output length. ~10 pages per call is safe.
+  // Each batch is handed the full story-so-far — everything welded before it —
+  // so it continues one continuous narrative instead of restarting.
   const BATCH = 10;
   const harmonized = new Map<number, string>();
-  let prevTail = ''; // last harmonized narration of the previous batch
+  const storySoFar: string[] = []; // every page welded so far, in reading order
 
   for (let i = 0; i < pages.length; i += BATCH) {
     const batch = pages.slice(i, i + BATCH);
-    const precedingContext = prevTail
-      ? `## The story so far\n\nThe chapter up to here has already been told. Just before the pages below, it reaches this moment:\n\n${prevTail}`
+    const precedingContext = storySoFar.length
+      ? `## The story so far\n\nThe chapter up to this point has been told as follows — continue it seamlessly, in the same voice:\n\n${storySoFar.join('\n\n')}`
       : '## The story so far\n\nThese are the opening pages of the chapter.';
     const prompt = fillTemplate(tpl, {
       title,
@@ -751,16 +753,18 @@ export async function recalibrateChapter(
         cfg,
         model: cfg.translateModel,
         prompt,
-        numCtx: 32768,    // bible + ~10 pages in, ~10 pages out — ample headroom
+        numCtx: 65536,    // the full story-so-far + bible + this batch + output
         numPredict: 8192, // one batch of harmonized narration
         temperature: 0.4,
         repeatPenalty: 1.1,
       });
       const { pages: batchPages } = parseRecalibrationResponse(raw);
       for (const h of batchPages) harmonized.set(h.page, h.narration);
-      // Seam context for the next batch: this batch's last page, harmonized.
-      const lastNum = batch[batch.length - 1].page;
-      if (harmonized.has(lastNum)) prevTail = harmonized.get(lastNum)!;
+      // Carry every page this batch welded into the running story-so-far.
+      for (const p of batch) {
+        const h = harmonized.get(p.page);
+        if (h) storySoFar.push(h);
+      }
     } catch (err) {
       // A failed batch leaves its pages with their per-page narration.
       const span = `p${batch[0].page}-${batch[batch.length - 1].page}`;
