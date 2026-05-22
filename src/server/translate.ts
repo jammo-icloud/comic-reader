@@ -569,7 +569,14 @@ function parseRecalibrationResponse(
     }
   } catch { /* fall through to recovery */ }
 
-  const pages = pick(scanObjects(text));
+  // Recovery — a truncated response leaves a partial `{"pages":[ {…},{…},…`.
+  // scanObjects finds only TOP-LEVEL objects, but the page objects are nested
+  // inside the "pages" array — so scan the slice after the array's opening
+  // bracket, where each page object is itself top-level. The trailing
+  // incomplete object (and the bible) are lost; the complete pages survive.
+  const pagesKey = text.indexOf('"pages"');
+  const arrStart = pagesKey >= 0 ? text.indexOf('[', pagesKey) : -1;
+  const pages = arrStart >= 0 ? pick(scanObjects(text.slice(arrStart + 1))) : [];
   if (pages.length === 0) {
     throw new Error(`Re-calibration returned unparseable output: ${raw.slice(0, 200)}`);
   }
@@ -697,7 +704,11 @@ export async function recalibrateChapter(
     model: cfg.translateModel,
     prompt,
     numCtx: 32768,     // the whole chapter's narration + the bible + the response
-    numPredict: 12288, // the harmonized chapter can be long
+    numPredict: 20480, // re-emitting every page's narration is large: a 12k cap
+                       // truncated a 55-page chapter mid-JSON. Give output most
+                       // of the 32k window — recovery (parseRecalibrationResponse)
+                       // still salvages the pages if a very long chapter
+                       // overruns even this.
     temperature: 0.4,
     repeatPenalty: 1.1,
   });
