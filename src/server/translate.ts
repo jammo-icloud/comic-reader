@@ -106,34 +106,44 @@ function isHonorificPolicy(v: any): v is HonorificPolicy {
  */
 const DEFAULT_NARRATION_PROMPT = `# Manga Page — Narration
 
-You are telling the story of one page of **{{title}}** in strong, natural
-English, for a reader who is looking at the page while you narrate.
+You are telling the story of one page of **{{title}}**, for a reader who is
+looking at the page while you narrate. This page is one moment in a story
+already in motion — narrate it mid-stream, never as a fresh scene.
 
 You can SEE the page — the panels, the characters, their faces, the action,
-the mood. The text in the bubbles may be Japanese, Korean, or already in
-(often rough) English. Whatever it is: read it, and tell this page's story
-WELL.
+the mood. The bubble text may be Japanese, Korean, or already in (often rough)
+English. Whatever it is: read it, and tell this page's story WELL.
 
 ## Narration — the heart of the job
 
-Write a flowing passage that tells what happens on this page. Render dialogue
-vividly and in each character's voice; carry the action and the scene with
-light narration where the art shows it. It should read like a gifted
-storyteller telling you the page — not a list of translated lines.
+Write a flowing passage that tells what happens on this page.
 
-- If the page is not in English, translate as you narrate.
-- If the page is ALREADY in English but the writing is poor or pidgin, retell
-  it properly — never pass bad prose through.
+- **Start in the action.** Do NOT open with scene-establishing framing — no
+  "The scene opens...", "The page shows...", "We see...", "The camera...". The
+  story is already underway; narrate this page as its continuation.
+- **Quote the dialogue.** Never flatten speech into reported form ("he
+  explains that..."). Narrate the character's expression and action, then give
+  their actual line as a direct quote in their voice. For example: He threw
+  his head back, a desperate grin splitting his face. "Give me a crafting
+  skill like the games I burned my nights on!"
+- Carry the action and the mood with light narration where the art shows it.
+- If the page is not in English, translate as you narrate. If it is already
+  English but poorly written, retell it properly — never pass bad prose
+  through.
 - Tell what is on the page, told well. Do not invent events that aren't there.
 
-## Also record
+## Who is on the page — get the speaker right
 
-- **bubbles** — every text element: reading order, the original text, a clean
-  English line, its type, and its box. This is the citation layer, so the
-  reader can show which bubble a line came from.
-- **bible** — anything new for the story bible (below): characters (each with
-  a short *voice* note — how they speak), glossary terms, and a refreshed
-  one-or-two sentence recap. Omit a field if this page added nothing to it.
+Before narrating, work out which characters from the cast (below) are actually
+DRAWN on this page, and who is SPEAKING each line.
+
+Manga dialogue often comes from off-panel: a bubble's tail points off the
+edge, or a stray bubble at the margin belongs to someone not drawn here. The
+largest or most central figure is NOT automatically the speaker. Attribute
+each line to the right character by name. When a line comes from someone not
+in frame, narrate it that way ("From beyond the doorway, a familiar voice cut
+in —"). Use the exact character names from the cast; for someone not yet
+identifiable, use one consistent description ("the silver-haired woman").
 
 ## The story so far — canon: use these exact names and voices
 
@@ -143,13 +153,22 @@ storyteller telling you the page — not a list of translated lines.
 
 {{honorificPolicy}}
 
+## Also record
+
+- **bubbles** — every text element: reading order, the original text, a clean
+  English line, its type, and its box. This is the citation layer, so the
+  reader can show which bubble a line came from.
+- **bible** — anything new for the story bible (above): characters (each with
+  a short *voice* note — how they speak), glossary terms, and a refreshed
+  one-or-two sentence recap. Omit a field if this page added nothing to it.
+
 ## Output
 
 Return STRICT JSON only — no prose outside the JSON, no markdown code fences.
 A single object:
 
 {
-  "narration": "Papa steps between his daughter and the smoking rubble. ...",
+  "narration": "Papa planted himself between his daughter and the smoking rubble. \\"Stay behind me,\\" he said, his voice low and steady. ...",
   "bubbles": [
     {"order": 1, "original": "こんにちは", "english": "Hi there.", "type": "speech", "box": [610, 80, 880, 300]}
   ],
@@ -172,22 +191,30 @@ A single object:
  * The re-calibration prompt — the "tell it" pass. Placeholders: {{title}}
  * {{bible}} {{pages}}. Edit data/prompts/recalibrate-chapter.md to iterate.
  */
-const DEFAULT_RECALIBRATION_PROMPT = `# Chapter Re-Calibration
+const DEFAULT_RECALIBRATION_PROMPT = `# Chapter Re-Telling
 
-A chapter of **{{title}}** has just been narrated page by page. The early
-pages were written before the story bible was complete — names were guessed,
-voices not yet known, the arc unclear. Now that the whole chapter has been
-read, go back over it and make it consistent.
+A chapter of **{{title}}** has just been narrated one page at a time. Because
+each page was narrated in isolation, the result reads like dozens of separate
+scene descriptions — page after page restarts with its own establishing shot.
+That repetition wrecks the storytelling.
 
-This is a POLISH, not a rewrite. Do NOT re-translate, do NOT invent events,
-do NOT add or drop story content. Only:
+Your job is to RE-TELL the chapter as ONE continuous story: a single flowing
+narrative in one strong narratorial voice, the way a gifted storyteller would
+tell it from beginning to end.
 
-- Fix every character name and term to match the canonical bible exactly.
-- Align each character's voice and tone so they hold from the first page to
-  the last.
-- Smooth the narration so the chapter reads as one continuous story told in a
-  single, strong narratorial voice.
-- Tighten — trim the repetition a page-by-page pass inevitably leaves.
+You have full license to rewrite the prose:
+
+- KILL every per-page establishing opener ("The scene opens...", "The page
+  shows...", "We see..."). The chapter opens ONCE; from then on every page
+  continues mid-stream.
+- Write real transitions so the story flows beat to beat, not page to page.
+- Unify the narratorial voice across the whole chapter.
+- Render dialogue as direct quotes, in each character's voice.
+- Keep every character name and term consistent with the canonical bible.
+
+What you must NOT do: invent events that did not happen, drop story content,
+or re-translate. Re-tell the SAME story — every beat, every line of dialogue —
+just told as one story instead of many fragments.
 
 ## The story bible — canon
 
@@ -203,17 +230,17 @@ Return STRICT JSON only — no prose outside the JSON, no markdown code fences:
 
 {
   "pages": [
-    {"page": 0, "narration": "the harmonized narration for page 0"},
+    {"page": 0, "narration": "the re-told narration for page 0"},
     {"page": 1, "narration": "..."}
   ],
-  "bible": { "characters": [...], "glossary": [...], "recap": "..." }
+  "bible": { "recap": "one coherent paragraph recapping the whole chapter" }
 }
 
-- Every page from the input must appear exactly once in "pages", with the
-  same page numbers.
-- "bible" is the finalized, canonical bible: merge duplicate characters, fix
-  any glossary entry whose fields look reversed, and give one coherent recap
-  of the whole chapter.
+- Every page from the input must appear exactly once in "pages", with the same
+  page numbers. The narration stays keyed to pages so the reader can still
+  turn the page — but it must read continuously across them.
+- "bible" carries ONLY the recap. Do not output characters or glossary — those
+  are managed elsewhere.
 `;
 
 /** Honorific policy → an instruction paragraph for the {{honorificPolicy}} slot. */
