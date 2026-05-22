@@ -192,39 +192,36 @@ A single object:
 `;
 
 /**
- * The re-calibration prompt — the "tell it" pass. Placeholders: {{title}}
- * {{bible}} {{pages}}. Edit data/prompts/recalibrate-chapter.md to iterate.
+ * The re-calibration prompt — the "tell it" pass, run a batch of pages at a
+ * time. Placeholders: {{title}} {{bible}} {{precedingContext}} {{pages}}.
+ * Edit data/prompts/recalibrate-chapter.md to iterate.
  */
-const DEFAULT_RECALIBRATION_PROMPT = `# Chapter Re-Telling
+const DEFAULT_RECALIBRATION_PROMPT = `# Chapter Re-Telling — continuous narration
 
-A chapter of **{{title}}** has just been narrated one page at a time. Because
-each page was narrated in isolation, the result reads like dozens of separate
-scene descriptions — page after page restarts with its own establishing shot.
-That repetition wrecks the storytelling.
+A chapter of **{{title}}** was narrated one page at a time, so it reads like
+separate scene fragments — page after page restarts with its own establishing
+shot. You are re-telling it as ONE continuous story in a single strong
+narratorial voice, working through it a run of pages at a time.
 
-Your job is to RE-TELL the chapter as ONE continuous story: a single flowing
-narrative in one strong narratorial voice, the way a gifted storyteller would
-tell it from beginning to end.
+{{precedingContext}}
 
-You have full license to rewrite the prose:
+Re-tell the run of pages below as the seamless continuation of that story:
 
 - KILL every per-page establishing opener ("The scene opens...", "The page
-  shows...", "We see..."). The chapter opens ONCE; from then on every page
-  continues mid-stream.
-- Write real transitions so the story flows beat to beat, not page to page.
-- Unify the narratorial voice across the whole chapter.
+  shows...", "We see..."). Each page continues mid-stream from the one before.
+- Write real transitions so it flows beat to beat, not page to page.
 - Render dialogue as direct quotes, in each character's voice.
 - Keep every character name and term consistent with the canonical bible.
 
 What you must NOT do: invent events that did not happen, drop story content,
 or re-translate. Re-tell the SAME story — every beat, every line of dialogue —
-just told as one story instead of many fragments.
+just told as one flowing narrative.
 
 ## The story bible — canon
 
 {{bible}}
 
-## The chapter, page by page
+## The pages to re-tell
 
 {{pages}}
 
@@ -234,17 +231,15 @@ Return STRICT JSON only — no prose outside the JSON, no markdown code fences:
 
 {
   "pages": [
-    {"page": 0, "narration": "the re-told narration for page 0"},
-    {"page": 1, "narration": "..."}
-  ],
-  "bible": { "recap": "one coherent paragraph recapping the whole chapter" }
+    {"page": 3, "narration": "the re-told narration for page 3"},
+    {"page": 4, "narration": "..."}
+  ]
 }
 
-- Every page from the input must appear exactly once in "pages", with the same
-  page numbers. The narration stays keyed to pages so the reader can still
-  turn the page — but it must read continuously across them.
-- "bible" carries ONLY the recap. Do not output characters or glossary — those
-  are managed elsewhere.
+- Every page from the input above must appear exactly once in "pages", with
+  the same page numbers — no others.
+- Narration stays keyed to pages so the reader can still turn the page, but it
+  must read continuously across them.
 `;
 
 /** Honorific policy → an instruction paragraph for the {{honorificPolicy}} slot. */
@@ -701,14 +696,17 @@ async function translatePage(
 // ==================== Re-calibration ====================
 
 /**
- * The "tell it" pass: after a chapter has been narrated page by page,
- * harmonize the whole thing against the now-complete bible. One text call (no
- * images) — fix what early pages guessed, unify the narrator's voice, smooth
- * the arc, finalize the bible. A polish, never a re-translation.
+ * The "tell it" pass: after a chapter has been narrated page by page, re-tell
+ * it as one continuous story. The chapter is welded a batch of pages at a time
+ * — one text call per batch — because asking the model to re-emit a whole
+ * 55-page chapter as a single JSON object reliably breaks apart partway. Each
+ * batch is handed the tail of the previous batch's output so the story flows
+ * across the seams.
  *
- * Writes the harmonized narration back into each p<N>.json and replaces the
- * bible with the finalized one. Safe to fail: the per-page narration already
- * stands on its own; this only improves consistency.
+ * Writes the harmonized narration back into each p<N>.json. Safe to fail per
+ * batch: a failed batch simply leaves its pages with their per-page narration.
+ * Re-calibration does NOT touch the bible — the cast and glossary are grown by
+ * the per-page pass and curated in the Bible admin UI.
  */
 export async function recalibrateChapter(
   seriesId: string,
@@ -726,49 +724,59 @@ export async function recalibrateChapter(
   if (pages.length === 0) return { recalibrated: 0 };
 
   const series = getSeries(seriesId);
-  const prompt = fillTemplate(getRecalibrationPrompt(), {
-    title: series?.englishTitle || series?.name || '(unknown title)',
-    bible: formatBibleForPrompt(loadBible(seriesId)),
-    pages: pages.map((p) => `--- Page ${p.page} ---\n${p.narration}`).join('\n\n'),
-  });
+  const title = series?.englishTitle || series?.name || '(unknown title)';
+  const bibleText = formatBibleForPrompt(loadBible(seriesId));
+  const tpl = getRecalibrationPrompt();
 
-  const raw = await callOllama({
-    cfg,
-    model: cfg.translateModel,
-    prompt,
-    numCtx: 32768,     // the whole chapter's narration + the bible + the response
-    numPredict: 20480, // re-emitting every page's narration is large: a 12k cap
-                       // truncated a 55-page chapter mid-JSON. Give output most
-                       // of the 32k window — recovery (parseRecalibrationResponse)
-                       // still salvages the pages if a very long chapter
-                       // overruns even this.
-    temperature: 0.4,
-    repeatPenalty: 1.1,
-  });
+  // Weld a run of pages at a time — a whole chapter in one call overruns the
+  // model's reliable structured-output length. ~10 pages per call is safe.
+  const BATCH = 10;
+  const harmonized = new Map<number, string>();
+  let prevTail = ''; // last harmonized narration of the previous batch
 
-  const { pages: harmonized, bible: finalBible } = parseRecalibrationResponse(raw);
+  for (let i = 0; i < pages.length; i += BATCH) {
+    const batch = pages.slice(i, i + BATCH);
+    const precedingContext = prevTail
+      ? `## The story so far\n\nThe chapter up to here has already been told. Just before the pages below, it reaches this moment:\n\n${prevTail}`
+      : '## The story so far\n\nThese are the opening pages of the chapter.';
+    const prompt = fillTemplate(tpl, {
+      title,
+      bible: bibleText,
+      precedingContext,
+      pages: batch.map((p) => `--- Page ${p.page} ---\n${p.narration}`).join('\n\n'),
+    });
+
+    try {
+      const raw = await callOllama({
+        cfg,
+        model: cfg.translateModel,
+        prompt,
+        numCtx: 32768,    // bible + ~10 pages in, ~10 pages out — ample headroom
+        numPredict: 8192, // one batch of harmonized narration
+        temperature: 0.4,
+        repeatPenalty: 1.1,
+      });
+      const { pages: batchPages } = parseRecalibrationResponse(raw);
+      for (const h of batchPages) harmonized.set(h.page, h.narration);
+      // Seam context for the next batch: this batch's last page, harmonized.
+      const lastNum = batch[batch.length - 1].page;
+      if (harmonized.has(lastNum)) prevTail = harmonized.get(lastNum)!;
+    } catch (err) {
+      // A failed batch leaves its pages with their per-page narration.
+      const span = `p${batch[0].page}-${batch[batch.length - 1].page}`;
+      console.warn(`  Recalibrate batch ${span} failed: ${(err as Error).message}`);
+    }
+  }
 
   // Write the harmonized narration back, leaving the bubbles untouched.
-  const byPage = new Map(harmonized.map((h) => [h.page, h.narration]));
   let recalibrated = 0;
   for (const n of pageNums) {
-    const next = byPage.get(n);
-    if (!next) continue; // a page the pass missed keeps its per-page narration
+    const next = harmonized.get(n);
+    if (!next) continue; // a page no batch harmonized keeps its per-page narration
     const t = getCachedTranslation(seriesId, file, n);
     if (!t) continue;
     saveTranslation(seriesId, file, n, { ...t, narration: next });
     recalibrated++;
-  }
-
-  // Refresh only the recap. Re-calibration does NOT rewrite characters or the
-  // glossary — re-emitting the whole bible structure makes the model drop
-  // fields (native names, glossary notes) and only half-merges duplicates. The
-  // cast and glossary are grown by the per-page pass and curated in the Bible
-  // admin UI; re-calibration must not clobber them.
-  if (finalBible && typeof finalBible.recap === 'string' && finalBible.recap.trim()) {
-    const current = loadBible(seriesId);
-    current.recap = finalBible.recap.trim();
-    saveBible(seriesId, current);
   }
 
   return { recalibrated };
