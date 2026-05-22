@@ -730,16 +730,20 @@ export async function recalibrateChapter(
 
   // Weld a run of pages at a time — a whole chapter in one call overruns the
   // model's reliable structured-output length. ~10 pages per call is safe.
-  // Each batch is handed the full story-so-far — everything welded before it —
-  // so it continues one continuous narrative instead of restarting.
+  // Each batch gets only the previous batch's last harmonized page as a
+  // lead-in: a small, bounded context. Handing over the whole story-so-far
+  // ballooned every batch's input — ~10 min per call and the box dropped the
+  // connection. Bounded inputs keep calls fast and reliable.
   const BATCH = 10;
+  const BATCH_ATTEMPTS = 3;
   const harmonized = new Map<number, string>();
-  const storySoFar: string[] = []; // every page welded so far, in reading order
+  let prevTail = ''; // the previous batch's last harmonized page
 
   for (let i = 0; i < pages.length; i += BATCH) {
     const batch = pages.slice(i, i + BATCH);
-    const precedingContext = storySoFar.length
-      ? `## The story so far\n\nThe chapter up to this point has been told as follows — continue it seamlessly, in the same voice:\n\n${storySoFar.join('\n\n')}`
+    const span = `p${batch[0].page}-${batch[batch.length - 1].page}`;
+    const precedingContext = prevTail
+      ? `## The story so far\n\nThe chapter is already underway. Just before the pages below it reaches this moment — continue seamlessly from it:\n\n${prevTail}`
       : '## The story so far\n\nThese are the opening pages of the chapter.';
     const prompt = fillTemplate(tpl, {
       title,
@@ -748,27 +752,33 @@ export async function recalibrateChapter(
       pages: batch.map((p) => `--- Page ${p.page} ---\n${p.narration}`).join('\n\n'),
     });
 
-    try {
-      const raw = await callOllama({
-        cfg,
-        model: cfg.translateModel,
-        prompt,
-        numCtx: 65536,    // the full story-so-far + bible + this batch + output
-        numPredict: 8192, // one batch of harmonized narration
-        temperature: 0.4,
-        repeatPenalty: 1.1,
-      });
-      const { pages: batchPages } = parseRecalibrationResponse(raw);
-      for (const h of batchPages) harmonized.set(h.page, h.narration);
-      // Carry every page this batch welded into the running story-so-far.
-      for (const p of batch) {
-        const h = harmonized.get(p.page);
-        if (h) storySoFar.push(h);
+    // The Ollama box drops long connections under load — retry a transient
+    // batch failure a few times before giving up on it.
+    for (let attempt = 1; attempt <= BATCH_ATTEMPTS; attempt++) {
+      try {
+        const raw = await callOllama({
+          cfg,
+          model: cfg.translateModel,
+          prompt,
+          numCtx: 32768,    // bible + lead-in + this batch + output — bounded
+          numPredict: 8192, // one batch of harmonized narration
+          temperature: 0.4,
+          repeatPenalty: 1.1,
+        });
+        const { pages: batchPages } = parseRecalibrationResponse(raw);
+        for (const h of batchPages) harmonized.set(h.page, h.narration);
+        const lastNum = batch[batch.length - 1].page;
+        if (harmonized.has(lastNum)) prevTail = harmonized.get(lastNum)!;
+        break;
+      } catch (err) {
+        const msg = (err as Error).message;
+        if (attempt < BATCH_ATTEMPTS) {
+          console.warn(`  Recalibrate batch ${span} attempt ${attempt} failed (${msg}) — retrying in ${15 * attempt}s`);
+          await new Promise((r) => setTimeout(r, 15000 * attempt));
+        } else {
+          console.error(`  Recalibrate batch ${span} failed after ${BATCH_ATTEMPTS} attempts: ${msg}`);
+        }
       }
-    } catch (err) {
-      // A failed batch leaves its pages with their per-page narration.
-      const span = `p${batch[0].page}-${batch[batch.length - 1].page}`;
-      console.warn(`  Recalibrate batch ${span} failed: ${(err as Error).message}`);
     }
   }
 
