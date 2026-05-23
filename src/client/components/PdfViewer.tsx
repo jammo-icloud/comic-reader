@@ -58,6 +58,9 @@ interface PdfViewerProps {
   // page — ReaderPage uses this to flow into the next chapter instead of
   // letting the action dead-end at a disabled button.
   onPastEnd?: () => void;
+  // Symmetric: fired when "prev page" is invoked from the first page, so
+  // ReaderPage can flow into the previous chapter's last page.
+  onPastStart?: () => void;
 }
 
 /**
@@ -78,7 +81,7 @@ const DOUBLE_TAP_DIST = 40;
 const DOUBLE_TAP_ZOOM = 2.5;
 
 const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer(
-  { url, initialPage = 0, viewMode, readingDirection = 'ltr', onPageChange, onTotalPagesChange, overlay, onAmbient, onPastEnd },
+  { url, initialPage = 0, viewMode, readingDirection = 'ltr', onPageChange, onTotalPagesChange, overlay, onAmbient, onPastEnd, onPastStart },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -316,7 +319,10 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     if (currentPage < totalPages - 1) goToPage(currentPage + 1);
     else if (onPastEnd) onPastEnd();
   }, [goToPage, currentPage, totalPages, onPastEnd]);
-  const prevPage = useCallback(() => goToPage(currentPage - 1), [goToPage, currentPage]);
+  const prevPage = useCallback(() => {
+    if (currentPage > 0) goToPage(currentPage - 1);
+    else if (onPastStart) onPastStart();
+  }, [goToPage, currentPage, onPastStart]);
 
   // Imperative API for parent toolbar
   useImperativeHandle(

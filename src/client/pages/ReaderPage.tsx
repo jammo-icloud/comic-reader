@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo, type CSSProperties } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   ChevronUp, ChevronDown, Maximize2, ScrollText, Sun, Moon, BookOpen,
@@ -21,6 +21,7 @@ const STORY_BOTTOM_H = '36dvh';
 export default function ReaderPage() {
   const params = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { isDark, toggleDarkLight } = useTheme();
   const seriesId = params.id || '';
   const file = params['*'] || '';
@@ -108,6 +109,17 @@ export default function ReaderPage() {
   const nextChapter = currentIndex < comics.length - 1 ? comics[currentIndex + 1] : null;
   const currentComic = currentIndex >= 0 ? comics[currentIndex] : null;
 
+  // Where to land in this chapter on load:
+  //   #first  → page 0 (sequential forward flip)
+  //   #last   → the chapter's last page (sequential backward flip)
+  //   default → the user's last-read position for this chapter
+  // For #last we set initialPage when the chapter's page count is known up
+  // front; otherwise the apply effect below jumps once the chapter loads.
+  const initialPage =
+    location.hash === '#first' ? 0
+    : location.hash === '#last' && currentComic?.pages ? currentComic.pages - 1
+    : currentComic?.currentPage || 0;
+
   // ----- Progress tracking -----
   const handlePageChange = useCallback(
     (page: number, total: number) => {
@@ -149,6 +161,21 @@ export default function ReaderPage() {
     setAmbient(null);
   }, [file]);
 
+  // ----- Apply the #first/#last landing hint once the chapter has loaded,
+  //       then drop the hash so a later refresh does not re-apply it.
+  const hashAppliedRef = useRef<string | null>(null);
+  useEffect(() => { hashAppliedRef.current = null; }, [file]);
+  useEffect(() => {
+    if (totalPages === 0) return;
+    if (hashAppliedRef.current === file) return;
+    const hash = location.hash;
+    if (hash !== '#first' && hash !== '#last') return;
+    hashAppliedRef.current = file;
+    if (hash === '#last') viewerRef.current?.goToPage(totalPages - 1);
+    // Drop the hash so a refresh doesn't re-fire the jump later.
+    navigate(`/read/${seriesId}/${file}`, { replace: true });
+  }, [location.hash, totalPages, file, navigate, seriesId]);
+
   // ----- Fetch the current page's narration while Story mode is on -----
   useEffect(() => {
     if (!storyOn) { setCurrentTranslation(null); setNarrationLoading(false); return; }
@@ -182,8 +209,13 @@ export default function ReaderPage() {
   }, []);
 
   // ----- Chapter nav -----
-  const goToChapter = (comic: Comic) => {
-    navigate(`/read/${seriesId}/${comic.file}`, { replace: true });
+  // Navigate to a sibling chapter. `at` is the landing hint:
+  //   'first' → start at page 0 (forward flip from the previous chapter's end)
+  //   'last'  → start at the chapter's last page (backward flip)
+  //   undef   → no hint; the user's last-read position is used (toolbar buttons)
+  const goToChapter = (comic: Comic, at?: 'first' | 'last') => {
+    const hash = at ? `#${at}` : '';
+    navigate(`/read/${seriesId}/${comic.file}${hash}`, { replace: true });
   };
 
   // ----- ESC closes -----
@@ -225,14 +257,15 @@ export default function ReaderPage() {
         <PdfViewer
           ref={viewerRef}
           url={getPdfUrl(seriesId, file)}
-          initialPage={currentComic?.currentPage || 0}
+          initialPage={initialPage}
           viewMode={viewMode}
           readingDirection={readingDirection}
           onPageChange={handlePageChange}
           onTotalPagesChange={handleTotalPages}
           overlay={storyOn ? { page: currentPage, highlight: highlightBox } : null}
           onAmbient={storyOn ? setAmbient : undefined}
-          onPastEnd={() => nextChapter && goToChapter(nextChapter)}
+          onPastEnd={() => nextChapter && goToChapter(nextChapter, 'first')}
+          onPastStart={() => prevChapter && goToChapter(prevChapter, 'last')}
         />
       </div>
 
@@ -316,7 +349,7 @@ export default function ReaderPage() {
           {/* Prev page */}
           <button
             onClick={() => viewerRef.current?.prevPage()}
-            disabled={currentPage === 0}
+            disabled={currentPage === 0 && !prevChapter}
             className="p-3 rounded hover:bg-white/10 disabled:opacity-20 transition-colors shrink-0"
             title="Previous page"
           >
