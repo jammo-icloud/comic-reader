@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:server": "tsx watch src/server/index.ts",
+    "dev:server": "SERVER_PORT=5882 tsx watch src/server/index.ts",
     "dev:client": "vite",
     "build": "vite build && tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
+    "start:local": "node --env-file=.env dist/server/index.js",
     "scan": "tsx src/server/scan-cli.ts",
     "splash": "tsx scripts/generate-splash.ts"
   },

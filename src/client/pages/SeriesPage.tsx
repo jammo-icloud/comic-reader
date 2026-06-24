@@ -14,6 +14,7 @@ import {
   retryPartialChapters, refreshSeriesMetadata,
   getSimilarSeries, type SimilarSeriesItem,
 } from '../lib/api';
+import { saveSeriesOffline, removeSeriesOffline, getOfflineSeriesIds } from '../lib/offline';
 import { useAuth } from '../App';
 import SyncSourcePicker from '../components/SyncSourcePicker';
 import SeriesEditModal from '../components/SeriesEditModal';
@@ -67,6 +68,8 @@ export default function SeriesPage() {
   // Offline-save state (admin menu)
   const [offlineState, setOfflineState] = useState<'idle' | 'saving' | 'done'>('idle');
   const [offlineProgress, setOfflineProgress] = useState({ done: 0, total: 0 });
+  const [savedOffline, setSavedOffline] = useState(false);
+  useEffect(() => { if (id) getOfflineSeriesIds().then((ids) => setSavedOffline(ids.has(id))); }, [id]);
 
   // Favorite + Add-to-library state (any logged-in user — not gated to admin)
   const [favBusy, setFavBusy] = useState(false);
@@ -296,23 +299,25 @@ export default function SeriesPage() {
   };
 
   const handleSaveOffline = async () => {
-    if (!id || typeof caches === 'undefined' || comics.length === 0) return;
+    if (!id || !series || typeof caches === 'undefined' || comics.length === 0) return;
     setOfflineState('saving');
     setOfflineProgress({ done: 0, total: comics.length });
-    const cache = await caches.open('pdf-cache');
-    for (let i = 0; i < comics.length; i++) {
-      const url = `/api/comics/read/${id}/${comics[i].file}`;
-      try {
-        const existing = await cache.match(url);
-        if (!existing) {
-          const response = await fetch(url);
-          if (response.ok) await cache.put(url, response);
-        }
-      } catch { /* skip failures, keep going */ }
-      setOfflineProgress({ done: i + 1, total: comics.length });
+    try {
+      await saveSeriesOffline(series, comics, setOfflineProgress);
+      setSavedOffline(true);
+      setOfflineState('done');
+      setTimeout(() => setOfflineState('idle'), 4000);
+    } catch (err) {
+      console.error('Save offline failed:', err);
+      setOfflineState('idle');
     }
-    setOfflineState('done');
-    setTimeout(() => setOfflineState('idle'), 4000);
+  };
+
+  const handleRemoveOffline = async () => {
+    if (!id) return;
+    await removeSeriesOffline(id);
+    setSavedOffline(false);
+    setOfflineState('idle');
   };
 
   const handleToggleRead = (file: string, isRead: boolean) => {
@@ -437,21 +442,31 @@ export default function SeriesPage() {
                 },
               ];
               if (typeof caches !== 'undefined' && comics.length > 0) {
-                items.push({
-                  icon: offlineState === 'saving'
-                    ? <Loader size={15} className="animate-spin" />
-                    : offlineState === 'done'
-                      ? <CheckCircle size={15} className="text-success" />
-                      : <Download size={15} />,
-                  label: offlineState === 'saving'
-                    ? `Saving ${offlineProgress.done}/${offlineProgress.total}…`
-                    : offlineState === 'done'
-                      ? 'Saved offline'
-                      : `Save all ${comics.length} offline`,
-                  onClick: () => { if (offlineState === 'idle') handleSaveOffline(); },
-                  disabled: offlineState !== 'idle',
-                  keepOpen: true,
-                });
+                if (savedOffline && offlineState === 'idle') {
+                  items.push({
+                    icon: <CheckCircle size={15} className="text-success" />,
+                    label: 'Saved offline · Remove download',
+                    hint: 'Frees up cached space',
+                    onClick: handleRemoveOffline,
+                    keepOpen: true,
+                  });
+                } else {
+                  items.push({
+                    icon: offlineState === 'saving'
+                      ? <Loader size={15} className="animate-spin" />
+                      : offlineState === 'done'
+                        ? <CheckCircle size={15} className="text-success" />
+                        : <Download size={15} />,
+                    label: offlineState === 'saving'
+                      ? `Saving ${offlineProgress.done}/${offlineProgress.total}…`
+                      : offlineState === 'done'
+                        ? 'Saved offline'
+                        : `Save all ${comics.length} offline`,
+                    onClick: () => { if (offlineState === 'idle') handleSaveOffline(); },
+                    disabled: offlineState !== 'idle',
+                    keepOpen: true,
+                  });
+                }
               }
               if (comics.length > 0) {
                 items.push({

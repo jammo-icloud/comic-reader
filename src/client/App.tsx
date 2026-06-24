@@ -10,6 +10,7 @@ import BibleEditorPage from './pages/BibleEditorPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import OfflineIndicator from './components/OfflineIndicator';
+import { flushProgressQueue } from './lib/offline';
 
 interface AuthState {
   authenticated: boolean;
@@ -61,6 +62,18 @@ export default function App() {
         setAuth((prev) => ({ ...prev, loading: false }));
       });
   }, []);
+
+  // Flush any reading-progress writes that were queued while offline — once on
+  // load (covers a reload after the network came back) and whenever we
+  // reconnect. Only meaningful when authenticated; the server rejects anonymous
+  // writes anyway, so they'd just stay queued until login.
+  useEffect(() => {
+    if (!auth.authenticated) return;
+    flushProgressQueue();
+    const onOnline = () => { flushProgressQueue(); };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [auth.authenticated]);
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});

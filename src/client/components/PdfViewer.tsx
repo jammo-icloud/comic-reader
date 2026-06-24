@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+// Bundle the worker as a same-origin asset (Vite emits a hashed URL) instead of
+// fetching it from a CDN — a CDN worker is unreachable offline, which left the
+// reader with a blank canvas. Served from our origin, it gets precached too.
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { BBox } from '../lib/api';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 export type ViewMode = 'fit' | 'scroll';
 export type ReadingDirection = 'ltr' | 'rtl';
@@ -220,7 +224,19 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setCurrentPage(initialPage);
     setZoom(1);
     setPan({ x: 0, y: 0 });
-    pdfjsLib.getDocument(url).promise.then((doc) => {
+    // Cache-first: if the PDF is in any cache (the sticky offline cache or the
+    // runtime pdf-cache), render from those bytes directly. This makes saved
+    // series openable with no network — and doesn't depend on the service
+    // worker intercepting the request — while online reads still fall through
+    // to the URL. pdf.js loads the whole file into memory, fine for a chapter.
+    const load = async () => {
+      try {
+        const hit = typeof caches !== 'undefined' ? await caches.match(url) : undefined;
+        if (hit) return pdfjsLib.getDocument({ data: await hit.arrayBuffer() }).promise;
+      } catch { /* fall through to network */ }
+      return pdfjsLib.getDocument(url).promise;
+    };
+    load().then((doc) => {
       if (cancelled) return;
       pdfDocRef.current = doc;
       setTotalPages(doc.numPages);

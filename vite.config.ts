@@ -38,7 +38,9 @@ export default defineConfig({
       },
       workbox: {
         // Cache app shell (JS, CSS, HTML)
-        globPatterns: ['**/*.{js,css,html,png,jpg,svg,woff,woff2}'],
+        // .mjs covers the bundled pdf.js worker — it must be precached or the
+        // reader can't render PDFs offline.
+        globPatterns: ['**/*.{js,mjs,css,html,png,jpg,svg,woff,woff2}'],
         // Login-bg art lives in subdirectories under public/login-bg/ and is
         // served on-demand via /api/auth/login-bg/* endpoints. Precaching all
         // of it would balloon the SW precache by ~120 MB for content the user
@@ -50,7 +52,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
 
         runtimeCaching: [
-          // Cache API responses (library data, series info) — network-first, fall back to cache
+          // Cache API responses (library lists, continue-reading) — network-first,
+          // fall back to cache.
           {
             urlPattern: /^\/api\/(comics|series|continue-reading|shelves)(\?.*)?$/,
             handler: 'NetworkFirst',
@@ -60,18 +63,33 @@ export default defineConfig({
               networkTimeoutSeconds: 3,
             },
           },
-          // Cache series covers — cache-first (they rarely change)
+          // Series detail + chapter list (/api/series/:id and /:id/comics). The
+          // list rule above is anchored, so these per-series reads need their own
+          // rule — without it a series can't be opened offline even when its PDFs
+          // are cached (it's the table of contents the reader navigates by).
           {
-            urlPattern: /^\/api\/series-cover\//,
+            urlPattern: /^\/api\/series\/[^/]+(\/comics)?$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-data',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 }, // 7 days
+              networkTimeoutSeconds: 3,
+            },
+          },
+          // Cache series covers — cache-first (they rarely change). The app serves
+          // covers from /static/covers/ when the file is known, falling back to
+          // the /api/series-cover/ route, so match both.
+          {
+            urlPattern: /^\/(static\/covers|api\/series-cover)\//,
             handler: 'CacheFirst',
             options: {
               cacheName: 'series-covers',
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 }, // 30 days
+              expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 30 }, // 30 days
             },
           },
-          // Cache thumbnails — cache-first
+          // Cache thumbnails — cache-first. Same static-vs-api split as covers.
           {
-            urlPattern: /^\/api\/thumbnails\//,
+            urlPattern: /^\/(static\/thumbnails|api\/thumbnails)\//,
             handler: 'CacheFirst',
             options: {
               cacheName: 'thumbnails',
@@ -111,12 +129,16 @@ export default defineConfig({
   server: {
     port: 5880,
     proxy: {
-      '/api': 'http://localhost:3000',
+      // Bindery's dev API runs on 5882 (set via SERVER_PORT in the dev:server
+      // script). It is deliberately NOT 3000 — that port collides constantly
+      // with other local projects. Production is unaffected: `npm start` uses
+      // index.ts's own default port and never touches this dev proxy.
+      '/api': 'http://localhost:5882',
       // Express serves cover/thumbnail files at /static — proxy so dev mirrors prod.
       // Without this, Vite's SPA fallback returns index.html for /static/covers/*.jpg
       // and <img> tags fail silently. Works fine on the NAS because Express serves
       // both /static and the SPA from one process.
-      '/static': 'http://localhost:3000',
+      '/static': 'http://localhost:5882',
     },
   },
 });

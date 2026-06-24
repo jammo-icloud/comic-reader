@@ -1,14 +1,27 @@
 import type { Series, Comic, ContinueReadingItem, PendingImport, MangaDexManga, MangaDexChapter, RecommendedItem } from './types';
+import { enqueueProgress } from './offline';
 
 const BASE = '/api';
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + url, init);
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.error || `API error: ${res.status}`);
+  const method = (init?.method || 'GET').toUpperCase();
+  try {
+    const res = await fetch(BASE + url, init);
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || `API error: ${res.status}`);
+    }
+    return res.json();
+  } catch (err) {
+    // Offline fallback: for reads, serve a cached copy if one exists anywhere
+    // (an explicit offline snapshot, or a Workbox NetworkFirst entry). Mutations
+    // must not be satisfied from cache, so only GETs fall back.
+    if (method === 'GET' && typeof caches !== 'undefined') {
+      const cached = await caches.match(BASE + url);
+      if (cached) return cached.json();
+    }
+    throw err;
   }
-  return res.json();
 }
 
 function encodePath(p: string): string {
@@ -498,16 +511,24 @@ export function getContinueReading(): Promise<ContinueReadingItem[]> {
 
 // ==================== Reading Progress ====================
 
-export function updateProgress(
+export async function updateProgress(
   seriesId: string,
   file: string,
   data: { currentPage?: number; isRead?: boolean; pageCount?: number },
 ): Promise<void> {
-  return fetchJson(`/comics/progress/${seriesId}/${encodePath(file)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
+  try {
+    const res = await fetch(`${BASE}/comics/progress/${seriesId}/${encodePath(file)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(`Progress update failed: ${res.status}`);
+  } catch {
+    // Offline (or the server's down): queue the write and flush on reconnect so
+    // the reader never loses the user's place. Resolves quietly — a failed
+    // progress write must not surface as a reading error.
+    enqueueProgress(seriesId, file, data);
+  }
 }
 
 // ==================== URLs ====================

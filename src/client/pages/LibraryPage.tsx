@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Download, Pin } from 'lucide-react';
 import type { Series, ContinueReadingItem } from '../lib/types';
 import { getSeries, getContinueReading, getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
+import { getOfflineSeriesIds, getOfflineLibrary } from '../lib/offline';
 import NotificationDropdown from '../components/NotificationDropdown';
 import ProfileMenu from '../components/ProfileMenu';
 import ContinueShelf from '../components/ContinueShelf';
@@ -48,6 +49,10 @@ export default function LibraryPage() {
     return localStorage.getItem('bindery-pinned-only') === '1';
   });
 
+  // Offline-only filter — not persisted: it's a transient "I'm on a plane" view,
+  // not a standing preference.
+  const [offlineOnly, setOfflineOnly] = useState(false);
+
   useEffect(() => { localStorage.setItem('bindery-type-filter', typeFilter); }, [typeFilter]);
   useEffect(() => { localStorage.setItem('bindery-library-sort', sortBy); }, [sortBy]);
   useEffect(() => { localStorage.setItem('bindery-hide-caught-up', hideCaughtUp ? '1' : '0'); }, [hideCaughtUp]);
@@ -56,12 +61,18 @@ export default function LibraryPage() {
   // ----- Data load -----
 
   const loadData = useCallback(async () => {
-    const [series, cont] = await Promise.all([
-      getSeries(typeFilter),
-      getContinueReading(),
-    ]);
-    setSeriesList(series);
-    setContinueReading(cont);
+    // Continue-reading is best-effort — it's a peripheral shelf, never a reason
+    // to fail the page.
+    getContinueReading().then(setContinueReading).catch(() => setContinueReading([]));
+    try {
+      setSeriesList(await getSeries(typeFilter));
+    } catch {
+      // Offline and the live list isn't cached: fall back to the saved-offline
+      // manifest so the user sees their downloads instead of the empty-library
+      // onboarding screen.
+      const offline = await getOfflineLibrary();
+      setSeriesList(offline.filter((s) => s.type === typeFilter));
+    }
   }, [typeFilter]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -69,21 +80,17 @@ export default function LibraryPage() {
   // Reset tag filters when switching type — tags are type-specific
   useEffect(() => { setTagFilters(new Set()); }, [typeFilter]);
 
-  // ----- Offline cache map (which series have any cached PDF) -----
+  // ----- Saved-offline set (from the offline manifest) -----
+  // The manifest is the source of truth for "explicitly saved for offline" —
+  // distinct from the volatile pdf-cache (casual recently-read chapters), which
+  // gets LRU-evicted. Re-read on focus so a save/remove elsewhere reflects here.
   const [offlineSeries, setOfflineSeries] = useState<Set<string>>(new Set());
   useEffect(() => {
-    if (typeof caches === 'undefined' || seriesList.length === 0) return;
-    (async () => {
-      const cache = await caches.open('pdf-cache');
-      const keys = await cache.keys();
-      const ids = new Set<string>();
-      for (const req of keys) {
-        const match = req.url.match(/\/api\/comics\/read\/([^/]+)\//);
-        if (match) ids.add(match[1]);
-      }
-      setOfflineSeries(ids);
-    })();
-  }, [seriesList]);
+    const sync = () => { getOfflineSeriesIds().then(setOfflineSeries); };
+    sync();
+    window.addEventListener('focus', sync);
+    return () => window.removeEventListener('focus', sync);
+  }, []);
 
   // ----- Tag universe + filtered + sorted -----
 
@@ -120,8 +127,11 @@ export default function LibraryPage() {
     if (pinnedOnly) {
       list = list.filter((s) => s.isPinned);
     }
+    if (offlineOnly) {
+      list = list.filter((s) => offlineSeries.has(s.id));
+    }
     return list;
-  }, [seriesList, search, tagFilters, hideCaughtUp, pinnedOnly]);
+  }, [seriesList, search, tagFilters, hideCaughtUp, pinnedOnly, offlineOnly, offlineSeries]);
 
   const sortedFiltered = useMemo(() => {
     const arr = filtered.slice();
@@ -136,7 +146,7 @@ export default function LibraryPage() {
     return arr;
   }, [filtered, sortBy]);
 
-  const isFiltered = !!search || tagFilters.size > 0 || hideCaughtUp || pinnedOnly;
+  const isFiltered = !!search || tagFilters.size > 0 || hideCaughtUp || pinnedOnly || offlineOnly;
   const showContinueShelf = continueReading.length > 0 && !isFiltered;
 
   const toggleTag = (tag: string) => {
@@ -191,6 +201,9 @@ export default function LibraryPage() {
         onHideCaughtUpChange={setHideCaughtUp}
         pinnedOnly={pinnedOnly}
         onPinnedOnlyChange={setPinnedOnly}
+        offlineOnly={offlineOnly}
+        onOfflineOnlyChange={setOfflineOnly}
+        offlineCount={offlineSeries.size}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-5 space-y-6">
