@@ -626,9 +626,25 @@ export default function SeriesPage() {
               </Button>
             )}
             {series.inCollection && (
-              <Badge intent="success" pill>
-                <Check size={12} /> In your library
-              </Badge>
+              <span
+                title="In your library"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  minHeight: 44,
+                  padding: '0 16px',
+                  borderRadius: 12,
+                  background: 'rgb(var(--success) / 0.15)',
+                  color: 'var(--color-success)',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <Check size={16} strokeWidth={2.5} />
+                <span className="hidden sm:inline">In your library</span>
+              </span>
             )}
 
             <IconButton
@@ -657,10 +673,26 @@ export default function SeriesPage() {
               </Button>
             )}
             {isAdmin && series.syncSource && (
-              <Badge intent="accent-soft" pill>
-                <Bell size={12} />
-                <span className="capitalize">{series.syncSource.sourceId}</span>
-              </Badge>
+              <span
+                title={`Subscribed via ${series.syncSource.sourceId}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  minHeight: 44,
+                  padding: '0 16px',
+                  borderRadius: 12,
+                  background: 'rgb(var(--accent) / 0.15)',
+                  color: 'var(--color-accent)',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  textTransform: 'capitalize',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <Bell size={16} />
+                {series.syncSource.sourceId}
+              </span>
             )}
 
             {/* ⋯ More — admin tools dropdown */}
