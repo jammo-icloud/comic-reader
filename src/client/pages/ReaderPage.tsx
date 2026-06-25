@@ -249,7 +249,17 @@ export default function ReaderPage() {
     : `calc(${trayBase})`;
 
   return (
-    <div className="h-[100dvh] w-screen bg-white dark:bg-black overflow-hidden relative">
+    <div
+      className="w-screen overflow-hidden relative"
+      style={{
+        height: '100dvh',
+        // The reader is theme-independent dark chrome (Bindery prototype):
+        // page art reads cleanest on near-black regardless of the user's
+        // global theme. Forced #0a0a0a instead of bg-white dark:bg-black.
+        background: '#0a0a0a',
+        color: '#fff',
+      }}
+    >
       {/* PDF viewer — shrinks to leave room for the toolbar and, in Story
           mode, the narration panel. PdfViewer's ResizeObserver re-renders the
           current page at the new fit-scale whenever this box changes. */}
@@ -295,14 +305,23 @@ export default function ReaderPage() {
           standalone PWA mode (status-bar-style: black-translucent). */}
       <button
         onClick={() => navigate(`/series/${seriesId}`)}
-        className="absolute z-30 p-2 rounded-full bg-black/40 backdrop-blur-sm text-white hover:bg-black/60 transition-all"
+        className="absolute z-30 transition-all inline-flex items-center justify-center"
         style={{
           top: 'max(0.75rem, env(safe-area-inset-top))',
           left: 'max(0.75rem, env(safe-area-inset-left))',
+          padding: 10,
+          borderRadius: '50%',
+          background: 'rgb(0 0 0 / 0.5)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          color: '#fff',
+          border: 'none',
+          cursor: 'pointer',
+          boxShadow: 'var(--shadow-lg)',
         }}
         title={series?.name || 'Back'}
       >
-        <ArrowLeft size={18} />
+        <ArrowLeft size={20} />
       </button>
 
       {/* Persistent tray toggle — always visible, toggles toolbar.
@@ -328,13 +347,40 @@ export default function ReaderPage() {
           - paddingLeft/Right honor safe-area-inset-left/right so landscape iPhone
             with rounded corners doesn't clip the outermost buttons. */}
       <div
-        className={`absolute left-0 right-0 bottom-0 z-30 pt-3 bg-gray-900/90 dark:bg-black/90 backdrop-blur-md border-t border-white/10 transition-all text-white ${uiVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}
+        className={`absolute left-0 right-0 bottom-0 z-30 transition-all text-white ${uiVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}
         style={{
+          // Deeper black + tighter blur, matching the Bindery prototype.
+          background: 'rgb(0 0 0 / 0.9)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderTop: '1px solid rgb(255 255 255 / 0.08)',
+          paddingTop: 12,
           paddingLeft: 'max(0.5rem, env(safe-area-inset-left))',
           paddingRight: 'max(0.5rem, env(safe-area-inset-right))',
           paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)',
         }}
       >
+        {/* Chapter context strip — series name + ordinal, centered above the
+            slider row. Matches the Bindery prototype's "Series · Chapter N". */}
+        {series && currentComic && (
+          <div
+            className="text-center"
+            style={{
+              fontSize: 12,
+              opacity: 0.7,
+              marginBottom: 8,
+              padding: '0 12px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {series.name}
+            {currentComic.order > 0 && (
+              <> · Chapter <span className="bindery-nums">{currentComic.order}</span></>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-1 sm:gap-1.5">
           {/* Prev chapter */}
           <button
