@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle,
+  RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle,
   Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge, Wrench,
-  BookOpen, Tag, Link as LinkIcon, Bell,
+  BookOpen, Tag, Link as LinkIcon, Bell, ChevronDown, Rss,
 } from 'lucide-react';
 import {
   getAdminStats, getAdminTasks, deleteAdminTask, retryAdminTask, cancelAdminTask, clearAdminTasks,
@@ -17,14 +17,15 @@ import StickyToolbar from '../components/StickyToolbar';
 import ToolbarIconButton from '../components/ToolbarIconButton';
 import ConfirmSheet from '../components/ConfirmSheet';
 import SeriesAdminRow from '../components/SeriesAdminRow';
-import ProfileMenu from '../components/ProfileMenu';
-import Avatar from '../components/Avatar';
+import { Avatar, Button } from '../components/ds';
 
 type Tab = 'library' | 'tasks' | 'subscriptions' | 'users';
 
-// Header height (row 1 ~52px + row 2 ~44px). Used as topPx offset for the
-// per-tab sticky toolbar so it pins right below the page header.
-const HEADER_PX = 96;
+// Single-row admin chrome (~48px tabs strip) pinned below the 48px global
+// Bindery header. Per-tab toolbars stack below the admin row at 96px.
+const ADMIN_HEADER_PX = 48;
+const GLOBAL_HEADER_PX = 48;
+const HEADER_PX = ADMIN_HEADER_PX + GLOBAL_HEADER_PX;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -231,98 +232,92 @@ export default function AdminPage() {
     }
   }, [mergeSelected, selectMode, catalog]);
 
+  // Bulk-maintenance tools — surfaced through the inline "Tools" Button in the
+  // admin chrome (next to the tab strip). The global Bindery header handles
+  // identity / nav / theme, so these don't belong in a profile menu.
+  const toolsItems = [
+    {
+      key: 'maintenance',
+      icon: maintaining ? <Loader size={15} className="animate-spin" /> : <Wrench size={15} />,
+      label: 'Run maintenance',
+      hint: 'Page counts, thumbs, orphans',
+      onClick: () => runBulk(setMaintaining, adminMaintenance, false),
+      disabled: maintaining,
+    },
+    {
+      key: 'cleanup',
+      icon: cleaning ? <Loader size={15} className="animate-spin" /> : <Sparkles size={15} />,
+      label: 'Cleanup',
+      hint: 'Remove orphaned files & data',
+      onClick: () => runBulk(setCleaning, adminCleanup),
+      disabled: cleaning,
+    },
+    {
+      key: 'rescan',
+      icon: rescanning ? <Loader size={15} className="animate-spin" /> : <RefreshCw size={15} />,
+      label: 'Rescan library',
+      hint: 'Re-detect all files on disk',
+      onClick: () => runBulk(setRescanning, adminRescan),
+      disabled: rescanning,
+    },
+    {
+      key: 'enrich',
+      icon: enriching ? <Loader size={15} className="animate-spin" /> : <Database size={15} />,
+      label: 'Re-enrich all',
+      hint: 'Refetch metadata from MAL',
+      onClick: () => runBulk(setEnriching, () => adminEnrich(true)),
+      disabled: enriching,
+      destructive: true,
+    },
+    {
+      key: 'syncAll',
+      icon: syncingAll ? <Loader size={15} className="animate-spin" /> : <Rss size={15} />,
+      label: 'Sync all subscriptions',
+      hint: 'Poll every source for new chapters',
+      onClick: async () => {
+        setSyncingAll(true);
+        try { await adminSyncAll(); }
+        finally { setSyncingAll(false); }
+        setTimeout(() => { getAdminSubscriptions().then(setSubscriptions); }, 2000);
+      },
+      disabled: syncingAll,
+    },
+  ];
+
   return (
-    <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+    <div style={{ minHeight: '100dvh', background: 'var(--bg-page)', color: 'var(--text-body)' }}>
 
       {/* ========================================================================
-          PAGE HEADER — sticky, two rows
-          Row 1: [←] Admin v…  …  [⋯]
-          Row 2: tab strip (Library | Tasks | Subscriptions | Users)
-          Sticky at top:0, z-30.
+          PAGE HEADER — single sticky row pinned BELOW the global Bindery header.
+          Tabs + version on the left, Tools dropdown on the right.
           ======================================================================== */}
       <header
-        className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        className="sticky z-20"
+        style={{
+          top: GLOBAL_HEADER_PX,
+          paddingTop: 'env(safe-area-inset-top)',
+          background: 'var(--chrome-bg)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderBottom: '1px solid var(--border-default)',
+        }}
       >
-        {/* Row 1 */}
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-2 flex items-center gap-2">
-          <button
-            onClick={() => navigate('/')}
-            aria-label="Back to library"
-            title="Library"
-            className="p-2 -ml-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 transition-colors"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <h1 className="text-lg sm:text-xl font-bold">Admin</h1>
-          {stats?.version && (
-            <span className="text-[11px] text-gray-400 dark:text-gray-600 font-mono">v{stats.version}</span>
-          )}
-          <div className="flex-1" />
-          {/* ProfileMenu — replaces the old ⋯ + nested UserMenu.
-              Bulk actions are injected as the first section; identity / nav
-              / theme / settings / sign-out come from the menu itself. */}
-          <ProfileMenu
-            sections={[
-              {
-                title: 'Library tools',
-                items: [
-                  {
-                    icon: maintaining ? <Loader size={15} className="animate-spin" /> : <Wrench size={15} />,
-                    label: 'Run maintenance',
-                    hint: 'Page counts, thumbs, orphans',
-                    onClick: () => runBulk(setMaintaining, adminMaintenance, false),
-                    disabled: maintaining,
-                    keepOpen: true,
-                  },
-                  {
-                    icon: cleaning ? <Loader size={15} className="animate-spin" /> : <Sparkles size={15} />,
-                    label: 'Cleanup',
-                    hint: 'Remove orphaned files & data',
-                    onClick: () => runBulk(setCleaning, adminCleanup),
-                    disabled: cleaning,
-                    keepOpen: true,
-                  },
-                  {
-                    icon: rescanning ? <Loader size={15} className="animate-spin" /> : <RefreshCw size={15} />,
-                    label: 'Rescan library',
-                    hint: 'Re-detect all files on disk',
-                    onClick: () => runBulk(setRescanning, adminRescan),
-                    disabled: rescanning,
-                    keepOpen: true,
-                  },
-                  {
-                    icon: enriching ? <Loader size={15} className="animate-spin" /> : <Database size={15} />,
-                    label: 'Re-enrich all',
-                    hint: 'Refetch metadata from MAL',
-                    onClick: () => runBulk(setEnriching, () => adminEnrich(true)),
-                    disabled: enriching,
-                    keepOpen: true,
-                    destructive: true,
-                  },
-                  {
-                    icon: syncingAll ? <Loader size={15} className="animate-spin" /> : <RefreshCw size={15} />,
-                    label: 'Sync all subscriptions',
-                    onClick: async () => {
-                      setSyncingAll(true);
-                      try { await adminSyncAll(); }
-                      finally { setSyncingAll(false); }
-                      setTimeout(() => { getAdminSubscriptions().then(setSubscriptions); }, 2000);
-                    },
-                    disabled: syncingAll,
-                  },
-                ],
-              },
-            ]}
-          />
-        </div>
+        <div className="max-w-6xl mx-auto px-3 sm:px-6 flex items-center gap-2">
+          {/* Tab strip — flex-1 so it consumes the row's horizontal space */}
+          <div className="flex overflow-x-auto no-scrollbar flex-1">
+            <TabButton active={tab === 'library'} onClick={() => setTab('library')}>Library</TabButton>
+            <TabButton active={tab === 'tasks'} onClick={() => setTab('tasks')}>Tasks</TabButton>
+            <TabButton active={tab === 'subscriptions'} onClick={() => setTab('subscriptions')}>Subscriptions</TabButton>
+            <TabButton active={tab === 'users'} onClick={() => setTab('users')}>Users</TabButton>
+          </div>
 
-        {/* Row 2: tab strip */}
-        <div className="max-w-6xl mx-auto px-1 sm:px-3 flex overflow-x-auto no-scrollbar">
-          <TabButton active={tab === 'library'} onClick={() => setTab('library')}>Library</TabButton>
-          <TabButton active={tab === 'tasks'} onClick={() => setTab('tasks')}>Tasks</TabButton>
-          <TabButton active={tab === 'subscriptions'} onClick={() => setTab('subscriptions')}>Subscriptions</TabButton>
-          <TabButton active={tab === 'users'} onClick={() => setTab('users')}>Users</TabButton>
+          {stats?.version && (
+            <span className="font-mono shrink-0" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              v{stats.version}
+            </span>
+          )}
+
+          <ToolsMenu items={toolsItems} />
         </div>
       </header>
 
@@ -985,6 +980,108 @@ function LibraryToolbar({
         <GitMerge size={16} />
       </ToolbarIconButton>
     </>
+  );
+}
+
+/**
+ * Inline "Tools" Button + dropdown in the admin chrome — bulk-maintenance
+ * actions that don't belong in the global profile menu. Each item carries
+ * its own icon (often a spinner while busy) and disabled state; clicking an
+ * item runs it without dismissing the menu (so the user sees the spinner).
+ */
+interface ToolItem {
+  key: string;
+  icon: React.ReactNode;
+  label: string;
+  hint?: string;
+  onClick: () => void | Promise<void>;
+  disabled?: boolean;
+  destructive?: boolean;
+}
+
+function ToolsMenu({ items }: { items: ToolItem[] }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onClick = () => setOpen(false);
+    const t = setTimeout(() => window.addEventListener('click', onClick), 0);
+    return () => { clearTimeout(t); window.removeEventListener('click', onClick); };
+  }, [open]);
+
+  return (
+    <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+      <Button
+        variant="secondary"
+        size="sm"
+        iconLeft={<Wrench size={15} />}
+        iconRight={<ChevronDown size={14} />}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="hidden sm:inline">Tools</span>
+      </Button>
+      {open && (
+        <div
+          role="menu"
+          style={{
+            position: 'absolute', right: 0, top: 'calc(100% + 4px)',
+            width: 280, zIndex: 30,
+            background: 'var(--surface-raised)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 12,
+            boxShadow: 'var(--shadow-2xl)',
+            overflow: 'hidden',
+            padding: '4px 0',
+          }}
+        >
+          <div className="by-kicker" style={{ padding: '8px 14px 4px' }}>Library tools</div>
+          {items.map((it) => (
+            <button
+              key={it.key}
+              onClick={() => { it.onClick(); /* keep open while the spinner runs */ }}
+              disabled={it.disabled}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '9px 14px',
+                background: 'none',
+                border: 'none',
+                textAlign: 'left',
+                cursor: it.disabled ? 'not-allowed' : 'pointer',
+                opacity: it.disabled ? 0.5 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (it.disabled) return;
+                (e.currentTarget as HTMLButtonElement).style.background = it.destructive
+                  ? 'rgb(var(--danger) / 0.1)'
+                  : 'var(--bg-subtle)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'none';
+              }}
+            >
+              <span
+                style={{
+                  color: it.destructive ? 'var(--color-danger)' : 'var(--text-tertiary)',
+                  display: 'inline-flex',
+                }}
+              >
+                {it.icon}
+              </span>
+              <span style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: 14, color: it.destructive ? 'var(--color-danger)' : 'var(--text-body)' }}>
+                  {it.label}
+                </span>
+                {it.hint && (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{it.hint}</span>
+                )}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
