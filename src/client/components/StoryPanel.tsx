@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronDown, MessageSquare, Pause, Play, Repeat, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { BookOpen, Crosshair, Pause, Repeat, Sparkles, Volume2, X } from 'lucide-react';
 import type { TranslatedBubble } from '../lib/api';
 
 /**
@@ -48,7 +48,6 @@ export default function StoryPanel({
 }: StoryPanelProps) {
   const [playState, setPlayState] = useState<PlayState>('idle');
   const [autoAdvance, setAutoAdvance] = useState(false);
-  const [showCitations, setShowCitations] = useState(false);
 
   // The model writes a flowing passage; render its newline-separated chunks
   // as paragraphs so a multi-beat page reads with real spacing.
@@ -134,93 +133,162 @@ export default function StoryPanel({
   }, [playState]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-gray-950 text-gray-100">
-      {/* Ambient backdrop — a blurred wash of the page's own colours. */}
+    <div
+      style={{
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        background: '#0e0d0c',
+        color: '#fff',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Ambient blurred backdrop — the current page's own colours wash
+          behind the narration. */}
       {ambient && (
         <div
-          className="absolute inset-0 scale-125 bg-cover bg-center opacity-50 blur-2xl"
-          style={{ backgroundImage: `url(${ambient})` }}
           aria-hidden
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage: `url(${ambient})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            filter: 'blur(40px) brightness(0.4) saturate(1.2)',
+            opacity: 0.5,
+            transform: 'scale(1.2)',
+          }}
         />
       )}
-      <div className="absolute inset-0 bg-gray-950/85" aria-hidden />
 
-      <div className="relative flex h-full flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-3">
-          <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-gray-400">
-            <BookOpen size={13} />
-            <span>Story</span>
-            <span className="text-gray-600">·</span>
-            <span className="tabular-nums text-gray-300">Page {page + 1}</span>
-          </div>
+      <div
+        style={{
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+        }}
+      >
+        {/* Header — book-open icon + page meta + read-aloud + auto-advance + close */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '14px 16px',
+            borderBottom: '1px solid rgb(255 255 255 / 0.08)',
+          }}
+        >
+          <span style={{ display: 'inline-flex', color: 'rgb(var(--accent))' }}>
+            <BookOpen size={16} />
+          </span>
+          <span
+            className="bindery-nums"
+            style={{ fontSize: 13, fontWeight: 600, flex: 1 }}
+          >
+            Story · Page {page + 1}
+          </span>
+          {speechSupported && (
+            <>
+              <button
+                onClick={() => setAutoAdvance((v) => !v)}
+                aria-pressed={autoAdvance}
+                title="Auto-advance to the next page when narration finishes"
+                style={{
+                  ...storyIconBtn,
+                  background: autoAdvance
+                    ? 'rgb(var(--accent) / 0.3)'
+                    : storyIconBtn.background,
+                  color: autoAdvance ? 'rgb(var(--accent))' : storyIconBtn.color,
+                }}
+              >
+                <Repeat size={14} />
+              </button>
+              <button
+                onClick={togglePlay}
+                disabled={!narration}
+                title={
+                  playState === 'playing' ? 'Pause' :
+                  playState === 'paused' ? 'Resume' : 'Read aloud'
+                }
+                aria-label={playState === 'playing' ? 'Pause' : 'Read aloud'}
+                style={{
+                  ...storyIconBtn,
+                  background: playState === 'playing'
+                    ? 'rgb(var(--accent))'
+                    : storyIconBtn.background,
+                  opacity: narration ? 1 : 0.4,
+                }}
+              >
+                {playState === 'playing' ? <Pause size={14} /> : <Volume2 size={14} />}
+              </button>
+            </>
+          )}
           <button
             onClick={onClose}
             title="Exit Story mode"
             aria-label="Exit Story mode"
-            className="rounded p-1 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+            style={storyIconBtn}
           >
-            <X size={16} />
+            <X size={14} />
           </button>
         </div>
 
-        {/* Read-aloud controls */}
-        {speechSupported && (
-          <div className="flex items-center gap-2 px-4 pb-2">
-            <button
-              onClick={togglePlay}
-              disabled={!narration}
-              className="flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-sm font-medium text-white transition-opacity disabled:opacity-30"
-            >
-              {playState === 'playing' ? <Pause size={15} /> : <Play size={15} />}
-              {playState === 'playing' ? 'Pause' : playState === 'paused' ? 'Resume' : 'Read aloud'}
-            </button>
-            <button
-              onClick={() => setAutoAdvance((v) => !v)}
-              title="Auto-advance to the next page when narration finishes"
-              aria-pressed={autoAdvance}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                autoAdvance ? 'bg-accent text-white' : 'bg-white/10 text-gray-300 hover:bg-white/15'
-              }`}
-            >
-              <Repeat size={13} />
-              Auto
-            </button>
-          </div>
-        )}
-
-        {/* Narration — the heart of Story mode */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3">
+        {/* Scrolling body — serif narration + numbered bubble chips */}
+        <div
+          className="no-scrollbar"
+          style={{ flex: 1, overflowY: 'auto', padding: 16 }}
+        >
           {loading ? (
-            <p className="pt-6 text-center text-sm text-gray-500">Loading…</p>
+            <p
+              style={{
+                paddingTop: 24,
+                textAlign: 'center',
+                fontSize: 13,
+                color: 'rgb(255 255 255 / 0.4)',
+              }}
+            >
+              Loading…
+            </p>
           ) : paragraphs.length > 0 ? (
-            <div className="space-y-3 text-[15px] leading-7 text-gray-100 sm:text-base">
-              {paragraphs.map((p, i) => <p key={i}>{p}</p>)}
-            </div>
+            paragraphs.map((p, i) => (
+              <p
+                key={i}
+                style={{
+                  fontSize: 15,
+                  lineHeight: 1.7,
+                  color: 'rgb(255 255 255 / 0.92)',
+                  margin: '0 0 16px',
+                  fontFamily: 'var(--font-serif, Georgia, serif)',
+                }}
+              >
+                {p}
+              </p>
+            ))
           ) : (
-            <p className="pt-6 text-center text-sm text-gray-500">
+            <p
+              style={{
+                paddingTop: 24,
+                textAlign: 'center',
+                fontSize: 13,
+                color: 'rgb(255 255 255 / 0.4)',
+              }}
+            >
               This page hasn’t been narrated yet.
             </p>
           )}
-        </div>
 
-        {/* Citations — the demoted bubble layer, a "where am I" aid */}
-        {citationLines.length > 0 && (
-          <div className="shrink-0 border-t border-white/10">
-            <button
-              onClick={() => setShowCitations((v) => !v)}
-              aria-expanded={showCitations}
-              className="flex w-full items-center justify-between px-4 py-2 text-xs font-medium text-gray-400 transition-colors hover:text-gray-200"
-            >
-              <span className="flex items-center gap-1.5">
-                <MessageSquare size={13} />
-                Source lines · {citationLines.length}
-              </span>
-              <ChevronDown size={14} className={`transition-transform ${showCitations ? 'rotate-180' : ''}`} />
-            </button>
-            {showCitations && (
-              <div className="max-h-44 space-y-0.5 overflow-y-auto px-2 pb-2">
-                {citationLines.map((b) => {
+          {citationLines.length > 0 && (
+            <>
+              <div
+                className="by-kicker"
+                style={{ color: 'rgb(255 255 255 / 0.45)', marginTop: 12, marginBottom: 10 }}
+              >
+                Bubbles on this page
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {citationLines.map((b, i) => {
                   const active = b.order === highlightedOrder;
                   const locatable = !!b.bbox;
                   return (
@@ -229,24 +297,82 @@ export default function StoryPanel({
                       onClick={() => locatable && onCiteBubble(active ? null : b.order)}
                       disabled={!locatable}
                       title={locatable ? 'Show this line on the page' : 'No location recorded for this line'}
-                      className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-left text-[13px] leading-snug transition-colors ${
-                        active
-                          ? 'bg-white/15 ring-1 ring-accent'
-                          : locatable ? 'hover:bg-white/10' : 'opacity-50'
-                      }`}
+                      style={{
+                        display: 'flex',
+                        gap: 10,
+                        alignItems: 'flex-start',
+                        textAlign: 'left',
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        border: active
+                          ? '1px solid rgb(var(--accent))'
+                          : '1px solid rgb(255 255 255 / 0.1)',
+                        background: active
+                          ? 'rgb(var(--accent) / 0.12)'
+                          : 'rgb(255 255 255 / 0.04)',
+                        color: '#fff',
+                        cursor: locatable ? 'pointer' : 'not-allowed',
+                        opacity: locatable ? 1 : 0.5,
+                      }}
                     >
-                      <span className="mt-0.5 shrink-0 text-[9px] font-semibold uppercase tracking-wide text-gray-500">
-                        {b.type}
+                      <span
+                        className="bindery-nums"
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: 'rgb(var(--accent))',
+                          marginTop: 2,
+                          minWidth: 12,
+                        }}
+                      >
+                        {i + 1}
                       </span>
-                      <span className="text-gray-200">{b.english || b.japanese}</span>
+                      <span style={{ flex: 1, fontSize: 13, lineHeight: 1.5, opacity: 0.85 }}>
+                        {b.english || b.japanese}
+                      </span>
+                      {locatable && (
+                        <span style={{ display: 'inline-flex', opacity: 0.4, flexShrink: 0 }}>
+                          <Crosshair size={14} />
+                        </span>
+                      )}
                     </button>
                   );
                 })}
               </div>
-            )}
-          </div>
-        )}
+            </>
+          )}
+        </div>
+
+        {/* Footer — gentle AI hint */}
+        <div
+          style={{
+            padding: '10px 16px',
+            borderTop: '1px solid rgb(255 255 255 / 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 11,
+            opacity: 0.5,
+          }}
+        >
+          <Sparkles size={13} />
+          AI narration · tap a bubble to find it on the page
+        </div>
       </div>
     </div>
   );
 }
+
+const storyIconBtn: CSSProperties = {
+  background: 'rgb(255 255 255 / 0.08)',
+  border: 'none',
+  color: '#fff',
+  cursor: 'pointer',
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+};

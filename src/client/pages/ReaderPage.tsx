@@ -1,28 +1,64 @@
-import { useEffect, useState, useCallback, useRef, useMemo, type CSSProperties } from 'react';
+import {
+  useEffect, useState, useCallback, useRef, useMemo, type CSSProperties,
+} from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  ChevronUp, ChevronDown, Maximize2, ScrollText, Sun, Moon, BookOpen,
+  ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  PanelLeft, Pointer, MoveHorizontal, GalleryVertical, BookOpen,
 } from 'lucide-react';
 import {
   getPdfUrl, updateProgress, getComics, getSeriesDetail,
   getTranslationStatus, getPageTranslation, type PageTranslation,
 } from '../lib/api';
-import PdfViewer, { type PdfViewerHandle, type ViewMode, type ReadingDirection } from '../components/PdfViewer';
+import PdfViewer, { type PdfViewerHandle, type ReadingDirection } from '../components/PdfViewer';
 import StoryPanel from '../components/StoryPanel';
-import { useTheme } from '../lib/theme';
+import ChapterRail from '../components/ChapterRail';
+import { SegmentedControl } from '../components/ds';
 import type { Comic, Series } from '../lib/types';
 
-// Story panel size — a right-side rail on wide screens, a bottom strip on
-// narrow ones. The page art always keeps the majority of the viewport.
-const STORY_SIDE_W = 'min(26rem, 40vw)';
-const STORY_BOTTOM_H = '36dvh';
+const RAIL_W = 304;
+const STORY_W = 384;
+const STORY_BOTTOM = '42dvh';
+const BREAKPOINT = 900;
+const HIDE_MS = 3200;
+const SWIPE_THRESHOLD_PCT = 0.18;
 
+type Mode = 'tap' | 'swipe' | 'scroll';
+
+/**
+ * Series tags that imply right-to-left reading (manga-family). Used to
+ * auto-set the RTL toggle when entering a chapter.
+ */
+const RTL_TAGS = new Set([
+  'manga', 'manhwa', 'doujinshi', 'japanese',
+  'shounen', 'shonen', 'seinen', 'isekai',
+]);
+
+/**
+ * Reader — full-viewport theme-independent dark surface, 3-zone layout:
+ *
+ *   [ ChapterRail (304, desktop) ] [ reading surface ] [ StoryPanel (384, story on + wide) ]
+ *
+ * On mobile (<900px) the rail moves into a drawer + the top-bar splits into
+ * two rows (controls below). The reading surface accepts one of three input
+ * modes: Tap (vertical thirds), Swipe (drag, 18% threshold), Scroll (webtoon).
+ *
+ * Reading direction is auto-detected from series tags and exposed as an
+ * RTL/LTR toggle in the top bar. RTL only flips *which side advances reading*;
+ * the page counter and toolbar prev/next stay direction-agnostic.
+ *
+ * Chrome auto-hides after 3.2s of inactivity. Mouse-move (desktop) / tap
+ * (mobile) / key-press / page-flip pokes it back. The bottom scrubber is
+ * demoted from primary nav to a jump affordance.
+ *
+ * Story-mode fetching, narration panel, citation overlay, ambient backdrop,
+ * #first / #last cross-chapter landing flow, and server-side progress
+ * tracking are preserved from the previous implementation.
+ */
 export default function ReaderPage() {
   const params = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { isDark, toggleDarkLight } = useTheme();
   const seriesId = params.id || '';
   const file = params['*'] || '';
 
@@ -30,15 +66,43 @@ export default function ReaderPage() {
   const [comics, setComics] = useState<Comic[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [viewMode, setViewMode] = useState<ViewMode>('fit');
-  // Toolbar is up by default — without it the user has no way to flip pages.
-  // The tray chevron lets them collapse it for a distraction-free view.
-  const [uiVisible, setUiVisible] = useState(true);
-  const lastSavedPage = useRef(-1);
-  const viewerRef = useRef<PdfViewerHandle | null>(null);
 
-  // Story mode — the reader TELLS the page's story while the user looks at the
-  // art. The toggle only appears once a chapter has narrated pages cached.
+  // Mode persists across chapters; per-chapter resume page persists too.
+  const [mode, setMode] = useState<Mode>(() => {
+    const v = localStorage.getItem('bindery.reader.mode');
+    return v === 'swipe' || v === 'scroll' ? v : 'tap';
+  });
+  useEffect(() => { try { localStorage.setItem('bindery.reader.mode', mode); } catch { /* ignore */ } }, [mode]);
+
+  // 900px breakpoint
+  const [wide, setWide] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(`(min-width: ${BREAKPOINT}px)`).matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${BREAKPOINT}px)`);
+    const h = (e: MediaQueryListEvent) => setWide(e.matches);
+    mq.addEventListener('change', h);
+    return () => mq.removeEventListener('change', h);
+  }, []);
+
+  // Rail (desktop inline) vs drawer (mobile)
+  const [railOpen, setRailOpen] = useState(true);
+  const [drawer, setDrawer] = useState(false);
+
+  // Auto-hide chrome
+  const [chromeOn, setChromeOn] = useState(true);
+  const hideTimer = useRef<number | null>(null);
+  const poke = useCallback(() => {
+    setChromeOn(true);
+    if (hideTimer.current) window.clearTimeout(hideTimer.current);
+    hideTimer.current = window.setTimeout(() => setChromeOn(false), HIDE_MS);
+  }, []);
+  useEffect(() => {
+    poke();
+    return () => { if (hideTimer.current) window.clearTimeout(hideTimer.current); };
+  }, [poke, currentPage, file, mode]);
+
+  // Story mode
   const [storyAvailable, setStoryAvailable] = useState(false);
   const [storyOn, setStoryOn] = useState(false);
   const [currentTranslation, setCurrentTranslation] = useState<PageTranslation | null>(null);
@@ -47,29 +111,22 @@ export default function ReaderPage() {
   const [highlightedOrder, setHighlightedOrder] = useState<number | null>(null);
   const translationsRef = useRef<Map<number, PageTranslation>>(new Map());
 
-  // Page/total mirrors — keep requestNextPage a stable callback so the Story
-  // panel's read-aloud auto-advance effects don't churn every page.
+  // RTL auto + manual override
+  const rtlAuto = useMemo(
+    () => (series?.tags || []).some((t) => RTL_TAGS.has(t.toLowerCase())),
+    [series],
+  );
+  const [rtl, setRtl] = useState(rtlAuto);
+  // Reset to auto when series changes (covers initial load).
+  useEffect(() => { setRtl(rtlAuto); }, [rtlAuto]);
+  const readingDirection: ReadingDirection = rtl ? 'rtl' : 'ltr';
+
+  const viewerRef = useRef<PdfViewerHandle | null>(null);
   const pageRef = useRef(0);
   const totalRef = useRef(0);
+  const lastSavedPage = useRef(-1);
 
-  // Story panel placement: side rail on wide screens, bottom strip on narrow.
-  const [wide, setWide] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1024px)');
-    const handler = (e: MediaQueryListEvent) => setWide(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-
-  // Auto-detect reading direction from series tags
-  const readingDirection: ReadingDirection = useMemo(() => {
-    const tags = (series?.tags || []).map((t) => t.toLowerCase());
-    return tags.some((t) => ['manga', 'manhwa', 'doujinshi', 'japanese'].includes(t)) ? 'rtl' : 'ltr';
-  }, [series]);
-
-  // ----- Lock viewport meta — disable browser pinch zoom while reading -----
+  // Disable browser pinch-zoom while reading
   useEffect(() => {
     const meta = document.querySelector('meta[name="viewport"]');
     const original = meta?.getAttribute('content') || '';
@@ -86,7 +143,7 @@ export default function ReaderPage() {
     getComics(seriesId).then(setComics);
   }, [seriesId]);
 
-  // ----- Story availability — drives whether the toolbar toggle shows -----
+  // ----- Story availability -----
   useEffect(() => {
     if (!seriesId || !file) return;
     let cancelled = false;
@@ -95,11 +152,7 @@ export default function ReaderPage() {
       .catch(() => { if (!cancelled) setStoryAvailable(false); });
     return () => { cancelled = true; };
   }, [seriesId, file]);
-
-  // A chapter with no narrated pages can't show Story mode — close it if open.
-  useEffect(() => {
-    if (!storyAvailable) setStoryOn(false);
-  }, [storyAvailable]);
+  useEffect(() => { if (!storyAvailable) setStoryOn(false); }, [storyAvailable]);
 
   const currentIndex = useMemo(
     () => comics.findIndex((c) => c.file === file),
@@ -109,12 +162,10 @@ export default function ReaderPage() {
   const nextChapter = currentIndex < comics.length - 1 ? comics[currentIndex + 1] : null;
   const currentComic = currentIndex >= 0 ? comics[currentIndex] : null;
 
-  // Where to land in this chapter on load:
-  //   #first  → page 0 (sequential forward flip)
-  //   #last   → the chapter's last page (sequential backward flip)
-  //   default → the user's last-read position for this chapter
-  // For #last we set initialPage when the chapter's page count is known up
-  // front; otherwise the apply effect below jumps once the chapter loads.
+  // Where to land on chapter load:
+  //   #first  → page 0
+  //   #last   → last page (when known)
+  //   default → server-side last-read position
   const initialPage =
     location.hash === '#first' ? 0
     : location.hash === '#last' && currentComic?.pages ? currentComic.pages - 1
@@ -127,7 +178,6 @@ export default function ReaderPage() {
       totalRef.current = total;
       setCurrentPage(page);
       setTotalPages(total);
-      // A citation glow belongs to the page it was tapped on.
       setHighlightedOrder(null);
       if (page !== lastSavedPage.current) {
         lastSavedPage.current = page;
@@ -142,8 +192,7 @@ export default function ReaderPage() {
     setTotalPages(total);
   }, []);
 
-  // Read-aloud auto-advance asks for the next page when a narration finishes.
-  // Stable (reads refs) so the Story panel's speech effects don't churn.
+  // Stable callback for the StoryPanel's read-aloud auto-advance.
   const requestNextPage = useCallback((): boolean => {
     if (pageRef.current < totalRef.current - 1) {
       viewerRef.current?.nextPage();
@@ -152,7 +201,7 @@ export default function ReaderPage() {
     return false;
   }, []);
 
-  // ----- Reset per-chapter state when the file changes -----
+  // Per-chapter state reset on file change
   useEffect(() => {
     lastSavedPage.current = -1;
     translationsRef.current.clear();
@@ -161,8 +210,7 @@ export default function ReaderPage() {
     setAmbient(null);
   }, [file]);
 
-  // ----- Apply the #first/#last landing hint once the chapter has loaded,
-  //       then drop the hash so a later refresh does not re-apply it.
+  // Apply the #first / #last landing hint once page count is known
   const hashAppliedRef = useRef<string | null>(null);
   useEffect(() => { hashAppliedRef.current = null; }, [file]);
   useEffect(() => {
@@ -172,16 +220,23 @@ export default function ReaderPage() {
     if (hash !== '#first' && hash !== '#last') return;
     hashAppliedRef.current = file;
     if (hash === '#last') viewerRef.current?.goToPage(totalPages - 1);
-    // Drop the hash so a refresh doesn't re-fire the jump later.
     navigate(`/read/${seriesId}/${file}`, { replace: true });
   }, [location.hash, totalPages, file, navigate, seriesId]);
 
-  // ----- Fetch the current page's narration while Story mode is on -----
+  // Story narration fetch
   useEffect(() => {
-    if (!storyOn) { setCurrentTranslation(null); setNarrationLoading(false); return; }
+    if (!storyOn) {
+      setCurrentTranslation(null);
+      setNarrationLoading(false);
+      return;
+    }
     const cached = translationsRef.current.get(currentPage);
-    if (cached) { setCurrentTranslation(cached); setNarrationLoading(false); return; }
-    setCurrentTranslation(null); // clear any stale narration while the fetch is in flight
+    if (cached) {
+      setCurrentTranslation(cached);
+      setNarrationLoading(false);
+      return;
+    }
+    setCurrentTranslation(null);
     setNarrationLoading(true);
     let cancelled = false;
     getPageTranslation(seriesId, file, currentPage)
@@ -197,95 +252,185 @@ export default function ReaderPage() {
     return () => { cancelled = true; };
   }, [storyOn, currentPage, seriesId, file]);
 
-  // The bubble whose box should glow on the page (a tapped citation).
   const highlightBox = useMemo(() => {
     if (highlightedOrder == null || !currentTranslation) return null;
     return currentTranslation.bubbles.find((b) => b.order === highlightedOrder)?.bbox ?? null;
   }, [highlightedOrder, currentTranslation]);
 
-  // ----- UI toggle (drawer chevron on the toolbar is the only way to show/hide) -----
-  const toggleUi = useCallback(() => {
-    setUiVisible((v) => !v);
-  }, []);
-
-  // ----- Chapter nav -----
-  // Navigate to a sibling chapter. `at` is the landing hint:
-  //   'first' → start at page 0 (forward flip from the previous chapter's end)
-  //   'last'  → start at the chapter's last page (backward flip)
-  //   undef   → no hint; the user's last-read position is used (toolbar buttons)
-  const goToChapter = (comic: Comic, at?: 'first' | 'last') => {
+  // ----- Direction-aware page navigation -----
+  // delta = +1 always means "advance one page" (counter goes up); chapter
+  // boundaries flow into the next/previous chapter. RTL only affects which
+  // INPUT advances reading (right vs. left), not this counter direction.
+  const goToChapter = useCallback((comic: Comic, at?: 'first' | 'last') => {
     const hash = at ? `#${at}` : '';
     navigate(`/read/${seriesId}/${comic.file}${hash}`, { replace: true });
-  };
-
-  // ----- ESC closes -----
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') navigate(`/series/${seriesId}`);
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
   }, [navigate, seriesId]);
 
-  // ----- Layout: carve room for the toolbar and (in Story mode) the panel ---
-  const toolbarInset = uiVisible ? 'calc(env(safe-area-inset-bottom) + 5.25rem)' : '0px';
+  const go = useCallback((delta: number) => {
+    if (delta > 0) {
+      if (pageRef.current < totalRef.current - 1) viewerRef.current?.nextPage();
+      else if (nextChapter) goToChapter(nextChapter, 'first');
+    } else if (delta < 0) {
+      if (pageRef.current > 0) viewerRef.current?.prevPage();
+      else if (prevChapter) goToChapter(prevChapter, 'last');
+    }
+  }, [nextChapter, prevChapter, goToChapter]);
 
-  const viewerStyle: CSSProperties = !storyOn
-    ? { top: 0, left: 0, right: 0, bottom: toolbarInset }
-    : wide
-      ? { top: 0, left: 0, right: STORY_SIDE_W, bottom: toolbarInset }
-      : { top: 0, left: 0, right: 0, bottom: `calc(${toolbarInset} + ${STORY_BOTTOM_H})` };
+  // ----- Keyboard -----
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement) return;
+      if (e.key === 'Escape') { navigate(`/series/${seriesId}`); return; }
+      poke();
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        e.preventDefault();
+        go(rtl ? -1 : +1);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        go(rtl ? +1 : -1);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [go, rtl, poke, navigate, seriesId]);
 
-  const panelStyle: CSSProperties = wide
-    ? { top: 0, right: 0, bottom: toolbarInset, width: STORY_SIDE_W }
-    : { left: 0, right: 0, bottom: toolbarInset, height: STORY_BOTTOM_H };
+  // ----- Tap surface: vertical-thirds click handler -----
+  const onTapSurface = useCallback((e: React.MouseEvent) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    if (x < 1 / 3) go(rtl ? +1 : -1);
+    else if (x > 2 / 3) go(rtl ? -1 : +1);
+    else setChromeOn((c) => !c);
+  }, [go, rtl]);
 
-  // The tray chevron rides above the Story panel when it's a bottom strip.
-  const trayBase = uiVisible
-    ? 'env(safe-area-inset-bottom) + 5.25rem'
-    : 'env(safe-area-inset-bottom) + 1.5rem';
-  const trayBottom = storyOn && !wide
-    ? `calc(${trayBase} + ${STORY_BOTTOM_H})`
-    : `calc(${trayBase})`;
+  if (!currentComic) {
+    // Keep the dark surface while loading so nothing flashes light first.
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: '#0a0a0a' }} />
+    );
+  }
+
+  // ----- Layout -----
+  const showStorySide = storyOn && wide;
+  const showStoryStrip = storyOn && !wide;
+  const leftInset = wide && railOpen ? RAIL_W : 0;
+  const rightInset = showStorySide ? STORY_W : 0;
+  const bottomInset = showStoryStrip ? STORY_BOTTOM : '0px';
 
   return (
     <div
-      className="w-screen overflow-hidden relative"
+      onMouseMove={wide ? poke : undefined}
       style={{
-        height: '100dvh',
-        // The reader is theme-independent dark chrome (Bindery prototype):
-        // page art reads cleanest on near-black regardless of the user's
-        // global theme. Forced #0a0a0a instead of bg-white dark:bg-black.
+        position: 'fixed',
+        inset: 0,
         background: '#0a0a0a',
         color: '#fff',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
-      {/* PDF viewer — shrinks to leave room for the toolbar and, in Story
-          mode, the narration panel. PdfViewer's ResizeObserver re-renders the
-          current page at the new fit-scale whenever this box changes. */}
-      <div className="absolute" style={viewerStyle}>
-        <PdfViewer
-          ref={viewerRef}
-          url={getPdfUrl(seriesId, file)}
-          initialPage={initialPage}
-          viewMode={viewMode}
-          readingDirection={readingDirection}
-          onPageChange={handlePageChange}
-          onTotalPagesChange={handleTotalPages}
-          overlay={storyOn ? { page: currentPage, highlight: highlightBox } : null}
-          onAmbient={storyOn ? setAmbient : undefined}
-          onPastEnd={() => nextChapter && goToChapter(nextChapter, 'first')}
-          onPastStart={() => prevChapter && goToChapter(prevChapter, 'last')}
-        />
+      <div style={{ flex: 1, position: 'relative', display: 'flex', minHeight: 0 }}>
+        {/* Desktop rail */}
+        {wide && railOpen && (
+          <div style={{ width: RAIL_W, flexShrink: 0, height: '100%' }}>
+            <ChapterRail
+              series={series}
+              comics={comics}
+              currentComic={currentComic}
+              seriesId={seriesId}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onJumpPage={(n) => viewerRef.current?.goToPage(n)}
+            />
+          </div>
+        )}
+
+        {/* Center reading surface */}
+        <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+          {/* PdfViewer renders the real PDF. Mode controls the input layer
+              that overlays it: tap-thirds, drag, or scroll (handled inside
+              PdfViewer when viewMode='scroll'). */}
+          <div style={{ position: 'absolute', inset: 0 }}>
+            <PdfViewer
+              ref={viewerRef}
+              url={getPdfUrl(seriesId, file)}
+              initialPage={initialPage}
+              viewMode={mode === 'scroll' ? 'scroll' : 'fit'}
+              readingDirection={readingDirection}
+              onPageChange={handlePageChange}
+              onTotalPagesChange={handleTotalPages}
+              overlay={storyOn ? { page: currentPage, highlight: highlightBox } : null}
+              onAmbient={storyOn ? setAmbient : undefined}
+              onPastEnd={() => nextChapter && goToChapter(nextChapter, 'first')}
+              onPastStart={() => prevChapter && goToChapter(prevChapter, 'last')}
+            />
+          </div>
+
+          {/* Input overlay — only in paged modes. Scroll mode lets the PDF
+              own the scroll events directly. */}
+          {mode === 'tap' && (
+            <div
+              onClick={onTapSurface}
+              style={{
+                position: 'absolute', inset: 0, zIndex: 5, cursor: 'pointer',
+              }}
+            />
+          )}
+          {mode === 'swipe' && (
+            <SwipeOverlay
+              onSwipe={(dx) => {
+                const w = window.innerWidth;
+                const threshold = w * SWIPE_THRESHOLD_PCT;
+                if (dx <= -threshold) go(rtl ? -1 : +1);
+                else if (dx >= threshold) go(rtl ? +1 : -1);
+                else setChromeOn((c) => !c);
+              }}
+            />
+          )}
+
+          {/* Desktop side arrows — paged modes only, chrome visible */}
+          {wide && mode !== 'scroll' && chromeOn && (
+            <>
+              <button
+                onClick={() => go(rtl ? +1 : -1)}
+                aria-label={rtl ? 'Next page' : 'Previous page'}
+                style={sideArrow('left')}
+              >
+                <ChevronLeft size={26} />
+              </button>
+              <button
+                onClick={() => go(rtl ? -1 : +1)}
+                aria-label={rtl ? 'Previous page' : 'Next page'}
+                style={sideArrow('right')}
+              >
+                <ChevronRight size={26} />
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Story side rail */}
+        {showStorySide && (
+          <div style={{ width: STORY_W, flexShrink: 0, height: '100%' }}>
+            <StoryPanel
+              page={currentPage}
+              narration={currentTranslation?.narration ?? ''}
+              bubbles={currentTranslation?.bubbles ?? []}
+              loading={narrationLoading}
+              ambient={ambient}
+              highlightedOrder={highlightedOrder}
+              onCiteBubble={setHighlightedOrder}
+              onClose={() => setStoryOn(false)}
+              onRequestNextPage={requestNextPage}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Story panel — narration, read-aloud, and the bubble citation list.
-          A right-side rail on wide screens, a bottom strip on narrow ones. */}
-      {storyOn && (
-        <div
-          className={`absolute z-20 ${wide ? 'border-l' : 'border-t'} border-white/10`}
-          style={panelStyle}
-        >
+      {/* Story bottom strip (narrow only) */}
+      {showStoryStrip && (
+        <div style={{ height: STORY_BOTTOM, flexShrink: 0 }}>
           <StoryPanel
             page={currentPage}
             narration={currentTranslation?.narration ?? ''}
@@ -300,185 +445,280 @@ export default function ReaderPage() {
         </div>
       )}
 
-      {/* Floating top-left back button — always visible, primary escape hatch.
-          top/left use safe-area-inset so the button clears Dynamic Island in
-          standalone PWA mode (status-bar-style: black-translucent). */}
-      <button
-        onClick={() => navigate(`/series/${seriesId}`)}
-        className="absolute z-30 transition-all inline-flex items-center justify-center"
-        style={{
-          top: 'max(0.75rem, env(safe-area-inset-top))',
-          left: 'max(0.75rem, env(safe-area-inset-left))',
-          padding: 10,
-          borderRadius: '50%',
-          background: 'rgb(0 0 0 / 0.5)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          color: '#fff',
-          border: 'none',
-          cursor: 'pointer',
-          boxShadow: 'var(--shadow-lg)',
-        }}
-        title={series?.name || 'Back'}
-      >
-        <ArrowLeft size={20} />
-      </button>
-
-      {/* Persistent tray toggle — always visible, toggles toolbar.
-          Sits centered just above the bottom safe area so it never overlaps the toolbar's first row. */}
-      <button
-        onClick={toggleUi}
-        className={`absolute left-1/2 -translate-x-1/2 z-40 px-3 py-2 rounded-t-md bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition-all ${uiVisible ? 'opacity-60' : 'opacity-90'}`}
-        style={{ bottom: trayBottom }}
-        title={uiVisible ? 'Hide controls' : 'Show controls'}
-        aria-label={uiVisible ? 'Hide controls' : 'Show controls'}
-      >
-        {uiVisible ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-      </button>
-
-      {/* Floating bottom toolbar — single row. Slider flexes; everything else is shrink-0.
-          Toggled by the tray chevron.
-
-          - Buttons are 44px (Apple's HIG minimum tap target) via p-3 + size-20 icons.
-          - paddingBottom adds 1.5rem clear of safe-area-inset-bottom so the bottom
-            row of tap targets sits well above the home-indicator gesture zone
-            (iOS reserves the bottom ~20pt for swipe-up; below that, taps feel
-            slow or get intercepted as gesture starts).
-          - paddingLeft/Right honor safe-area-inset-left/right so landscape iPhone
-            with rounded corners doesn't clip the outermost buttons. */}
+      {/* ===== TOP BAR (auto-hide) ===== */}
       <div
-        className={`absolute left-0 right-0 bottom-0 z-30 transition-all text-white ${uiVisible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}
         style={{
-          // Deeper black + tighter blur, matching the Bindery prototype.
-          background: 'rgb(0 0 0 / 0.9)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          borderTop: '1px solid rgb(255 255 255 / 0.08)',
-          paddingTop: 12,
-          paddingLeft: 'max(0.5rem, env(safe-area-inset-left))',
-          paddingRight: 'max(0.5rem, env(safe-area-inset-right))',
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)',
+          position: 'absolute',
+          top: 0,
+          left: leftInset,
+          right: rightInset,
+          zIndex: 40,
+          transform: chromeOn ? 'translateY(0)' : 'translateY(-110%)',
+          transition: 'transform 240ms ease',
+          background: 'linear-gradient(to bottom, rgb(0 0 0 / 0.85), rgb(0 0 0 / 0))',
+          padding: `calc(env(safe-area-inset-top, 0px) + 10px) 12px 20px`,
         }}
       >
-        {/* Chapter context strip — series name + ordinal, centered above the
-            slider row. Matches the Bindery prototype's "Series · Chapter N". */}
-        {series && currentComic && (
-          <div
-            className="text-center"
-            style={{
-              fontSize: 12,
-              opacity: 0.7,
-              marginBottom: 8,
-              padding: '0 12px',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={() => navigate(`/series/${seriesId}`)}
+            title={series?.name || 'Back to series'}
+            aria-label="Back to series"
+            style={chromeBtn}
           >
-            {series.name}
-            {currentComic.order > 0 && (
-              <> · Chapter <span className="bindery-nums">{currentComic.order}</span></>
+            <ArrowLeft size={20} />
+          </button>
+          <button
+            onClick={() => (wide ? setRailOpen((r) => !r) : setDrawer(true))}
+            title="Chapters & pages"
+            aria-label="Chapters and pages"
+            style={chromeBtn}
+          >
+            <PanelLeft size={18} />
+          </button>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            {!(wide && railOpen) && series && (
+              <div
+                style={{
+                  fontSize: 15,
+                  fontWeight: 600,
+                  lineHeight: 1.15,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {series.name}
+              </div>
             )}
+            <div className="bindery-nums" style={{ fontSize: 12, opacity: 0.7 }}>
+              {currentComic.order > 0 && <>Chapter {currentComic.order} · </>}
+              Page {currentPage + 1} / {totalPages || '?'}
+            </div>
           </div>
-        )}
-        <div className="flex items-center gap-1 sm:gap-1.5">
-          {/* Prev chapter */}
-          <button
-            onClick={() => prevChapter && goToChapter(prevChapter)}
-            disabled={!prevChapter}
-            className="p-3 rounded hover:bg-white/10 disabled:opacity-20 transition-colors shrink-0"
-            title="Previous chapter"
-          >
-            <ChevronsLeft size={20} />
-          </button>
-
-          {/* Prev page */}
-          <button
-            onClick={() => viewerRef.current?.prevPage()}
-            disabled={currentPage === 0 && !prevChapter}
-            className="p-3 rounded hover:bg-white/10 disabled:opacity-20 transition-colors shrink-0"
-            title="Previous page"
-          >
-            <ChevronLeft size={20} />
-          </button>
-
-          {/* Slider takes all remaining space */}
-          <input
-            type="range"
-            min={0}
-            max={Math.max(0, totalPages - 1)}
-            value={currentPage}
-            onChange={(e) => viewerRef.current?.goToPage(parseInt(e.target.value, 10))}
-            className="flex-1 h-1 accent-accent cursor-pointer min-w-0"
-          />
-
-          {/* Page count */}
-          <span className="text-[11px] sm:text-xs tabular-nums whitespace-nowrap shrink-0 px-0.5">
-            {totalPages > 0 ? `${currentPage + 1}/${totalPages}` : '—'}
-          </span>
-
-          {/* Next page */}
-          <button
-            onClick={() => viewerRef.current?.nextPage()}
-            disabled={currentPage >= totalPages - 1 && !nextChapter}
-            className="p-3 rounded hover:bg-white/10 disabled:opacity-20 transition-colors shrink-0"
-            title="Next page"
-          >
-            <ChevronRight size={20} />
-          </button>
-
-          {/* Next chapter */}
-          <button
-            onClick={() => nextChapter && goToChapter(nextChapter)}
-            disabled={!nextChapter}
-            className="p-3 rounded hover:bg-white/10 disabled:opacity-20 transition-colors shrink-0"
-            title="Next chapter"
-          >
-            <ChevronsRight size={20} />
-          </button>
-
-          {/* Fit / Scroll toggle. Smaller than the nav buttons (paired so they
-              read as one control), but still taller than the old p-2 32px target. */}
-          <div className="flex bg-white/10 rounded text-xs shrink-0 ml-0.5">
-            <button
-              onClick={() => setViewMode('fit')}
-              className={`p-2.5 rounded-l transition-colors ${viewMode === 'fit' ? 'bg-accent' : 'hover:bg-white/10'}`}
-              title="Fit to screen"
-            >
-              <Maximize2 size={16} />
-            </button>
-            <button
-              onClick={() => setViewMode('scroll')}
-              className={`p-2.5 rounded-r transition-colors ${viewMode === 'scroll' ? 'bg-accent' : 'hover:bg-white/10'}`}
-              title="Scroll"
-            >
-              <ScrollText size={16} />
-            </button>
-          </div>
-
-          {/* Story mode toggle — only shown when this chapter has narrated
-              pages cached. Tells the page's story alongside the art. */}
+          {wide && (
+            <>
+              <SegmentedControl
+                options={[
+                  { value: 'tap', label: 'Tap', icon: <Pointer size={15} /> },
+                  { value: 'swipe', label: 'Swipe', icon: <MoveHorizontal size={15} /> },
+                  { value: 'scroll', label: 'Scroll', icon: <GalleryVertical size={15} /> },
+                ]}
+                value={mode}
+                onChange={(v) => setMode(v)}
+                className="reader-seg"
+              />
+              <button
+                onClick={() => setRtl((r) => !r)}
+                title={rtl ? 'Right-to-left (manga)' : 'Left-to-right'}
+                aria-label="Toggle reading direction"
+                style={{
+                  ...chromeBtn,
+                  width: 'auto',
+                  padding: '0 12px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  gap: 6,
+                }}
+              >
+                {rtl ? <ArrowLeft size={15} /> : <ArrowRight size={15} />}
+                {rtl ? 'RTL' : 'LTR'}
+              </button>
+            </>
+          )}
           {storyAvailable && (
             <button
-              onClick={() => setStoryOn((v) => !v)}
-              className={`p-2.5 rounded transition-colors shrink-0 ml-0.5 ${storyOn ? 'bg-accent' : 'hover:bg-white/10'}`}
+              onClick={() => setStoryOn((s) => !s)}
               title={storyOn ? 'Exit Story mode' : 'Story mode'}
               aria-label={storyOn ? 'Exit Story mode' : 'Story mode'}
+              style={{
+                ...chromeBtn,
+                background: storyOn ? 'rgb(var(--accent))' : chromeBtn.background,
+              }}
             >
-              <BookOpen size={16} />
+              <BookOpen size={18} />
             </button>
           )}
+        </div>
+        {/* Narrow screen: mode switcher gets its own full-width row */}
+        {!wide && (
+          <div style={{ marginTop: 10 }}>
+            <SegmentedControl
+              options={[
+                { value: 'tap', label: 'Tap', icon: <Pointer size={15} /> },
+                { value: 'swipe', label: 'Swipe', icon: <MoveHorizontal size={15} /> },
+                { value: 'scroll', label: 'Scroll', icon: <GalleryVertical size={15} /> },
+              ]}
+              value={mode}
+              onChange={(v) => setMode(v)}
+              className="reader-seg reader-seg-full"
+            />
+          </div>
+        )}
+      </div>
 
-          {/* Theme toggle (desktop only — small mobile is too cramped) */}
+      {/* ===== BOTTOM SCRUBBER (auto-hide, demoted) ===== */}
+      <div
+        style={{
+          position: 'absolute',
+          left: leftInset,
+          right: rightInset,
+          bottom: bottomInset,
+          zIndex: 40,
+          transform: chromeOn ? 'translateY(0)' : 'translateY(110%)',
+          transition: 'transform 240ms ease',
+          background: 'linear-gradient(to top, rgb(0 0 0 / 0.9), rgb(0 0 0 / 0))',
+          padding: `24px 14px calc(env(safe-area-inset-bottom, 0px) + 16px)`,
+        }}
+      >
+        <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
-            onClick={toggleDarkLight}
-            className="hidden sm:block p-2.5 rounded hover:bg-white/10 transition-colors shrink-0"
-            title="Toggle theme"
+            onClick={() => prevChapter && goToChapter(prevChapter, 'last')}
+            disabled={!prevChapter}
+            title="Previous chapter"
+            style={{ ...chromeBtn, opacity: prevChapter ? 1 : 0.25 }}
           >
-            {isDark ? <Sun size={16} /> : <Moon size={16} />}
+            <ChevronsLeft size={18} />
+          </button>
+          <button
+            onClick={() => go(-1)}
+            title="Previous page"
+            style={chromeBtn}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span
+              className="bindery-nums"
+              style={{ fontSize: 12, opacity: 0.7, minWidth: 30, textAlign: 'right' }}
+            >
+              {currentPage + 1}
+            </span>
+            <input
+              type="range"
+              min={1}
+              max={Math.max(1, totalPages)}
+              value={currentPage + 1}
+              onChange={(e) => viewerRef.current?.goToPage(parseInt(e.target.value, 10) - 1)}
+              style={{ flex: 1, accentColor: 'rgb(var(--accent))', cursor: 'pointer' }}
+            />
+            <span
+              className="bindery-nums"
+              style={{ fontSize: 12, opacity: 0.5, minWidth: 30 }}
+            >
+              {totalPages || '?'}
+            </span>
+          </div>
+          <button
+            onClick={() => go(+1)}
+            title="Next page"
+            style={chromeBtn}
+          >
+            <ChevronRight size={18} />
+          </button>
+          <button
+            onClick={() => nextChapter && goToChapter(nextChapter, 'first')}
+            disabled={!nextChapter}
+            title="Next chapter"
+            style={{ ...chromeBtn, opacity: nextChapter ? 1 : 0.25 }}
+          >
+            <ChevronsRight size={18} />
           </button>
         </div>
       </div>
+
+      {/* Mobile rail drawer */}
+      {!wide && drawer && (
+        <ChapterRail
+          series={series}
+          comics={comics}
+          currentComic={currentComic}
+          seriesId={seriesId}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onJumpPage={(n) => { viewerRef.current?.goToPage(n); setDrawer(false); }}
+          onClose={() => setDrawer(false)}
+          drawer
+        />
+      )}
     </div>
+  );
+}
+
+const chromeBtn: CSSProperties = {
+  background: 'rgb(0 0 0 / 0.45)',
+  backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
+  color: '#fff',
+  border: 'none',
+  cursor: 'pointer',
+  minWidth: 40,
+  height: 40,
+  borderRadius: 10,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+};
+
+function sideArrow(side: 'left' | 'right'): CSSProperties {
+  return {
+    position: 'absolute',
+    top: '50%',
+    [side]: 16,
+    transform: 'translateY(-50%)',
+    zIndex: 20,
+    width: 52,
+    height: 52,
+    borderRadius: '50%',
+    background: 'rgb(0 0 0 / 0.4)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    color: '#fff',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 0.8,
+  };
+}
+
+/**
+ * Drag-to-flip overlay. Captures the delta-x on release and hands it to
+ * onSwipe; the parent compares against an 18%-of-width threshold to commit
+ * a flip vs. treat it as a tap (toggle chrome).
+ */
+function SwipeOverlay({ onSwipe }: { onSwipe: (dx: number) => void }) {
+  const stateRef = useRef({ active: false, x0: 0, dx: 0 });
+  const down = (x: number) => { stateRef.current = { active: true, x0: x, dx: 0 }; };
+  const move = (x: number) => {
+    if (!stateRef.current.active) return;
+    stateRef.current.dx = x - stateRef.current.x0;
+  };
+  const up = () => {
+    if (!stateRef.current.active) return;
+    const dx = stateRef.current.dx;
+    stateRef.current = { active: false, x0: 0, dx: 0 };
+    onSwipe(dx);
+  };
+  return (
+    <div
+      onMouseDown={(e) => down(e.clientX)}
+      onMouseMove={(e) => move(e.clientX)}
+      onMouseUp={up}
+      onMouseLeave={up}
+      onTouchStart={(e) => down(e.touches[0].clientX)}
+      onTouchMove={(e) => move(e.touches[0].clientX)}
+      onTouchEnd={up}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 5,
+        cursor: 'grab',
+        userSelect: 'none',
+        touchAction: 'pan-y',
+      }}
+    />
   );
 }
