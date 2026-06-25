@@ -8,18 +8,14 @@ import { useSources, HAKUNEKO_SITES, HAKUNEKO_URL } from '../lib/browser-sources
 import type { SourceConfig } from '../lib/browser-sources/types';
 import MangaSearchCard from '../components/MangaSearchCard';
 import ChapterPicker from '../components/ChapterPicker';
-import NotificationDropdown from '../components/NotificationDropdown';
-import ProfileMenu from '../components/ProfileMenu';
 import StickyToolbar from '../components/StickyToolbar';
-import ToolbarIconButton from '../components/ToolbarIconButton';
 
-// Header height (Library-shape): py-2 (16px) + content (~40px) ≈ 56px
-const HEADER_PX = 56;
+// The global Bindery header is 48px tall — anchor the sticky source rail below it.
+const HEADER_PX = 48;
 
 export default function DiscoverPage() {
   const sources = useSources();
   const [query, setQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -45,15 +41,6 @@ export default function DiscoverPage() {
   const [feedLoading, setFeedLoading] = useState(false);
 
   const hasSelection = selectedSources.size > 0;
-
-  // Auto-show the search row once the user has results, so they can refine without toggling.
-  useEffect(() => { if (hasSearched) setShowSearch(true); }, [hasSearched]);
-
-  // Auto-show search input in library/recommended modes — the input becomes a
-  // live filter, so it should be visible from the moment the user enters the mode.
-  useEffect(() => {
-    if (viewMode !== 'sources') setShowSearch(true);
-  }, [viewMode]);
 
   // Load the appropriate feed when viewMode flips. Idempotent — refetches when
   // the user re-enters the mode so a fresh favorite shows up immediately.
@@ -146,7 +133,6 @@ export default function DiscoverPage() {
     setResults([]);
     setHasSearched(false);
     setSearchError('');
-    setShowSearch(false);
   };
 
   const handleSelectManga = async (manga: SearchResult) => {
@@ -197,83 +183,89 @@ export default function DiscoverPage() {
   const allActive = sources.length > 0 && selectedSources.size === sources.length;
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
+    <div
+      style={{
+        minHeight: '100dvh',
+        background: 'var(--bg-page)',
+        color: 'var(--text-body)',
+      }}
+    >
+      {/* ===== Title + tagline + search row — Bindery prototype shape. ===== */}
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 16px 0' }}>
+        <h1 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 700, color: 'var(--text-body)' }}>
+          Discover
+        </h1>
+        <p style={{ margin: '0 0 16px', fontSize: 14, color: 'var(--text-tertiary)' }}>
+          Search across {sources.length || 'multiple'} sources, plus your household&rsquo;s Recommended feed.
+        </p>
 
-      {/* ===== Library-shape header =====
-          paddingTop: env(safe-area-inset-top) clears the iOS standalone PWA status bar. */}
-      <header
-        className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
-      >
-        <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-1.5">
-          <Link to="/" aria-label="Back to library" title="Library" className="shrink-0">
-            <img src="/logo.png" alt="Bindery" className="h-10 w-10 rounded-lg" />
-          </Link>
-          <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-1" />
-
-          <ToolbarIconButton
-            onClick={() => { setShowSearch((v) => !v); }}
-            active={showSearch}
-            title="Search"
-          >
+        <form onSubmit={handleSearch} style={{ position: 'relative', maxWidth: 520, marginBottom: 14 }}>
+          <span style={{
+            position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+            color: 'var(--text-muted)', pointerEvents: 'none',
+          }}>
             <Search size={18} />
-          </ToolbarIconButton>
-
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 ml-1">Discover</span>
-
-          <div className="flex-1" />
-          <NotificationDropdown />
-          <ProfileMenu />
-        </div>
-
-        {/* Search bar — toggles open, also shown automatically once you have results */}
-        {showSearch && (
-          <form onSubmit={handleSearch} className="max-w-6xl mx-auto px-4 pb-2">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={hasSelection ? 'Search manga or comics…' : 'Pick at least one source below ↓'}
-                  disabled={!hasSelection}
-                  autoFocus
-                  className="w-full pl-9 pr-9 py-2 text-sm bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-50"
-                />
-                {query && (
-                  <button
-                    type="button"
-                    onClick={() => setQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400"
-                    aria-label="Clear query"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-              {hasSearched ? (
-                <button
-                  type="button"
-                  onClick={handleClearSearch}
-                  className="px-4 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-                >
-                  Clear
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={searching || !query.trim() || !hasSelection}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-accent hover:bg-accent text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[40px]"
-                >
-                  {searching ? <Loader size={16} className="animate-spin" /> : <Search size={16} />}
-                  Search
-                </button>
-              )}
-            </div>
-          </form>
-        )}
-      </header>
+          </span>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={
+              viewMode !== 'sources'
+                ? `Filter ${viewMode === 'library' ? 'this server' : 'recommendations'}…`
+                : hasSelection
+                  ? 'Search MangaDex, MangaFox & more…'
+                  : 'Pick at least one source below ↓'
+            }
+            disabled={viewMode === 'sources' && !hasSelection}
+            className="by-input"
+            style={{ paddingLeft: 40, paddingRight: query ? 80 : 12, height: 44, fontSize: 15, width: '100%' }}
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="absolute"
+              style={{
+                right: hasSearched ? 64 : 8, top: '50%', transform: 'translateY(-50%)',
+                padding: 4, borderRadius: 6, color: 'var(--text-muted)',
+                background: 'none', border: 'none', cursor: 'pointer',
+              }}
+              aria-label="Clear query"
+            >
+              <X size={14} />
+            </button>
+          )}
+          {viewMode === 'sources' && hasSearched && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              className="absolute"
+              style={{
+                right: 8, top: '50%', transform: 'translateY(-50%)',
+                padding: '6px 10px', fontSize: 12,
+                color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer',
+              }}
+            >
+              Clear
+            </button>
+          )}
+          {viewMode === 'sources' && !hasSearched && query.trim() && hasSelection && (
+            <button
+              type="submit"
+              disabled={searching}
+              className="absolute"
+              style={{
+                right: 6, top: '50%', transform: 'translateY(-50%)',
+                padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                color: '#fff', background: 'var(--color-accent)', border: 'none', borderRadius: 8, cursor: 'pointer',
+              }}
+            >
+              {searching ? <Loader size={14} className="animate-spin" /> : 'Search'}
+            </button>
+          )}
+        </form>
+      </div>
 
       {/* ===== Sticky source pill row (always visible while sources are loaded) ===== */}
       {sources.length > 0 && (
@@ -361,8 +353,6 @@ export default function DiscoverPage() {
           <PreSearchHint
             sources={sources}
             hasSelection={hasSelection}
-            showSearch={showSearch}
-            onOpenSearch={() => setShowSearch(true)}
             onShowMoreSites={() => setShowMoreSites(true)}
           />
         )}
@@ -807,12 +797,10 @@ function SourcePill({
 }
 
 function PreSearchHint({
-  sources, hasSelection, showSearch, onOpenSearch, onShowMoreSites,
+  sources, hasSelection, onShowMoreSites,
 }: {
   sources: SourceConfig[];
   hasSelection: boolean;
-  showSearch: boolean;
-  onOpenSearch: () => void;
   onShowMoreSites: () => void;
 }) {
   if (sources.length === 0) {
@@ -831,20 +819,9 @@ function PreSearchHint({
         <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
           {!hasSelection
             ? 'Pick one or more sources from the bar above, then search.'
-            : !showSearch
-              ? 'Tap the search button in the header to begin.'
-              : 'Type a title in the search bar above.'}
+            : 'Type a title in the search bar above.'}
         </p>
       </div>
-
-      {hasSelection && !showSearch && (
-        <button
-          onClick={onOpenSearch}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent hover:bg-accent text-white text-sm font-medium transition-colors min-h-[44px]"
-        >
-          <Search size={16} /> Open search
-        </button>
-      )}
 
       <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
         <a
