@@ -1,0 +1,24 @@
+<!-- @dsCard group="Type" viewport="700x260" name="Type Scale" subtitle="Named scale 30→12px + dense 11/10/9px" -->
+<!DOCTYPE html>
+<html lang="en" class="dark" data-theme="">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { padding: 20px; }
+  .line { display: flex; align-items: baseline; gap: 16px; padding: 4px 0; border-bottom: 1px solid var(--border-subtle); }
+  .tok { width: 120px; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); flex-shrink: 0; }
+  .spec { color: var(--text-body); }
+</style>
+</head>
+<body>
+  <div class="line"><span class="tok">--text-3xl · 30</span><span class="spec" style="font-size:30px;font-weight:700">Series title</span></div>
+  <div class="line"><span class="tok">--text-2xl · 24</span><span class="spec" style="font-size:24px;font-weight:700">Page title</span></div>
+  <div class="line"><span class="tok">--text-xl · 20</span><span class="spec" style="font-size:20px;font-weight:600">Sheet heading</span></div>
+  <div class="line"><span class="tok">--text-lg · 18</span><span class="spec" style="font-size:18px;font-weight:600">Modal header</span></div>
+  <div class="line"><span class="tok">--text-base · 16</span><span class="spec" style="font-size:16px">Body — the default reading size</span></div>
+  <div class="line"><span class="tok">--text-sm · 14</span><span class="spec" style="font-size:14px">Dense body & button text</span></div>
+  <div class="line"><span class="tok">--text-xs · 12</span><span class="spec" style="font-size:12px">Helper text, pills</span></div>
+  <div class="line"><span class="tok">11 / 10 / 9</span><span class="spec" style="font-size:11px">Toolbar 11 · <span style="font-size:10px">chips 10</span> · <span style="font-size:9px">cover strip 9</span></span></div>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!-- @dsCard group="Colors" viewport="700x170" name="Gray Ramp" subtitle="50→950 theme-aware ramp (shown in the default dark theme)" -->
+<!DOCTYPE html>
+<html lang="en" class="dark" data-theme="">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { padding: 20px; }
+  .ramp { display: flex; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border-default); }
+  .step { flex: 1; height: 96px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; font-size: 10px; font-family: var(--font-mono); }
+  .light { color: #111; } .dark-t { color: #eee; }
+  .cap { font-size: 11px; color: var(--text-tertiary); margin-top: 8px; }
+</style>
+</head>
+<body>
+  <div class="ramp">
+    <div class="step light" style="background: rgb(var(--gray-50))">50</div>
+    <div class="step light" style="background: rgb(var(--gray-100))">100</div>
+    <div class="step light" style="background: rgb(var(--gray-200))">200</div>
+    <div class="step light" style="background: rgb(var(--gray-300))">300</div>
+    <div class="step light" style="background: rgb(var(--gray-400))">400</div>
+    <div class="step dark-t" style="background: rgb(var(--gray-500))">500</div>
+    <div class="step dark-t" style="background: rgb(var(--gray-600))">600</div>
+    <div class="step dark-t" style="background: rgb(var(--gray-700))">700</div>
+    <div class="step dark-t" style="background: rgb(var(--gray-800))">800</div>
+    <div class="step dark-t" style="background: rgb(var(--gray-900))">900</div>
+    <div class="step dark-t" style="background: rgb(var(--gray-950))">950</div>
+  </div>
+  <p class="cap">Light/dark pairs use complementary steps (50↔950, 100↔900…). Every theme redefines this ramp.</p>
+</body>
+</html>

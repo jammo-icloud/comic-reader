@@ -1,0 +1,21 @@
+<!-- @dsCard group="Shape" viewport="700x180" name="Elevation & Shadow" subtitle="Shadows climb with elevation (light mode)" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { padding: 28px 20px; background: var(--bg-page); display: flex; gap: 22px; align-items: center; justify-content: center; }
+  .t { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .box { width: 96px; height: 64px; background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-xl); }
+  .tok { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); text-align: center; }
+</style>
+</head>
+<body>
+  <div class="t"><div class="box" style="box-shadow:var(--shadow-sm)"></div><span class="tok">--shadow-sm<br>cards</span></div>
+  <div class="t"><div class="box" style="box-shadow:var(--shadow-md)"></div><span class="tok">--shadow-md<br>buttons, lift</span></div>
+  <div class="t"><div class="box" style="box-shadow:var(--shadow-lg)"></div><span class="tok">--shadow-lg<br>floating btns</span></div>
+  <div class="t"><div class="box" style="box-shadow:var(--shadow-2xl)"></div><span class="tok">--shadow-2xl<br>modals, sheets</span></div>
+  <div class="t"><div class="box" style="box-shadow:var(--shadow-comic);border:3px solid #000;border-radius:0"></div><span class="tok">--shadow-comic<br>login CTA</span></div>
+</body>
+</html>

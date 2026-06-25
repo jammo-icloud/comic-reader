@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!-- @template name="Comic Library" description="Bindery library screen — sticky header, type tabs, and a 2:3 cover grid built from the design system." -->
+<helmet>
+<script src="./ds-base.js"></script>
+<style>
+  @media (max-width: 1100px) { .lib-grid { grid-template-columns: repeat(5, 1fr) !important; } }
+  @media (max-width: 900px)  { .lib-grid { grid-template-columns: repeat(4, 1fr) !important; } }
+  @media (max-width: 680px)  { .lib-grid { grid-template-columns: repeat(3, 1fr) !important; } }
+  @media (max-width: 460px)  { .lib-grid { grid-template-columns: repeat(2, 1fr) !important; } }
+</style>
+</helmet>
+<div style="min-height:100dvh;background:var(--bg-page);font-family:var(--font-sans);color:var(--text-body)">
+
+  <!-- Sticky header -->
+  <header style="position:sticky;top:0;z-index:30;background:var(--chrome-bg);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border-default)">
+    <div style="max-width:1280px;margin:0 auto;padding:6px 16px;height:48px;display:flex;align-items:center;gap:8px">
+      <div style="width:32px;height:32px;border-radius:6px;background:linear-gradient(135deg,#1d3a8a,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:15px">B</div>
+      <span style="font-weight:700;font-size:15px">Bindery</span>
+      <div style="flex:1"></div>
+      <span class="by-avatar by-avatar--md">J</span>
+    </div>
+  </header>
+
+  <!-- Toolbar -->
+  <div style="position:sticky;top:48px;z-index:20;background:var(--chrome-bg);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border-default)">
+    <div style="max-width:1280px;margin:0 auto;padding:8px 16px;display:flex;align-items:center;gap:10px">
+      <div class="by-segmented">
+        <button class="by-segment" aria-pressed="true">Comics</button>
+        <button class="by-segment" aria-pressed="false">Magazines</button>
+      </div>
+      <span style="font-size:13px;color:var(--text-tertiary)">{{ count }} series</span>
+    </div>
+  </div>
+
+  <!-- Grid -->
+  <main style="max-width:1280px;margin:0 auto;padding:20px 16px">
+    <div class="by-kicker" style="margin-bottom:8px">Library</div>
+    <div class="lib-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:var(--gap-grid)">
+      <sc-for list="{{ items }}" as="s" hint-placeholder-count="12">
+        <a class="by-cover" href="#">
+          <div class="by-cover__art">
+            <div style="width:100%;height:100%;background:linear-gradient(160deg,var(--bg-strong),var(--bg-subtle))"></div>
+            <sc-if value="{{ s.isNew }}" hint-placeholder-val="{{ false }}">
+              <div class="by-cover__badge by-cover__badge--tr"><span class="by-badge by-badge--new">{{ s.newLabel }}</span></div>
+            </sc-if>
+            <sc-if value="{{ s.hasProgress }}" hint-placeholder-val="{{ false }}">
+              <div class="by-cover__strip">{{ s.fill }}</div>
+            </sc-if>
+          </div>
+          <div class="by-cover__body">
+            <h3 class="by-cover__title">{{ s.name }}</h3>
+            <div class="by-cover__meta">{{ s.meta }}</div>
+          </div>
+        </a>
+      </sc-for>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1280, &quot;height&quot;: 820}}">
+class Component extends DCLogic {
+  renderVals() {
+    const data = [
+      ['Frieren', '2020 · 12 ch.', 3, 42],
+      ['Vinland Saga', '2005 · 24 ch.', 0, 0],
+      ['Witch Hat Atelier', '2016 · 8 ch.', 1, 25],
+      ['Blame!', '1998 · 10 ch.', 0, 100],
+      ['Dungeon Meshi', '2014 · 16 ch.', 2, 56],
+      ['Houseki no Kuni', '2012 · 11 ch.', 0, 27],
+      ['Pluto', '2003 · 8 ch.', 0, 0],
+      ['Vagabond', '1998 · 20 ch.', 0, 70],
+      ['Goodnight Punpun', '2007 · 13 ch.', 0, 46],
+      ['Monster', '1994 · 18 ch.', 0, 0],
+      ['Made in Abyss', '2012 · 9 ch.', 0, 33],
+      ['Pluto', '2003 · 8 ch.', 0, 0],
+    ];
+    const items = data.map(([name, meta, neww, prog]) => ({
+      name, meta,
+      isNew: neww > 0, newLabel: '+' + neww + ' New',
+      hasProgress: prog > 0 && prog < 100,
+      // Progress fill rendered as a node so the data-driven width isn't a style hole.
+      fill: React.createElement('div', { className: 'by-cover__strip-fill', style: { width: prog + '%' } }),
+    }));
+    return { items, count: items.length };
+  }
+}
+</script>
+</body>
+</html>

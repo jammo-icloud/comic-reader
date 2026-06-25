@@ -1,0 +1,56 @@
+<!-- @dsCard group="Components" viewport="700x230" name="Inputs & Segmented Control" subtitle="Standard + comic inputs, segmented tabs and toggles" -->
+<!DOCTYPE html>
+<html lang="en" class="dark" data-theme="">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { padding: 24px; }
+  .row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+  .lbl { width: 100%; margin: 0 0 2px; }
+  i[data-lucide] { display: inline-flex; }
+  i[data-lucide] > svg { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { Input, SegmentedControl, Kicker } = window.BinderyDesignSystem_cd2bc2;
+  const Ic = ({ name, size = 14 }) => {
+    const ref = React.useRef(null);
+    React.useEffect(() => { if (ref.current && window.lucide) window.lucide.createIcons({ root: ref.current.parentNode }); });
+    return <i ref={ref} data-lucide={name} style={{ width: size, height: size }} />;
+  };
+  function Demo() {
+    const [type, setType] = React.useState('Comics');
+    const [mode, setMode] = React.useState('dark');
+    return (
+      <div>
+        <div className="row">
+          <Kicker className="lbl">Inputs</Kicker>
+          <div style={{ width: 260 }}><Input placeholder="Search your library" /></div>
+          <div style={{ width: 200 }}><Input variant="comic" placeholder="your username" /></div>
+        </div>
+        <div className="row">
+          <Kicker className="lbl">Segmented — type tabs</Kicker>
+          <SegmentedControl options={['Comics', 'Magazines']} value={type} onChange={setType} />
+        </div>
+        <div className="row">
+          <Kicker className="lbl">Segmented — theme toggle</Kicker>
+          <SegmentedControl
+            options={[{ value: 'light', label: '', icon: <Ic name="sun" /> }, { value: 'dark', label: '', icon: <Ic name="moon" /> }]}
+            value={mode} onChange={setMode} />
+        </div>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

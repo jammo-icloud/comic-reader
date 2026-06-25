@@ -1,0 +1,61 @@
+<!-- @dsCard group="Components" viewport="700x300" name="Badges, Tags, Avatars & Progress" subtitle="Status pills, NEW chips, genre tags, identity avatars, progress bars" -->
+<!DOCTYPE html>
+<html lang="en" class="dark" data-theme="">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { padding: 24px; }
+  .row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+  .lbl { width: 100%; margin: 0 0 2px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { Badge, StatusPill, Tag, Avatar, ProgressBar, Kicker } = window.BinderyDesignSystem_cd2bc2;
+  function Demo() {
+    return (
+      <div>
+        <div className="row">
+          <Kicker className="lbl">Status pills</Kicker>
+          <StatusPill status="ongoing" />
+          <StatusPill status="completed" />
+          <StatusPill status="hiatus" />
+          <StatusPill status="cancelled" />
+          <Badge intent="new">+3 New</Badge>
+          <Badge intent="success" pill>Saved</Badge>
+          <Badge intent="danger" pill>NSFW</Badge>
+          <Badge intent="accent-soft" pill>In Library</Badge>
+        </div>
+        <div className="row">
+          <Kicker className="lbl">Tags</Kicker>
+          <Tag>action</Tag><Tag>fantasy</Tag><Tag>seinen</Tag><Tag>adventure</Tag><Tag>drama</Tag>
+        </div>
+        <div className="row">
+          <Kicker className="lbl">Avatars</Kicker>
+          <Avatar username="Jammo" size="sm" />
+          <Avatar username="Jammo" size="md" />
+          <Avatar username="Kira" size="lg" />
+          <span style={{ background: '#1a1a1a', padding: 6, borderRadius: 8 }}>
+            <Avatar username="Kira" size="md" variant="onDark" />
+          </span>
+        </div>
+        <div className="row">
+          <Kicker className="lbl">Progress</Kicker>
+          <div style={{ width: 160 }}><ProgressBar value={28} /></div>
+          <div style={{ width: 160 }}><ProgressBar value={62} /></div>
+          <div style={{ width: 160 }}><ProgressBar value={94} /></div>
+        </div>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

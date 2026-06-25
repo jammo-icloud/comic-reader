@@ -1,0 +1,65 @@
+<!-- @dsCard group="Components" viewport="700x320" name="Buttons & Icon Buttons" subtitle="Primary, secondary, ghost, destructive, comic + toolbar icon buttons" -->
+<!DOCTYPE html>
+<html lang="en" class="dark" data-theme="">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { padding: 24px; }
+  .row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+  .lbl { width: 100%; margin: 0 0 2px; }
+  i[data-lucide] { display: inline-flex; }
+  i[data-lucide] > svg { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { Button, IconButton, Kicker } = window.BinderyDesignSystem_cd2bc2;
+  // Lucide icon helper — kebab-case names, hydrated via createIcons after render.
+  const Ic = ({ name, size = 16 }) => {
+    const ref = React.useRef(null);
+    React.useEffect(() => {
+      if (ref.current && window.lucide) window.lucide.createIcons({ root: ref.current.parentNode });
+    });
+    return <i ref={ref} data-lucide={name} style={{ width: size, height: size }} />;
+  };
+  function Demo() {
+    return (
+      <div>
+        <div className="row">
+          <Kicker className="lbl">Variants</Kicker>
+          <Button variant="primary">Add to Library</Button>
+          <Button variant="secondary" iconLeft={<Ic name="download" />}>Save offline</Button>
+          <Button variant="ghost">Cancel</Button>
+          <Button variant="destructive" iconLeft={<Ic name="trash-2" />}>Delete</Button>
+          <Button variant="primary" disabled>Disabled</Button>
+        </div>
+        <div className="row">
+          <Kicker className="lbl">Sizes</Kicker>
+          <Button size="sm">Small</Button>
+          <Button size="md">Medium</Button>
+          <Button size="lg" iconRight={<Ic name="arrow-right" />}>Large CTA</Button>
+          <Button variant="comic">Sign In →</Button>
+        </div>
+        <div className="row">
+          <Kicker className="lbl">Icon buttons</Kicker>
+          <IconButton title="Search"><Ic name="search" size={18} /></IconButton>
+          <IconButton title="Sort" label="Sort"><Ic name="arrow-down-a-z" size={18} /></IconButton>
+          <IconButton title="Grid" active><Ic name="layout-grid" size={18} /></IconButton>
+          <IconButton title="Add" variant="primary"><Ic name="plus" size={18} /></IconButton>
+          <IconButton title="Delete" variant="destructive"><Ic name="trash-2" size={18} /></IconButton>
+        </div>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

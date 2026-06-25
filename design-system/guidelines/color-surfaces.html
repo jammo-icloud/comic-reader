@@ -1,0 +1,37 @@
+<!-- @dsCard group="Colors" viewport="700x180" name="Surface & Text Aliases" subtitle="Semantic light/dark surface + text tokens, side by side" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { padding: 0; display: flex; }
+  .pane { flex: 1; padding: 18px; }
+  .pane.light { background: var(--bg-page); }
+  .stack { display: flex; flex-direction: column; gap: 8px; }
+  .card { background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: 10px 12px; }
+  .t1 { color: var(--text-body); font-size: 13px; font-weight: 600; }
+  .t2 { color: var(--text-secondary); font-size: 12px; }
+  .t3 { color: var(--text-tertiary); font-size: 11px; }
+  .lab { font-size: 10px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 8px; }
+</style>
+</head>
+<body>
+  <div class="pane light">
+    <div class="lab">Light</div>
+    <div class="card stack">
+      <span class="t1">--text-body on --surface-card</span>
+      <span class="t2">--text-secondary</span>
+      <span class="t3">--text-tertiary · --text-muted</span>
+    </div>
+  </div>
+  <div class="pane light dark" data-theme="">
+    <div class="lab">Dark (.dark flips the aliases)</div>
+    <div class="card stack">
+      <span class="t1">--text-body on --surface-card</span>
+      <span class="t2">--text-secondary</span>
+      <span class="t3">--text-tertiary · --text-muted</span>
+    </div>
+  </div>
+</body>
+</html>

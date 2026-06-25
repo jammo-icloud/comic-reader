@@ -1,0 +1,70 @@
+/* ============================================================
+   BINDERY — TYPOGRAPHY TOKENS
+   ------------------------------------------------------------
+   Bindery ships no custom webfont. Body type is the native
+   system UI stack (Tailwind's default `font-sans`); `font-mono`
+   is used for IDs, file paths, hashes, and the comic-panel form
+   labels on the login spread.
+
+   Display "comic title" treatment (stacked-plate text-shadow) is
+   reserved for the Bindery wordmark — see --shadow-comic-title.
+   ============================================================ */
+
+:root {
+  /* ---- Families ---- */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, Helvetica, Arial, sans-serif,
+               "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+               "Liberation Mono", "Courier New", monospace;
+
+  /* ---- Type scale (px) ----
+     Named scale for 12→30px; raw px values only below 12px for dense UI. */
+  --text-3xl: 30px;   /* hero page title (Series name, desktop) */
+  --text-2xl: 24px;   /* page title (Admin), Series name tablet */
+  --text-xl:  20px;   /* Series name mobile, sheet title        */
+  --text-lg:  18px;   /* sub-headings, modal headers            */
+  --text-base:16px;   /* default body                           */
+  --text-sm:  14px;   /* dense body, button text                */
+  --text-xs:  12px;   /* helper text, kicker labels, pills      */
+  --text-11:  11px;   /* toolbar small text, hints              */
+  --text-10:  10px;   /* tag chips, dense badges                */
+  --text-9:   9px;    /* cover overlay strips (source name)     */
+
+  /* ---- Weights ---- */
+  --weight-normal:   400;   /* body */
+  --weight-medium:   500;   /* chapter titles, form labels, emphasis */
+  --weight-semibold: 600;   /* sub-headings, CTAs, toolbar titles    */
+  --weight-bold:     700;   /* page titles, avatar initial, stats    */
+  --weight-black:    900;   /* comic display wordmark only           */
+
+  /* ---- Line heights ---- */
+  --leading-none:  1;
+  --leading-tight: 1.25;
+  --leading-snug:  1.375;
+  --leading-normal:1.5;
+
+  /* ---- Letter spacing ---- */
+  --tracking-tight:  -0.02em;  /* display wordmark              */
+  --tracking-normal: 0;
+  --tracking-wide:   0.05em;   /* kicker labels                 */
+  --tracking-wider:  0.1em;    /* uppercase kickers, mono labels */
+  --tracking-widest: 0.25em;   /* mono "· access" micro-labels  */
+
+  /* ---- Display: comic-title stacked-plate shadow ----
+     For the BINDERY wordmark on dark. Black backplane + accent drop. */
+  --shadow-comic-title: 2px 2px 0 #000, 3px 3px 0 #000,
+                        5px 5px 0 rgb(var(--accent) / 1);
+}
+
+/* Kicker label — uppercase, tracked, tiny. The recurring section/eyebrow. */
+.bindery-kicker {
+  font-size: var(--text-11);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+  color: var(--text-tertiary);
+}
+
+/* tabular-nums helper — page counts, stats, progress percentages */
+.bindery-nums { font-variant-numeric: tabular-nums; }

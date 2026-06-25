@@ -1,0 +1,29 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Semantic Intent" subtitle="success · warning · danger — stable across all 12 themes" -->
+<!DOCTYPE html>
+<html lang="en" class="dark" data-theme="">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { padding: 20px; }
+  .row { display: flex; gap: 14px; }
+  .sw { flex: 1; border-radius: var(--radius-lg); padding: 12px; min-height: 84px; color: #fff; display: flex; flex-direction: column; justify-content: space-between; }
+  .name { font-size: 13px; font-weight: 700; }
+  .use { font-size: 11px; opacity: 0.9; }
+  .val { font-size: 11px; font-family: var(--font-mono); opacity: 0.85; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="sw" style="background: var(--color-success)">
+      <span class="name">success</span><span class="use">read · saved · ongoing</span><span class="val">22 163 74</span>
+    </div>
+    <div class="sw" style="background: var(--color-warning)">
+      <span class="name">warning</span><span class="use">pending · hiatus · partial</span><span class="val">217 119 6</span>
+    </div>
+    <div class="sw" style="background: var(--color-danger)">
+      <span class="name">danger</span><span class="use">delete · error · NSFW</span><span class="val">220 38 38</span>
+    </div>
+  </div>
+</body>
+</html>

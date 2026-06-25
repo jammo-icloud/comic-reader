@@ -1,0 +1,20 @@
+<!-- @dsCard group="Spacing" viewport="700x150" name="Touch Targets" subtitle="Enforced minimum tap heights" -->
+<!DOCTYPE html>
+<html lang="en" class="dark" data-theme="">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { padding: 20px; display: flex; align-items: flex-end; gap: 16px; }
+  .t { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .box { background: rgb(var(--accent) / 0.15); border: 1px solid var(--color-accent); border-radius: var(--radius-md); width: 96px; display: flex; align-items: center; justify-content: center; color: var(--color-accent); font-size: 12px; font-weight: 600; }
+  .tok { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); text-align: center; }
+</style>
+</head>
+<body>
+  <div class="t"><div class="box" style="height:28px">28</div><span class="tok">--tap-pill<br>segment</span></div>
+  <div class="t"><div class="box" style="height:36px">36</div><span class="tok">--tap-toolbar<br>icon btn</span></div>
+  <div class="t"><div class="box" style="height:40px">40</div><span class="tok">--tap-secondary<br>2° button</span></div>
+  <div class="t"><div class="box" style="height:44px">44</div><span class="tok">--tap-primary<br>mobile CTA</span></div>
+</body>
+</html>

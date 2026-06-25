@@ -1,0 +1,22 @@
+<!-- @dsCard group="Shape" viewport="700x170" name="Border Radius" subtitle="Radius scales with surface size" -->
+<!DOCTYPE html>
+<html lang="en" class="dark" data-theme="">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { padding: 20px; display: flex; gap: 18px; align-items: flex-end; }
+  .t { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .box { width: 84px; height: 84px; background: rgb(var(--accent) / 0.15); border: 1px solid var(--color-accent); }
+  .tok { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); text-align: center; }
+</style>
+</head>
+<body>
+  <div class="t"><div class="box" style="border-radius:var(--radius)"></div><span class="tok">--radius · 4<br>pills, badges</span></div>
+  <div class="t"><div class="box" style="border-radius:var(--radius-md)"></div><span class="tok">--radius-md · 6<br>icon btns</span></div>
+  <div class="t"><div class="box" style="border-radius:var(--radius-lg)"></div><span class="tok">--radius-lg · 8<br>buttons, inputs</span></div>
+  <div class="t"><div class="box" style="border-radius:var(--radius-xl)"></div><span class="tok">--radius-xl · 12<br>cards, modals</span></div>
+  <div class="t"><div class="box" style="border-radius:var(--radius-2xl)"></div><span class="tok">--radius-2xl · 16<br>sheets, hero</span></div>
+  <div class="t"><div class="box" style="border-radius:var(--radius-full)"></div><span class="tok">--radius-full<br>avatars, dots</span></div>
+</body>
+</html>

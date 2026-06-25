@@ -1,0 +1,32 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Accent & Action" subtitle="Default blue accent + hover, on light and dark" -->
+<!DOCTYPE html>
+<html lang="en" class="dark" data-theme="">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { padding: 20px; }
+  .row { display: flex; gap: 14px; }
+  .sw { flex: 1; border-radius: var(--radius-lg); padding: 12px; min-height: 84px; display: flex; flex-direction: column; justify-content: flex-end; border: 1px solid var(--border-default); }
+  .name { font-size: 12px; font-weight: 600; }
+  .val { font-size: 11px; font-family: var(--font-mono); opacity: 0.85; margin-top: 2px; }
+  .on-accent { color: #fff; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="sw on-accent" style="background: var(--color-accent)">
+      <span class="name">--accent</span><span class="val">59 130 246</span>
+    </div>
+    <div class="sw on-accent" style="background: var(--color-accent-hover)">
+      <span class="name">--accent-hover</span><span class="val">37 99 235</span>
+    </div>
+    <div class="sw" style="background: rgb(var(--accent) / 0.15); color: var(--color-accent)">
+      <span class="name">accent / 0.15</span><span class="val">selected pill</span>
+    </div>
+    <div class="sw" style="background: rgb(var(--accent) / 0.10); color: var(--color-accent)">
+      <span class="name">accent / 0.10</span><span class="val">hovered row</span>
+    </div>
+  </div>
+</body>
+</html>

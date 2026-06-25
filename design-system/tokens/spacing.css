@@ -1,0 +1,55 @@
+/* ============================================================
+   BINDERY — SPACING & SIZING TOKENS
+   ------------------------------------------------------------
+   Mirrors Tailwind's 4px base scale (the values Bindery's classes
+   compile to) plus the explicit touch-target minimums, page max
+   widths, and the canonical gutter the product enforces.
+   ============================================================ */
+
+:root {
+  /* ---- Base spacing scale (4px rhythm) ---- */
+  --space-0:  0;
+  --space-1:  4px;
+  --space-1-5:6px;
+  --space-2:  8px;
+  --space-2-5:10px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---- Common gap values (named by use) ---- */
+  --gap-dense:   6px;    /* icon-text in dense buttons, toolbar rows */
+  --gap-button:  8px;    /* standard button row                     */
+  --gap-row:     12px;   /* card content row, modal header          */
+  --gap-grid:    16px;   /* series-grid items                       */
+
+  /* ---- Touch targets (min tap height, enforced) ---- */
+  --tap-pill:      28px;  /* segmented / pill button (one-thumb)   */
+  --tap-toolbar:   36px;  /* toolbar icon button                  */
+  --tap-secondary: 40px;  /* secondary button                     */
+  --tap-primary:   44px;  /* primary CTA on mobile (Apple HIG min) */
+
+  /* ---- Page max widths ---- */
+  --width-7xl: 80rem;     /* 1280px — Library, Discover (broad grids) */
+  --width-6xl: 72rem;     /* 1152px — Admin, sticky toolbars          */
+  --width-5xl: 64rem;     /* 1024px — Series page                     */
+  --width-3xl: 48rem;     /* 768px  — Import (single column)          */
+  --width-2xl: 42rem;     /* 672px  — modals                          */
+  --width-lg:  32rem;     /* 512px  — small modals                    */
+  --width-md:  28rem;     /* 448px  — bottom sheets at sm+            */
+  --width-sm:  24rem;     /* 384px  — login form                      */
+
+  /* ---- Canonical page gutter ----
+     Pages use 16px, widening to 24px at sm+. Vertical rhythm 16–24px;
+     32px (space-y-6 ≈ 24px) between top-level sections. */
+  --gutter-x:    16px;
+  --gutter-x-sm: 24px;
+
+  /* ---- Library cover aspect ---- */
+  --cover-aspect: 2 / 3;  /* @kind other */ /* every comic / series cover thumbnail */
+}

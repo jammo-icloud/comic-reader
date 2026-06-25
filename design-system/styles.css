@@ -1,0 +1,11 @@
+/* ============================================================
+   BINDERY — global stylesheet entry point.
+   Consumers link THIS one file. It is @import lines only.
+   ============================================================ */
+
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";
+@import "./tokens/shape.css";
+@import "./tokens/base.css";
+@import "./tokens/components.css";

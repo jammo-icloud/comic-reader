@@ -1,0 +1,50 @@
+<!-- @dsCard group="Components" viewport="700x440" name="Cover Thumbnail" subtitle="The signature 2:3 cover card — badges, progress, read, NSFW, source edge" -->
+<!DOCTYPE html>
+<html lang="en" class="dark" data-theme="">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { padding: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 150px); gap: var(--gap-grid); }
+  i[data-lucide] { display: inline-flex; }
+  i[data-lucide] > svg { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { CoverThumb, Badge } = window.BinderyDesignSystem_cd2bc2;
+  const C = '../../assets/placeholders/manga.png';
+  const D = '../../assets/placeholders/discover-online.png';
+  const I = '../../assets/placeholders/import-first.png';
+  const Pin = () => {
+    const ref = React.useRef(null);
+    React.useEffect(() => { if (ref.current && window.lucide) window.lucide.createIcons({ root: ref.current.parentNode }); });
+    return <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:20, height:20, borderRadius:'50%', background:'rgb(var(--accent)/0.9)', color:'#fff' }}>
+      <i ref={ref} data-lucide="pin" style={{ width:11, height:11 }} /></span>;
+  };
+  function Demo() {
+    return (
+      <div className="grid">
+        <CoverThumb src={C} title="Frieren" meta="2020 · 12 ch."
+          badgeTR={<Badge intent="new">+3 New</Badge>} progress={42} />
+        <CoverThumb src={D} title="Vinland Saga" meta="2005 · 24 ch." read
+          badgeTL={<Badge intent="success" pill>Saved</Badge>} />
+        <CoverThumb src={I} title="Chainsaw Man" meta="2018 · 8 ch." blurred
+          badgeTR={<Badge intent="danger" pill>NSFW</Badge>} />
+        <CoverThumb src={C} title="One Piece" meta="1997" topEdgeColor="#f97316"
+          badgeTR={<Badge intent="success" pill>ongoing</Badge>} badgeBL={<Pin />} />
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

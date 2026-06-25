@@ -1,0 +1,45 @@
+<!-- @dsCard group="Colors" viewport="700x230" name="The 12 Themes" subtitle="6 dark + 6 light — each redefines the ramp + accent" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body { padding: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .tile { border-radius: var(--radius-lg); overflow: hidden; border: 1px solid rgba(128,128,128,0.25); }
+  .swatch { height: 54px; position: relative; display: flex; align-items: flex-end; padding: 6px; }
+  .dot { width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,0.25); }
+  .cap { font-size: 10px; padding: 5px 6px; background: rgba(128,128,128,0.08); }
+  .nm { font-weight: 600; display: block; }
+  .ds { color: var(--text-muted); }
+  h4 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-tertiary); }
+</style>
+</head>
+<body>
+  <h4>Dark</h4>
+  <div class="grid" id="dark-row"></div>
+  <h4 style="margin-top:14px">Light</h4>
+  <div class="grid" id="light-row"></div>
+  <script>
+    const dark = [
+      ['midnight','Midnight','Dracula'],['nord-frost','Nord Frost','arctic'],['mocha','Mocha','Catppuccin'],
+      ['rosewood','Rosewood','Rose Pine'],['tankobon-dark','Tankobon','cafe night'],['newsprint-dark','Newsprint','after hours'],
+    ];
+    const light = [
+      ['latte','Latte','Catppuccin'],['dawn','Dawn','Rose Pine'],['alucard','Alucard','aged ivory'],
+      ['gruvbox-sand','Gruvbox','retro'],['tankobon','Tankobon','manga paper'],['newsprint','Newsprint','comic paper'],
+    ];
+    function tile([id,name,desc], isDark){
+      return `<div class="tile" data-theme="${id}">
+        <div class="swatch ${isDark?'dark':''}" style="background:rgb(var(--gray-${isDark?'950':'100'}))">
+          <span class="dot" style="background:rgb(var(--accent))"></span>
+        </div>
+        <div class="cap"><span class="nm">${name}</span><span class="ds">${desc}</span></div>
+      </div>`;
+    }
+    document.getElementById('dark-row').innerHTML = dark.map(t=>tile(t,true)).join('');
+    document.getElementById('light-row').innerHTML = light.map(t=>tile(t,false)).join('');
+  </script>
+</body>
+</html>
