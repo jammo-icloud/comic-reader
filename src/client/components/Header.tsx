@@ -32,6 +32,10 @@ export default function Header({ onOpenProfile }: HeaderProps) {
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border-default)',
+        // Subtle drop shadow so the header has a visible edge even when an
+        // immersive page sits behind it (Series blurred-cover hero). Without
+        // this, dark chrome-bg over dark hero reads as "no header at all."
+        boxShadow: '0 1px 3px rgb(0 0 0 / 0.15)',
       }}
     >
       <div

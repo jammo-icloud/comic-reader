@@ -73,8 +73,11 @@
   --color-warning: rgb(var(--warning));
   --color-danger:  rgb(var(--danger));
 
-  /* Sticky page chrome — translucent so the theme bg shows through */
-  --chrome-bg: rgb(var(--gray-50) / 0.85);
+  /* Sticky page chrome — translucent so the theme bg shows through.
+     0.92 (was 0.85) so the chrome reads cleanly over the immersive
+     Series hero — at 0.85 the dark gray-950 chrome blends into the
+     dark blurred cover backdrop and reads as "no header." */
+  --chrome-bg: rgb(var(--gray-50) / 0.92);
 
   /* Theme-independent overlay scrims (legible over any cover art) */
   --overlay-float:   rgb(0 0 0 / 0.40);   /* floating corner button   */
@@ -104,7 +107,7 @@
   --border-default: rgb(var(--gray-800));
   --border-subtle:  rgb(var(--gray-800));
 
-  --chrome-bg: rgb(var(--gray-950) / 0.85);
+  --chrome-bg: rgb(var(--gray-950) / 0.92);
 }
 
 /* ====================================================================
