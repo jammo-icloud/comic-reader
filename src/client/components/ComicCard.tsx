@@ -1,56 +1,57 @@
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Check, AlertTriangle } from 'lucide-react';
 import type { Comic } from '../lib/types';
 import { getThumbnailUrl } from '../lib/api';
+import { Badge, CoverThumb } from './ds';
 
-export default function ComicCard({ comic, seriesId, hideSeries }: { comic: Comic; seriesId: string; hideSeries?: boolean }) {
+/**
+ * Bindery chapter card — the CoverThumb DS primitive with state badges
+ * mapped 1:1 from the prototype's ChapterGrid:
+ *   - read=true draws the success bottom strip
+ *   - in-progress draws the accent progress strip + "p.X" accent badge
+ *   - unread + partial draws the warning Partial badge with the ok/total fraction
+ *   - read draws the Read success badge
+ */
+export default function ComicCard({
+  comic, seriesId,
+}: {
+  comic: Comic;
+  seriesId: string;
+  /** Kept for callsite compatibility; covers always show the chapter only. */
+  hideSeries?: boolean;
+}) {
+  const navigate = useNavigate();
+  const inProgress = comic.currentPage > 0 && !comic.isRead;
   const progress = comic.pages > 0 ? Math.round((comic.currentPage / comic.pages) * 100) : 0;
 
   return (
-    <Link
-      to={`/read/${seriesId}/${comic.file}`}
-      className="group block bg-surface dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
-    >
-      <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
-        <img
-          src={getThumbnailUrl(seriesId, comic.file, comic.thumbHash)}
-          alt={comic.file}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-          loading="lazy"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        />
-        {comic.isRead && (
-          <div className="absolute top-2 right-2 bg-success/90 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
-            <Check size={12} strokeWidth={3} /> Read
-          </div>
-        )}
-        {!comic.isRead && comic.currentPage > 0 && (
-          <div className="absolute top-2 right-2 bg-accent/90 text-white text-xs px-1.5 py-0.5 rounded">
-            p.{comic.currentPage + 1}/{comic.pages}
-          </div>
-        )}
-        {!comic.isRead && comic.currentPage > 0 && (
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/30">
-            <div className="h-full bg-accent" style={{ width: `${progress}%` }} />
-          </div>
-        )}
-        {comic.isRead && <div className="absolute bottom-0 left-0 right-0 h-1 bg-success" />}
-        {/* Partial-chapter badge — bottom-left so it doesn't fight with the
-            top-right read/progress chip. Warning-tone to signal "needs attention." */}
-        {comic.partial && (
-          <div
-            className="absolute top-2 left-2 inline-flex items-center gap-1 bg-warning/90 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm"
-            title={`Partial — ${comic.partial.successfulPages}/${comic.partial.totalPages} pages (retry #${comic.partial.retryCount})`}
-          >
-            <AlertTriangle size={10} strokeWidth={3} />
+    <CoverThumb
+      src={getThumbnailUrl(seriesId, comic.file, comic.thumbHash)}
+      alt={comic.file}
+      title={comic.file.replace(/\.pdf$/i, '')}
+      meta={<span className="bindery-nums">{comic.pages || '?'} pages</span>}
+      onClick={() => navigate(`/read/${seriesId}/${comic.file}`)}
+      read={comic.isRead}
+      progress={inProgress ? progress : null}
+      badgeTL={
+        comic.partial ? (
+          <Badge intent="warning" pill>
+            <AlertTriangle size={9} strokeWidth={2.5} />
             {comic.partial.successfulPages}/{comic.partial.totalPages}
-          </div>
-        )}
-      </div>
-      <div className="p-3">
-        <h3 className="text-sm font-medium truncate">{comic.file.replace('.pdf', '')}</h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{comic.pages || '?'} pages</p>
-      </div>
-    </Link>
+          </Badge>
+        ) : null
+      }
+      badgeTR={
+        comic.isRead ? (
+          <Badge intent="success" pill>
+            <Check size={9} strokeWidth={3} /> Read
+          </Badge>
+        ) : inProgress ? (
+          <Badge intent="accent" pill>
+            p.{comic.currentPage + 1}
+          </Badge>
+        ) : null
+      }
+    />
   );
 }

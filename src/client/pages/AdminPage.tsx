@@ -17,7 +17,7 @@ import StickyToolbar from '../components/StickyToolbar';
 import ToolbarIconButton from '../components/ToolbarIconButton';
 import ConfirmSheet from '../components/ConfirmSheet';
 import SeriesAdminRow from '../components/SeriesAdminRow';
-import { Avatar, Button } from '../components/ds';
+import { Avatar, Badge, Button, IconButton, Kicker, ProgressBar } from '../components/ds';
 
 type Tab = 'library' | 'tasks' | 'subscriptions' | 'users';
 
@@ -494,9 +494,7 @@ export default function AdminPage() {
         <StickyToolbar topPx={HEADER_PX}>
           {() => (
             <>
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                Subscriptions <span className="text-gray-400 font-normal">({subscriptions.length})</span>
-              </h2>
+              <Kicker count={subscriptions.length} className="shrink-0">Subscriptions</Kicker>
               <div className="flex-1" />
             </>
           )}
@@ -507,7 +505,7 @@ export default function AdminPage() {
         <StickyToolbar topPx={HEADER_PX}>
           {() => (
             <>
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Registered Users</h2>
+              <Kicker count={users.length} className="shrink-0">Registered Users</Kicker>
               <div className="flex-1" />
             </>
           )}
@@ -529,55 +527,79 @@ export default function AdminPage() {
                 <p className="text-xs mt-1">Imports from Discover will appear here.</p>
               </div>
             )}
-            {tasks.map((task) => (
-              <div key={task.id} className="bg-surface dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-                <div className="flex items-center gap-3">
-                  {task.status === 'downloading' && <Loader size={14} className="animate-spin text-accent shrink-0" />}
-                  {task.status === 'queued' && <Zap size={14} className="text-warning shrink-0" />}
-                  {task.status === 'complete' && <Check size={14} className="text-success shrink-0" />}
-                  {task.status === 'error' && <AlertCircle size={14} className="text-danger shrink-0" />}
+            {tasks.map((task) => {
+              const pct = task.progress.total > 0 ? (task.progress.current / task.progress.total) * 100 : 0;
+              const toneColor = task.status === 'downloading' ? 'var(--color-accent)'
+                : task.status === 'queued' ? 'var(--color-warning)'
+                : task.status === 'complete' ? 'var(--color-success)'
+                : 'var(--color-danger)';
+              return (
+              <div
+                key={task.id}
+                className="by-card"
+                style={{ padding: 14, background: 'var(--surface-card)' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ color: toneColor, display: 'inline-flex', flexShrink: 0 }}>
+                    {task.status === 'downloading' && <Loader size={16} className="animate-spin" />}
+                    {task.status === 'queued' && <Zap size={16} />}
+                    {task.status === 'complete' && <Check size={16} />}
+                    {task.status === 'error' && <AlertCircle size={16} />}
+                  </span>
 
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{task.mangaTitle}</p>
-                    <p className="text-[11px] text-gray-500 truncate">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{
+                      margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text-body)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {task.mangaTitle}
+                    </p>
+                    <p
+                      className="bindery-nums"
+                      style={{
+                        margin: 0, fontSize: 11, color: 'var(--text-tertiary)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}
+                    >
                       {task.status === 'complete' ? `${task.progress.total} chapters` :
                        task.status === 'error' ? task.error :
                        `Ch. ${task.progress.currentChapter || '...'} — ${task.progress.current}/${task.progress.total}`}
                     </p>
                     {(task.status === 'downloading' || task.status === 'queued') && (
-                      <div className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full mt-1.5 overflow-hidden">
-                        <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${task.progress.total > 0 ? (task.progress.current / task.progress.total) * 100 : 0}%` }} />
+                      <div style={{ marginTop: 6, maxWidth: 360 }}>
+                        <ProgressBar value={pct} />
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
                     {(task.status === 'downloading' || task.status === 'queued') && (
-                      <button onClick={async () => { await cancelAdminTask(task.id); refreshTasks(); }}
-                        className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-danger transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
-                        title="Cancel" aria-label="Cancel task"
+                      <IconButton
+                        title="Cancel task"
+                        onClick={async () => { await cancelAdminTask(task.id); refreshTasks(); }}
                       >
                         <Square size={14} />
-                      </button>
+                      </IconButton>
                     )}
                     {task.status === 'error' && (
-                      <button onClick={async () => { await retryAdminTask(task.id); refreshTasks(); }}
-                        className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-accent transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
-                        title="Retry" aria-label="Retry task"
+                      <IconButton
+                        title="Retry task"
+                        onClick={async () => { await retryAdminTask(task.id); refreshTasks(); }}
                       >
                         <RotateCcw size={14} />
-                      </button>
+                      </IconButton>
                     )}
-                    <button onClick={async () => { await deleteAdminTask(task.id); refreshTasks(); }}
-                      className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-danger transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
-                      title="Delete" aria-label="Delete task"
+                    <IconButton
+                      title="Delete task"
+                      variant="destructive"
+                      onClick={async () => { await deleteAdminTask(task.id); refreshTasks(); }}
                     >
                       <Trash2 size={14} />
-                    </button>
+                    </IconButton>
                   </div>
                 </div>
               </div>
-            ))}
+            ); })}
           </section>
         )}
 
@@ -661,42 +683,71 @@ export default function AdminPage() {
             )}
 
             {!loadingSubs && subscriptions.length > 0 && (
-              <div className="space-y-1.5">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {subscriptions.map((s) => (
-                  <div key={s.id} className="bg-surface dark:bg-gray-900 rounded-xl ring-1 ring-gray-200 dark:ring-gray-800 px-4 py-3 md:py-2.5 grid grid-cols-[1fr_auto] md:grid-cols-[1fr_minmax(140px,200px)_80px_minmax(120px,160px)_auto] md:items-center gap-x-3 gap-y-1">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{s.name}</p>
+                  <div
+                    key={s.id}
+                    className="by-card admin-cols"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0,1fr) minmax(120px,180px) 72px minmax(110px,150px) auto',
+                      gap: 12,
+                      alignItems: 'center',
+                      padding: '10px 14px',
+                      background: 'var(--surface-card)',
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 14, fontWeight: 500, color: 'var(--text-body)',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>{s.name}</div>
                       {s.englishTitle && s.englishTitle !== s.name && (
-                        <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{s.englishTitle}</p>
+                        <div style={{
+                          fontSize: 11, color: 'var(--text-muted)',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>{s.englishTitle}</div>
                       )}
-                      <div className="md:hidden mt-1 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400 flex-wrap">
-                        <span className="capitalize">{s.syncSource.sourceId}</span>
-                        <span className="text-gray-300 dark:text-gray-700">·</span>
-                        <span>{s.chapterCount} ch</span>
-                        {s.newChapterCount > 0 && (
-                          <span className="px-1.5 py-0.5 text-[10px] bg-accent/15 text-accent rounded-full font-medium">+{s.newChapterCount} new</span>
-                        )}
-                        <span className="text-gray-300 dark:text-gray-700">·</span>
-                        <span>{s.lastSyncAt ? new Date(s.lastSyncAt).toLocaleDateString() : 'Never'}</span>
+                    </div>
+
+                    <div className="admin-hide" style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
+                        {s.syncSource.sourceId}
+                      </div>
+                      <div
+                        className="bindery-nums"
+                        style={{
+                          fontSize: 10, color: 'var(--text-muted)',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {s.syncSource.mangaId}
                       </div>
                     </div>
 
-                    <div className="hidden md:block min-w-0">
-                      <p className="text-xs capitalize">{s.syncSource.sourceId}</p>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 font-mono truncate">{s.syncSource.mangaId}</p>
-                    </div>
-                    <div className="hidden md:flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 tabular-nums">
-                      {s.chapterCount}
+                    <div
+                      className="admin-hide"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        fontSize: 13, color: 'var(--text-secondary)',
+                      }}
+                    >
+                      <span className="bindery-nums">{s.chapterCount}</span>
                       {s.newChapterCount > 0 && (
-                        <span className="px-1.5 py-0.5 text-[10px] bg-accent/15 text-accent rounded-full">+{s.newChapterCount}</span>
+                        <Badge intent="accent-soft" pill>+{s.newChapterCount}</Badge>
                       )}
                     </div>
-                    <span className="hidden md:inline text-xs text-gray-500 dark:text-gray-400">
-                      {s.lastSyncAt ? new Date(s.lastSyncAt).toLocaleString() : 'Never'}
+
+                    <span
+                      className="admin-hide"
+                      style={{ fontSize: 12, color: 'var(--text-tertiary)' }}
+                    >
+                      {s.lastSyncAt ? new Date(s.lastSyncAt).toLocaleDateString() : 'Never'}
                     </span>
 
-                    <div className="col-start-2 row-start-1 md:row-auto md:col-auto self-start md:self-auto flex items-center gap-1 justify-end">
-                      <button
+                    <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                      <IconButton
+                        title="Sync now"
                         onClick={async () => {
                           setSyncingId(s.id);
                           try {
@@ -707,13 +758,12 @@ export default function AdminPage() {
                           }
                         }}
                         disabled={syncingId === s.id}
-                        className="p-2 rounded-md hover:bg-accent/10 text-gray-400 hover:text-accent transition-colors disabled:opacity-50 min-w-[36px] min-h-[36px] flex items-center justify-center"
-                        title="Sync now"
-                        aria-label="Sync now"
                       >
-                        {syncingId === s.id ? <Loader size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                      </button>
-                      <button
+                        {syncingId === s.id ? <Loader size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                      </IconButton>
+                      <IconButton
+                        title="Unsubscribe"
+                        variant="destructive"
                         onClick={() => askConfirm({
                           title: `Unsubscribe "${s.name}"?`,
                           message: 'New chapters will no longer be auto-downloaded. Existing chapters stay in your library.',
@@ -723,12 +773,9 @@ export default function AdminPage() {
                             setSubscriptions((prev) => prev.filter((x) => x.id !== s.id));
                           },
                         })}
-                        className="p-2 rounded-md hover:bg-danger/10 text-gray-400 hover:text-danger transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
-                        title="Unsubscribe"
-                        aria-label="Unsubscribe"
                       >
-                        <X size={14} />
-                      </button>
+                        <X size={15} />
+                      </IconButton>
                     </div>
                   </div>
                 ))}
@@ -750,16 +797,31 @@ export default function AdminPage() {
               </div>
             )}
             {!loadingUsers && users.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div
+                className="stat-grid"
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}
+              >
                 {users.map((u) => (
-                  <div key={u.username} className="bg-surface dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-                    <div className="flex items-center gap-3">
+                  <div
+                    key={u.username}
+                    className="by-card"
+                    style={{ padding: 16, background: 'var(--surface-card)' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <Avatar username={u.username} size="lg" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{u.username}</p>
-                        <p className="text-[11px] text-gray-400 truncate">
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{
+                          fontSize: 14, fontWeight: 500, color: 'var(--text-body)',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                          {u.username}
+                        </div>
+                        <div
+                          className="bindery-nums"
+                          style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}
+                        >
                           {u.collectionSize} series · {u.readChapters} read · {u.progressEntries} tracked
-                        </p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -773,8 +835,15 @@ export default function AdminPage() {
       {/* ===== Selection footer (Library, multi-select mode) ===== */}
       {tab === 'library' && selectMode && (
         <div
-          className="fixed left-0 right-0 bottom-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 shadow-2xl"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          className="fixed left-0 right-0 bottom-0 z-30"
+          style={{
+            paddingBottom: 'env(safe-area-inset-bottom)',
+            background: 'var(--chrome-bg)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            borderTop: '1px solid var(--border-default)',
+            boxShadow: 'var(--shadow-2xl)',
+          }}
         >
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
             <span className="text-sm font-medium">
@@ -859,17 +928,54 @@ function StatCard({
   hint?: string;
   accent?: 'blue' | 'amber' | 'red';
 }) {
-  const valueColor = accent === 'blue' ? 'text-accent'
-    : accent === 'amber' ? 'text-warning'
-    : accent === 'red' ? 'text-danger'
-    : '';
+  const valueColor = accent === 'blue' ? 'var(--color-accent)'
+    : accent === 'amber' ? 'var(--color-warning)'
+    : accent === 'red' ? 'var(--color-danger)'
+    : 'var(--text-body)';
   return (
-    <div className="bg-surface dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-3 sm:p-4">
-      <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 text-[11px] sm:text-xs mb-1">
-        {icon} <span className="truncate">{label}</span>
+    <div
+      className="by-card"
+      style={{ padding: 14, background: 'var(--surface-card)' }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          color: 'var(--text-tertiary)',
+          fontSize: 12,
+          marginBottom: 4,
+        }}
+      >
+        {icon}
+        <span style={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>{label}</span>
       </div>
-      <p className={`text-xl sm:text-2xl font-bold ${valueColor}`}>{value}</p>
-      {hint && <p className="text-[10px] sm:text-[11px] text-gray-400 truncate">{hint}</p>}
+      <p
+        className="bindery-nums"
+        style={{
+          margin: 0,
+          fontSize: 24,
+          fontWeight: 700,
+          color: valueColor,
+          lineHeight: 1.1,
+        }}
+      >
+        {value}
+      </p>
+      {hint && (
+        <p style={{
+          margin: '2px 0 0',
+          fontSize: 11,
+          color: 'var(--text-muted)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>{hint}</p>
+      )}
     </div>
   );
 }

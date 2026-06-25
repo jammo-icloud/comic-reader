@@ -550,14 +550,29 @@ function ServerPill({
       onClick={onClick}
       aria-pressed={active}
       title={`${label} on this server`}
-      className={`shrink-0 inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full text-xs font-medium border transition-colors min-h-[28px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-        active
-          ? 'bg-accent text-white border-transparent shadow-sm'
-          : 'text-gray-700 dark:text-gray-300 bg-surface dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-accent'
-      }`}
+      className="shrink-0"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        minHeight: 32,
+        padding: '0 12px',
+        borderRadius: 9999,
+        cursor: 'pointer',
+        fontSize: 13,
+        fontWeight: 500,
+        border: active ? '1px solid var(--color-accent)' : '1px solid var(--border-default)',
+        background: active ? 'rgb(var(--accent) / 0.15)' : 'var(--surface-card)',
+        color: active ? 'var(--color-accent)' : 'var(--text-secondary)',
+      }}
     >
-      <span className="shrink-0">{icon}</span>
-      <span className="truncate max-w-[8rem]">{label}</span>
+      <span style={{ display: 'inline-flex' }}>{icon}</span>
+      <span style={{
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        maxWidth: '8rem',
+      }}>{label}</span>
     </button>
   );
 }
@@ -772,12 +787,21 @@ function SourcePill({
       onClick={onClick}
       aria-pressed={selected}
       title={source.description || source.name}
-      className={`shrink-0 inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full text-xs font-medium border transition-colors min-h-[28px] ${
-        selected
-          ? 'text-white border-transparent shadow-sm'
-          : 'text-gray-700 dark:text-gray-300 bg-surface dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
-      }`}
-      style={selected ? { backgroundColor: hex } : undefined}
+      className="shrink-0"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        minHeight: 32,
+        padding: '0 12px',
+        borderRadius: 9999,
+        cursor: 'pointer',
+        fontSize: 13,
+        fontWeight: 500,
+        border: selected ? `1px solid ${hex}` : '1px solid var(--border-default)',
+        background: selected ? `${hex}26` : 'var(--surface-card)',
+        color: selected ? hex : 'var(--text-secondary)',
+      }}
     >
       {showFavicon ? (
         <img
@@ -785,13 +809,21 @@ function SourcePill({
           alt=""
           aria-hidden="true"
           onError={() => setIconFailed(true)}
-          className={`w-4 h-4 rounded-sm shrink-0 ${selected ? 'ring-1 ring-white/40' : ''}`}
+          style={{ width: 14, height: 14, borderRadius: 2, flexShrink: 0 }}
         />
       ) : (
-        <span aria-hidden="true" className="w-2 h-2 rounded-full shrink-0 mx-1" style={{ backgroundColor: selected ? '#fff' : hex }} />
+        <span
+          aria-hidden="true"
+          style={{ width: 8, height: 8, borderRadius: '50%', background: hex, flexShrink: 0 }}
+        />
       )}
-      <span className="truncate max-w-[8rem]">{source.name}</span>
-      {selected && <Check size={11} strokeWidth={3} className="shrink-0 -mr-0.5" />}
+      <span style={{
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        maxWidth: '8rem',
+      }}>{source.name}</span>
+      {selected && <Check size={11} strokeWidth={3} style={{ flexShrink: 0, marginLeft: -2 }} />}
     </button>
   );
 }
