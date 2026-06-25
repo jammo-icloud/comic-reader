@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
-  LayoutGrid, List, Star, RefreshCw, Loader, MoreHorizontal,
+  ArrowLeft, LayoutGrid, List, Star, RefreshCw, Loader, MoreHorizontal,
   Play, Search, ArrowUpDown, BookOpen, Pencil, Bell, BellOff, Trash2, X,
   Download, CheckCircle, Package, Heart, Plus, Check, AlertTriangle, Sparkles, Pin,
 } from 'lucide-react';
@@ -489,6 +489,34 @@ export default function SeriesPage() {
 
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--bg-page)', color: 'var(--text-body)' }}>
+      {/* Floating Back arrow — sits below the global header (top:60), overlaying
+          the immersive hero. Restored from the pre-port behavior: always returns
+          to the Library so deep-link / Discover entries have a single-tap escape. */}
+      <Link
+        to="/"
+        aria-label="Back to library"
+        title={series.name || 'Back to library'}
+        style={{
+          position: 'fixed',
+          top: 'calc(env(safe-area-inset-top, 0px) + 60px)',
+          left: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+          zIndex: 25,
+          padding: 10,
+          borderRadius: '50%',
+          background: 'rgb(0 0 0 / 0.5)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          color: '#fff',
+          boxShadow: 'var(--shadow-lg)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textDecoration: 'none',
+        }}
+      >
+        <ArrowLeft size={20} />
+      </Link>
+
       {/* ===== HERO ===== Immersive cover-as-hero: cover blurred big behind,
           gradient fading to var(--bg-page) at the bottom so the body picks up
           the active theme cleanly. Foreground text reads white on dark fade. */}
