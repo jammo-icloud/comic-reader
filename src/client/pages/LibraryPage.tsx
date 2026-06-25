@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Download, Pin } from 'lucide-react';
 import type { Series, ContinueReadingItem } from '../lib/types';
 import { getSeries, getContinueReading, getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
 import { getOfflineSeriesIds, getOfflineLibrary } from '../lib/offline';
-import NotificationDropdown from '../components/NotificationDropdown';
-import ProfileMenu from '../components/ProfileMenu';
 import ContinueShelf from '../components/ContinueShelf';
 import LibraryToolbar, { type SortMode } from '../components/LibraryToolbar';
+import { CoverThumb, Badge } from '../components/ds';
 
-// Slim page header: py-1.5 (12px) + 32px logo = ~44px. Toolbar pins below it.
+// Global Bindery header (rendered by App's Shell) is 48px tall; toolbar pins below it.
 const HEADER_PX = 48;
 
 const NSFW_TAGS = new Set(['adult', 'hentai', 'nsfw', 'erotica']);
@@ -161,27 +160,15 @@ export default function LibraryPage() {
   const clearTags = () => setTagFilters(new Set());
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
-
-      {/* ===== Slim page header =====
-          paddingTop: env(safe-area-inset-top) clears the iOS standalone PWA
-          status bar (black-translucent style). The backdrop-blur extends behind
-          the time/battery; the header content sits below them. */}
-      <header
-        className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
-      >
-        <div className="max-w-7xl mx-auto px-4 py-1.5 flex items-center gap-2 h-12">
-          <Link to="/" className="shrink-0">
-            <img src="/logo.png" alt="Bindery" className="h-8 w-8 rounded-md" />
-          </Link>
-          <div className="flex-1" />
-          <NotificationDropdown />
-          <ProfileMenu />
-        </div>
-      </header>
-
-      {/* ===== Library toolbar — type tabs, count, search, tags, sort ===== */}
+    <div
+      style={{
+        minHeight: '100dvh',
+        background: 'var(--bg-page)',
+        color: 'var(--text-body)',
+      }}
+    >
+      {/* ===== Library toolbar — type tabs, count, search, tags, sort =====
+          Pins below the global Bindery header (rendered by App.Shell). */}
       <LibraryToolbar
         topPx={HEADER_PX}
         typeFilter={typeFilter}
@@ -233,73 +220,76 @@ export default function LibraryPage() {
 // ===== Subcomponents =====
 
 function SeriesGrid({ items, offlineSeries }: { items: Series[]; offlineSeries: Set<string> }) {
+  const navigate = useNavigate();
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
       {items.map((s) => {
         const isNsfw = (s.tags || []).some((t) => NSFW_TAGS.has(t.toLowerCase()));
+        const cover = s.coverFile
+          ? getSeriesCoverUrl(s.id, s.coverFile)
+          : getPlaceholderUrl(s.placeholder);
+        const showProgress =
+          s.readCount > 0 && s.count > 0 && s.readCount < s.count
+            ? Math.round((s.readCount / s.count) * 100)
+            : null;
+        const meta = (
+          <div className="flex items-center gap-2">
+            <span style={{ color: 'var(--text-tertiary)' }}>{s.count} ch.</span>
+            <span className="bindery-nums" style={{ color: 'var(--text-muted)' }}>
+              {s.readCount}/{s.count}
+            </span>
+            {s.score != null && s.score > 0 && (
+              <span className="ml-auto" style={{ color: 'var(--color-warning)' }}>
+                {s.score.toFixed(1)}
+              </span>
+            )}
+          </div>
+        );
         return (
-          <Link
+          <CoverThumb
             key={s.id}
-            to={`/series/${s.id}`}
-            className="group bg-surface dark:bg-gray-900 rounded-lg overflow-hidden hover:ring-2 hover:ring-accent transition-all shadow-sm dark:shadow-none border border-gray-200 dark:border-transparent"
-          >
-            <div className="aspect-[2/3] bg-gray-100 dark:bg-gray-800 overflow-hidden relative">
-              <img
-                src={s.coverFile ? getSeriesCoverUrl(s.id, s.coverFile) : getPlaceholderUrl(s.placeholder)}
-                alt={s.name}
-                /* NSFW: blur stays on hover (was unblurring on hover, defeating the warning).
-                   Click-through (the Link) is the way to view. */
-                className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 ${
-                  s.coverFile ? '' : 'opacity-60'
-                } ${isNsfw ? 'blur-lg' : ''}`}
-                loading="lazy"
-              />
-              {isNsfw && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <span className="text-[10px] text-white bg-danger/85 px-2 py-0.5 rounded-full font-medium shadow-sm">NSFW</span>
-                </div>
-              )}
-              {offlineSeries.has(s.id) && (
-                <div
-                  className="absolute top-2 left-2 flex items-center gap-1 bg-success/90 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm"
-                  title="Saved for offline reading"
-                  aria-label="Saved for offline reading"
-                >
+            src={cover}
+            alt={s.name}
+            title={s.name}
+            meta={meta}
+            blurred={isNsfw}
+            progress={showProgress}
+            onClick={() => navigate(`/series/${s.id}`)}
+            badgeTL={
+              offlineSeries.has(s.id) ? (
+                <Badge intent="success" pill>
                   <Download size={9} strokeWidth={2.5} /> Saved
-                </div>
-              )}
-              {s.newChapterCount != null && s.newChapterCount > 0 && (
-                <div className="absolute top-2 right-2 flex items-center gap-1 bg-accent text-white text-[10px] px-2 py-0.5 rounded-full font-semibold shadow-lg">
-                  +{s.newChapterCount} NEW
-                </div>
-              )}
-              {/* Pin marker — bottom-left, free corner (Saved badge is top-left,
-                  NEW is top-right). At-a-glance "this is in my reading set." */}
-              {s.isPinned && (
-                <div
-                  className="absolute bottom-2 left-2 flex items-center justify-center bg-accent/90 text-white w-5 h-5 rounded-full shadow-sm"
+                </Badge>
+              ) : null
+            }
+            badgeTR={
+              isNsfw ? (
+                <Badge intent="danger" pill>NSFW</Badge>
+              ) : s.newChapterCount != null && s.newChapterCount > 0 ? (
+                <Badge intent="new">+{s.newChapterCount} NEW</Badge>
+              ) : null
+            }
+            badgeBL={
+              s.isPinned ? (
+                <span
                   title="Pinned — currently reading"
                   aria-label="Pinned — currently reading"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    background: 'rgb(var(--accent) / 0.9)',
+                    color: '#fff',
+                  }}
                 >
-                  <Pin size={10} fill="currentColor" strokeWidth={0} />
-                </div>
-              )}
-            </div>
-            <div className="p-3">
-              <h3 className="text-sm font-medium truncate">{s.name}</h3>
-              {s.englishTitle && s.englishTitle.toLowerCase() !== s.name.toLowerCase() && (
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">{s.englishTitle}</p>
-              )}
-              {s.year && <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{s.year}</p>}
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-gray-500 dark:text-gray-400">{s.count} ch.</span>
-                <span className="text-xs text-gray-400 dark:text-gray-500">{s.readCount}/{s.count}</span>
-                {s.score != null && s.score > 0 && (
-                  <span className="text-xs text-warning ml-auto">{s.score.toFixed(1)}</span>
-                )}
-              </div>
-            </div>
-          </Link>
+                  <Pin size={11} fill="currentColor" strokeWidth={0} />
+                </span>
+              ) : null
+            }
+          />
         );
       })}
     </div>

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Play } from 'lucide-react';
 import type { ContinueReadingItem } from '../lib/types';
 import { getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
-import ProgressBar from './ProgressBar';
+import { Kicker, ProgressBar } from './ds';
 
 /**
  * Continue Reading shelf — a horizontal scroll strip of compact "resume cards".
@@ -11,7 +11,7 @@ import ProgressBar from './ProgressBar';
  *   - Smaller (mini-cover left + text right, ~220px × 72px each)
  *   - Horizontal scroll with snap-x
  *   - Reads as a navigation aid, not browseable content
- *   - Heading is a kicker (text-xs uppercase) — not a peer to the library h2
+ *   - Heading is a Bindery Kicker (text-xs uppercase, accent count)
  *   - Always visible (no collapse) when the user has in-progress chapters
  */
 export default function ContinueShelf({ items }: { items: ContinueReadingItem[] }) {
@@ -19,16 +19,11 @@ export default function ContinueShelf({ items }: { items: ContinueReadingItem[] 
 
   return (
     <section aria-label="Continue reading">
-      <h2 className="text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2 px-1">
-        Continue reading
-        <span className="ml-1.5 text-gray-400 dark:text-gray-600 font-medium normal-case tracking-normal">
-          · {items.length}
-        </span>
-      </h2>
+      <Kicker count={items.length}>Continue reading</Kicker>
 
       {/* Bleed the strip to the page edges on mobile so cards line up with content edge.
           snap-x keeps each card aligned to a stop when scrolling on touch. */}
-      <div className="-mx-4 sm:-mx-6 px-4 sm:px-6 overflow-x-auto no-scrollbar">
+      <div className="-mx-4 sm:-mx-6 px-4 sm:px-6 overflow-x-auto no-scrollbar mt-2">
         <div className="flex gap-2 snap-x snap-mandatory pb-1">
           {items.map((item) => {
             const pct = item.pages > 0 ? (item.currentPage / item.pages) * 100 : 0;
@@ -39,10 +34,31 @@ export default function ContinueShelf({ items }: { items: ContinueReadingItem[] 
               <Link
                 key={`${item.seriesId}/${item.file}`}
                 to={`/read/${item.seriesId}/${item.file}`}
-                className="group snap-start shrink-0 w-[220px] flex items-center gap-3 p-2 rounded-xl bg-surface dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-accent hover:shadow-md transition-all"
+                className="group snap-start shrink-0"
+                style={{
+                  width: 220,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: 8,
+                  borderRadius: 12,
+                  background: 'var(--surface-card)',
+                  border: '1px solid var(--border-default)',
+                  textDecoration: 'none',
+                }}
               >
                 {/* Mini cover with play overlay */}
-                <div className="relative w-10 h-14 rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800 shrink-0 ring-1 ring-black/5 dark:ring-white/5">
+                <div
+                  style={{
+                    position: 'relative',
+                    width: 40,
+                    height: 56,
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                    background: 'var(--bg-subtle)',
+                    flexShrink: 0,
+                  }}
+                >
                   <img
                     src={cover}
                     alt=""
@@ -56,14 +72,25 @@ export default function ContinueShelf({ items }: { items: ContinueReadingItem[] 
                 </div>
 
                 {/* Text + progress */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate leading-tight">{item.seriesName}</p>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p
+                    className="truncate leading-tight"
+                    style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-body)' }}
+                  >
+                    {item.seriesName}
+                  </p>
+                  <p
+                    className="truncate"
+                    style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}
+                  >
                     {item.file.replace(/\.pdf$/i, '')}
                   </p>
-                  <div className="flex items-center gap-1.5 mt-1">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                     <ProgressBar value={pct} className="flex-1" />
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums shrink-0">
+                    <span
+                      className="bindery-nums shrink-0"
+                      style={{ fontSize: 10, color: 'var(--text-muted)' }}
+                    >
                       p.{item.currentPage + 1}
                     </span>
                   </div>
