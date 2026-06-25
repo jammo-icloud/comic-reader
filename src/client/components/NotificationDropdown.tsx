@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Loader, Check, AlertCircle, X, Square, ChevronRight, BookOpen } from 'lucide-react';
+import { Bell, Check, AlertCircle, X, Square, ChevronRight, BookOpen } from 'lucide-react';
 import { getImportCount, getDownloadQueue, cancelDownload, removeDownloadJob, getSeriesCoverUrl, getPlaceholderUrl, getSubscriptionsWithNew, dismissNewChapter, dismissAllNewChapters } from '../lib/api';
+import { ProgressBar } from './ds';
 
 interface DownloadJob {
   id: string;
@@ -113,26 +114,34 @@ export default function NotificationDropdown() {
 
   return (
     <>
+      {/* Bindery NotificationBell — IconButton-sized trigger, small accent dot
+          when something needs attention. (Active downloads pulse the dot.) */}
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
-        className={`relative p-2 rounded-lg transition-colors ${
-          activeJobs.length > 0
-            ? 'text-accent hover:bg-accent/15 dark:hover:bg-accent/20'
-            : badgeCount > 0
-              ? 'text-warning hover:bg-gray-200 dark:hover:bg-gray-800'
-              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800'
-        }`}
+        className="by-icon-btn"
         title="Notifications"
+        aria-label="Notifications"
+        aria-pressed={open}
       >
-        <Zap size={18} className={activeJobs.length > 0 ? 'animate-pulse' : ''} />
-        {badgeCount > 0 && (
-          <span className={`absolute -top-0.5 -right-0.5 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1 ${
-            activeJobs.length > 0 ? 'bg-accent' : 'bg-warning'
-          }`}>
-            {badgeCount}
-          </span>
-        )}
+        <span style={{ position: 'relative', display: 'inline-flex' }}>
+          <Bell size={18} />
+          {badgeCount > 0 && (
+            <span
+              className={activeJobs.length > 0 ? 'animate-pulse' : ''}
+              style={{
+                position: 'absolute',
+                top: -3,
+                right: -3,
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: activeJobs.length > 0 ? 'var(--color-accent)' : 'var(--color-warning)',
+                boxShadow: '0 0 0 2px var(--bg-page)',
+              }}
+            />
+          )}
+        </span>
       </button>
 
       {/* Portaled to document.body so a backdrop-filter ancestor (e.g. the
@@ -140,10 +149,26 @@ export default function NotificationDropdown() {
       {open && createPortal(
         <div
           ref={popoverRef}
-          className="fixed top-14 left-2 right-2 sm:left-auto sm:right-3 sm:w-80 bg-surface dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-[80dvh] overflow-y-auto"
+          style={{
+            position: 'fixed',
+            top: 56,
+            right: 12,
+            width: 'min(320px, calc(100vw - 24px))',
+            background: 'var(--surface-raised)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 12,
+            boxShadow: 'var(--shadow-2xl)',
+            zIndex: 50,
+            overflow: 'hidden',
+            maxHeight: '80dvh',
+            overflowY: 'auto',
+          }}
         >
           {!hasContent && (
-            <div className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">
+            <div
+              className="px-4 py-6 text-center text-sm"
+              style={{ color: 'var(--text-muted)' }}
+            >
               No notifications
             </div>
           )}
@@ -152,21 +177,33 @@ export default function NotificationDropdown() {
           {pendingCount > 0 && (
             <button
               onClick={() => { setOpen(false); navigate('/import'); }}
-              className="flex items-center justify-between w-full px-4 py-3 bg-warning/10 hover:bg-warning/15  transition-colors border-b border-gray-200 dark:border-gray-800"
+              className="flex items-center justify-between w-full px-4 py-3 transition-colors"
+              style={{
+                background: 'rgb(var(--warning) / 0.1)',
+                borderBottom: '1px solid var(--border-subtle)',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
-              <span className="text-sm font-medium text-warning">
+              <span className="text-sm font-medium" style={{ color: 'var(--color-warning)' }}>
                 {pendingCount} pending import{pendingCount !== 1 ? 's' : ''}
               </span>
-              <ChevronRight size={16} className="text-warning" />
+              <ChevronRight size={16} style={{ color: 'var(--color-warning)' }} />
             </button>
           )}
 
           {/* New chapters from subscriptions */}
           {newChapters.length > 0 && (
-            <div className="border-b border-gray-200 dark:border-gray-800">
-              <div className="flex items-center gap-2 px-4 py-2 bg-accent/10 dark:bg-accent/10">
-                <BookOpen size={13} className="text-accent" />
-                <span className="text-xs font-medium text-accent">
+            <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+              <div
+                className="flex items-center gap-2 px-4 py-2"
+                style={{ background: 'rgb(var(--accent) / 0.1)' }}
+              >
+                <BookOpen size={13} style={{ color: 'var(--color-accent)' }} />
+                <span
+                  className="text-xs font-medium"
+                  style={{ color: 'var(--color-accent)' }}
+                >
                   {newChaptersTotal} new chapter{newChaptersTotal !== 1 ? 's' : ''} across {newChapters.length} series
                 </span>
               </div>
@@ -239,12 +276,10 @@ export default function NotificationDropdown() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{job.mangaTitle}</p>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                      <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
                         {job.status === 'queued' ? 'Queued...' : `Ch. ${job.progress.currentChapter || '...'} — ${job.progress.current}/${job.progress.total}`}
                       </p>
-                      <div className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full mt-1 overflow-hidden">
-                        <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${pct}%` }} />
-                      </div>
+                      <ProgressBar value={pct} className="mt-1" />
                     </div>
                     <button
                       onClick={() => handleCancel(job.id)}

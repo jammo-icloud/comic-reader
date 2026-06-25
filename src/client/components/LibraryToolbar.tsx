@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Search, X, Tag as TagIcon, ArrowUpDown, BookOpen, Newspaper, Check, BookOpenCheck, Pin, Download } from 'lucide-react';
-import StickyToolbar from './StickyToolbar';
-import ToolbarIconButton from './ToolbarIconButton';
+import {
+  Search, X, Tag as TagIcon, ArrowUpDown, BookOpen, Newspaper,
+  Check, BookOpenCheck, Pin, Download,
+} from 'lucide-react';
+import { SegmentedControl, IconButton } from './ds';
 
 export type SortMode = 'name-asc' | 'name-desc' | 'score-desc' | 'year-desc' | 'count-desc' | 'new-desc';
 
@@ -19,12 +21,12 @@ const SORT_SHORT: Record<SortMode, string> = {
   'name-desc': 'Z → A',
   'score-desc': 'Score',
   'year-desc': 'Newest',
-  'count-desc': 'Most chs',
+  'count-desc': 'Most',
   'new-desc': 'New',
 };
 
 interface LibraryToolbarProps {
-  /** Pixel offset for the sticky toolbar (so it pins below the page header). */
+  /** Pixel offset for the sticky toolbar (so it pins below the global Bindery header). */
   topPx: number;
 
   // Type filter (segmented control)
@@ -50,32 +52,28 @@ interface LibraryToolbarProps {
   sortBy: SortMode;
   onSortChange: (mode: SortMode) => void;
 
-  // Hide caught-up: when true, series with every chapter read AND no new
-  // chapters waiting are filtered out. Makes the library feel like an
-  // "active reading" view instead of a full archive.
+  // Hide caught-up: only series with unread chapters or new subscription chapters.
   hideCaughtUp: boolean;
   onHideCaughtUpChange: (v: boolean) => void;
 
-  // Pinned only: when true, show only series the user has pinned —
-  // their hand-curated "currently reading" set.
+  // Pinned only: the user's hand-curated "currently reading" set.
   pinnedOnly: boolean;
   onPinnedOnlyChange: (v: boolean) => void;
+
+  // Offline only: series explicitly saved for offline reading.
   offlineOnly: boolean;
   onOfflineOnlyChange: (v: boolean) => void;
   offlineCount: number;
 }
 
 /**
- * Sticky toolbar for the library home — consolidates type filter, result count,
- * search, tag filter, and sort into one pinned row that mirrors the
- * SeriesPage chapter toolbar pattern.
+ * Bindery sub-nav for the library home — slim glass row pinned just below the
+ * global Bindery header. Mirrors the prototype's chrome:
+ *   [Manga|Mags]  N series  ················  [search input]  🔍 📌 ⬇ 📖 🏷 ↕
  *
- * Behavior:
- *   - Type filter is a segmented control (was a hidden header dropdown)
- *   - Search opens an inline input row below the toolbar (same as SeriesPage chapters)
- *   - Tag chips live in a popover that opens from the [Tags] button
- *   - Sort lives in a popover from the [Sort] button
- *   - On mobile, button labels collapse to icons; tag/sort popovers anchor right
+ * The Pinned / Offline / Hide-read toggles read as slim DS IconButtons (no
+ * heavy chip backgrounds); Tags + Sort open right-anchored `var(--surface-raised)`
+ * popovers. Offline button only appears once at least one series is saved.
  */
 export default function LibraryToolbar({
   topPx,
@@ -128,268 +126,288 @@ export default function LibraryToolbar({
   const tagCount = activeTags.size;
 
   return (
-    <StickyToolbar
-      topPx={topPx}
-      innerClassName="!max-w-7xl flex-col items-stretch !py-0 !gap-0"
+    <div
+      style={{
+        position: 'sticky',
+        top: topPx,
+        zIndex: 20,
+        background: 'var(--chrome-bg)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--border-default)',
+        paddingTop: 'env(safe-area-inset-top)',
+      }}
     >
-      {() => (
-        <>
-          {/* Main row */}
-          <div className="flex items-center gap-2 py-2 px-4 sm:px-6">
-            {/* Type segmented control */}
-            <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-md p-0.5 shrink-0">
-              <SegmentButton
-                active={typeFilter === 'comic'}
-                onClick={() => onTypeChange('comic')}
-                icon={<BookOpen size={13} />}
-                label="Manga"
-              />
-              <SegmentButton
-                active={typeFilter === 'magazine'}
-                onClick={() => onTypeChange('magazine')}
-                icon={<Newspaper size={13} />}
-                label="Mags"
-              />
-            </div>
+      <div
+        style={{
+          maxWidth: 1280,
+          margin: '0 auto',
+          padding: '8px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+        }}
+      >
+        {/* Type filter — DS SegmentedControl */}
+        <SegmentedControl
+          options={[
+            { value: 'comic', label: 'Manga', icon: <BookOpen size={13} /> },
+            { value: 'magazine', label: 'Mags', icon: <Newspaper size={13} /> },
+          ]}
+          value={typeFilter}
+          onChange={onTypeChange}
+        />
 
-            {/* Title + count */}
-            <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 truncate min-w-0 ml-1">
-              {search ? (
-                <>
-                  Matching <span className="font-normal text-gray-500 dark:text-gray-400 truncate">"{search}"</span>{' '}
-                  <span className="text-gray-400 dark:text-gray-600 font-normal">({resultCount})</span>
-                </>
-              ) : isFiltered ? (
-                <>{resultCount} <span className="text-gray-400 dark:text-gray-600 font-normal">of {totalCount}</span></>
-              ) : (
-                <>{totalCount}</>
-              )}
-            </div>
+        {/* Count — Bindery monospace nums */}
+        <span
+          className="bindery-nums"
+          style={{ fontSize: 13, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}
+        >
+          {search
+            ? <>Matching "{search}" ({resultCount})</>
+            : isFiltered
+              ? <>{resultCount} of {totalCount}</>
+              : <>{totalCount} series</>}
+        </span>
 
-            <div className="flex-1" />
+        <div style={{ flex: 1 }} />
 
-            {/* Search toggle */}
-            <ToolbarIconButton
-              onClick={() => {
-                setShowSearch((v) => !v);
-                if (showSearch) onSearchChange('');
-              }}
-              active={showSearch}
-              title="Search"
-            >
-              <Search size={16} />
-            </ToolbarIconButton>
+        {/* Inline search input — by-input, appears next to the Search toggle */}
+        {showSearch && (
+          <input
+            autoFocus
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder={`Search ${typeFilter === 'comic' ? 'manga' : 'magazines'}…`}
+            className="by-input"
+            style={{ width: 200, height: 36 }}
+          />
+        )}
 
-            {/* Pinned-only — the user's hand-curated "currently reading" set. */}
-            <button
-              onClick={() => onPinnedOnlyChange(!pinnedOnly)}
-              aria-pressed={pinnedOnly}
-              title={pinnedOnly ? 'Showing only pinned series' : 'Show only series you\'ve pinned as currently reading'}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 min-h-[36px] rounded-md text-xs font-medium transition-colors shrink-0 ${
-                pinnedOnly
-                  ? 'bg-accent/15 text-accent'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
-            >
-              <Pin size={14} fill={pinnedOnly ? 'currentColor' : 'none'} strokeWidth={pinnedOnly ? 0 : 2} />
-              <span className="hidden sm:inline">Pinned</span>
-            </button>
+        {/* Search toggle */}
+        <IconButton
+          title={showSearch ? 'Close search' : 'Search'}
+          active={showSearch}
+          onClick={() => {
+            setShowSearch((v) => !v);
+            if (showSearch) onSearchChange('');
+          }}
+        >
+          {showSearch ? <X size={16} /> : <Search size={16} />}
+        </IconButton>
 
-            {/* Offline-only — series explicitly saved for offline reading.
-                Hidden until at least one series is saved, so it doesn't clutter
-                the toolbar for users who never download. */}
-            {offlineCount > 0 && (
-              <button
-                onClick={() => onOfflineOnlyChange(!offlineOnly)}
-                aria-pressed={offlineOnly}
-                title={offlineOnly ? 'Showing only series saved offline' : 'Show only series saved for offline reading'}
-                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 min-h-[36px] rounded-md text-xs font-medium transition-colors shrink-0 ${
-                  offlineOnly
-                    ? 'bg-accent/15 text-accent'
-                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
+        {/* Pinned only */}
+        <IconButton
+          title={pinnedOnly ? 'Showing only pinned' : 'Show only pinned series'}
+          active={pinnedOnly}
+          onClick={() => onPinnedOnlyChange(!pinnedOnly)}
+        >
+          <Pin
+            size={16}
+            fill={pinnedOnly ? 'currentColor' : 'none'}
+            strokeWidth={pinnedOnly ? 0 : 2}
+          />
+        </IconButton>
+
+        {/* Offline only — hidden until at least one series is saved offline.
+            Preserves the visual treatment introduced in 32b3027. */}
+        {offlineCount > 0 && (
+          <IconButton
+            title={offlineOnly ? 'Showing only offline' : 'Show only offline series'}
+            active={offlineOnly}
+            onClick={() => onOfflineOnlyChange(!offlineOnly)}
+          >
+            <Download size={16} />
+          </IconButton>
+        )}
+
+        {/* Hide caught up */}
+        <IconButton
+          title={hideCaughtUp ? 'Showing unread only' : 'Hide series you’re caught up on'}
+          active={hideCaughtUp}
+          onClick={() => onHideCaughtUpChange(!hideCaughtUp)}
+        >
+          <BookOpenCheck size={16} />
+        </IconButton>
+
+        {/* Tags — popover with active-count label */}
+        <div ref={tagAnchorRef} style={{ position: 'relative' }}>
+          <IconButton
+            title="Filter by tags"
+            active={tagCount > 0 || showTagMenu}
+            label={tagCount > 0 ? String(tagCount) : undefined}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowTagMenu((v) => !v);
+              setShowSortMenu(false);
+            }}
+          >
+            <TagIcon size={16} />
+          </IconButton>
+          {showTagMenu && (
+            <Popover>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 14px',
+                  borderBottom: '1px solid var(--border-subtle)',
+                }}
               >
-                <Download size={14} />
-                <span className="hidden sm:inline">Offline</span>
-              </button>
-            )}
-
-            {/* Hide caught-up — only series with unread chapters or new
-                subscription chapters. When active, an accent-tinted chip;
-                otherwise muted. */}
-            <button
-              onClick={() => onHideCaughtUpChange(!hideCaughtUp)}
-              aria-pressed={hideCaughtUp}
-              title={hideCaughtUp ? 'Showing only series with something to read' : 'Hide series you\'re caught up on'}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 min-h-[36px] rounded-md text-xs font-medium transition-colors shrink-0 ${
-                hideCaughtUp
-                  ? 'bg-accent/15 text-accent'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
-            >
-              <BookOpenCheck size={14} />
-              <span className="hidden sm:inline">{hideCaughtUp ? 'Unread' : 'Hide read'}</span>
-            </button>
-
-            {/* Tags */}
-            <div className="relative" ref={tagAnchorRef}>
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowTagMenu((v) => !v); setShowSortMenu(false); }}
-                aria-pressed={showTagMenu || tagCount > 0}
-                title="Filter by tags"
-                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 min-h-[36px] rounded-md text-xs font-medium transition-colors shrink-0 ${
-                  tagCount > 0
-                    ? 'bg-accent/15 text-accent'
-                    : showTagMenu
-                      ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200'
-                      : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
-              >
-                <TagIcon size={14} />
-                <span className="hidden sm:inline">Tags</span>
+                <span className="by-kicker">Filter by tags</span>
                 {tagCount > 0 && (
-                  <span className="text-[10px] font-semibold tabular-nums">{tagCount}</span>
+                  <button
+                    onClick={() => onClearTags()}
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--color-accent)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Clear ({tagCount})
+                  </button>
                 )}
-              </button>
-              {showTagMenu && (
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute right-0 top-full mt-1 w-72 sm:w-80 max-h-[60vh] overflow-y-auto bg-surface dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 z-30"
+              </div>
+              {allTags.length === 0 ? (
+                <p
+                  style={{
+                    padding: '24px 14px',
+                    margin: 0,
+                    fontSize: 13,
+                    color: 'var(--text-muted)',
+                    textAlign: 'center',
+                  }}
                 >
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-800">
-                    <span className="text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
-                      Filter by tags
-                    </span>
-                    {tagCount > 0 && (
-                      <button
-                        onClick={() => onClearTags()}
-                        className="text-[11px] text-accent hover:underline"
-                      >
-                        Clear ({tagCount})
-                      </button>
-                    )}
-                  </div>
-                  {allTags.length === 0 ? (
-                    <p className="px-3 py-6 text-sm text-gray-400 dark:text-gray-500 text-center">No tags yet.</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5 p-3">
-                      {allTags.map((tag) => {
-                        const active = activeTags.has(tag);
-                        return (
-                          <button
-                            key={tag}
-                            onClick={() => onToggleTag(tag)}
-                            className={`text-xs px-2.5 py-1 rounded-full capitalize transition-colors ${
-                              active
-                                ? 'bg-accent text-white'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                            }`}
-                          >
-                            {tag}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Sort */}
-            <div className="relative" ref={sortAnchorRef}>
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowSortMenu((v) => !v); setShowTagMenu(false); }}
-                aria-pressed={showSortMenu}
-                title="Sort"
-                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 min-h-[36px] rounded-md text-xs font-medium transition-colors shrink-0 ${
-                  showSortMenu
-                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200'
-                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
-              >
-                <ArrowUpDown size={14} />
-                <span className="hidden sm:inline">{SORT_SHORT[sortBy]}</span>
-              </button>
-              {showSortMenu && (
+                  No tags yet.
+                </p>
+              ) : (
                 <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute right-0 top-full mt-1 min-w-[12rem] bg-surface dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden z-30"
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    padding: 12,
+                    maxHeight: '60vh',
+                    overflowY: 'auto',
+                  }}
                 >
-                  {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => {
-                    const active = sortBy === mode;
+                  {allTags.map((tag) => {
+                    const active = activeTags.has(tag);
                     return (
                       <button
-                        key={mode}
-                        onClick={() => { onSortChange(mode); setShowSortMenu(false); }}
-                        className={`w-full flex items-center justify-between px-3 py-2 text-left text-sm transition-colors ${
+                        key={tag}
+                        onClick={() => onToggleTag(tag)}
+                        className={active ? '' : 'by-tag'}
+                        style={
                           active
-                            ? 'bg-accent/10 text-accent font-medium'
-                            : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
-                        }`}
+                            ? {
+                                fontSize: 12,
+                                padding: '3px 10px',
+                                borderRadius: 9999,
+                                background: 'var(--color-accent)',
+                                color: '#fff',
+                                border: 'none',
+                                cursor: 'pointer',
+                                textTransform: 'capitalize',
+                              }
+                            : {
+                                cursor: 'pointer',
+                                textTransform: 'capitalize',
+                              }
+                        }
                       >
-                        <span>{SORT_LABELS[mode]}</span>
-                        {active && <Check size={14} className="shrink-0" />}
+                        {tag}
                       </button>
                     );
                   })}
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Search row — appears below the main row when toggled */}
-          {showSearch && (
-            <div className="px-4 sm:px-6 pb-2">
-              <div className="relative">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => onSearchChange(e.target.value)}
-                  autoFocus
-                  placeholder={`Search ${typeFilter === 'comic' ? 'manga' : 'magazines'}…`}
-                  className="w-full pl-8 pr-8 py-2 text-sm bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-accent placeholder-gray-400 dark:placeholder-gray-500"
-                />
-                {search && (
-                  <button
-                    onClick={() => onSearchChange('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400"
-                    aria-label="Clear search"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-            </div>
+            </Popover>
           )}
-        </>
-      )}
-    </StickyToolbar>
+        </div>
+
+        {/* Sort — popover with current-mode label */}
+        <div ref={sortAnchorRef} style={{ position: 'relative' }}>
+          <IconButton
+            title="Sort"
+            active={showSortMenu}
+            label={SORT_SHORT[sortBy]}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowSortMenu((v) => !v);
+              setShowTagMenu(false);
+            }}
+          >
+            <ArrowUpDown size={16} />
+          </IconButton>
+          {showSortMenu && (
+            <Popover>
+              {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => {
+                const active = sortBy === mode;
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => { onSortChange(mode); setShowSortMenu(false); }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '9px 14px',
+                      fontSize: 13,
+                      background: active ? 'rgb(var(--accent) / 0.1)' : 'none',
+                      color: active ? 'var(--color-accent)' : 'var(--text-body)',
+                      fontWeight: active ? 500 : 400,
+                      border: 'none',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-subtle)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'none';
+                    }}
+                  >
+                    <span>{SORT_LABELS[mode]}</span>
+                    {active && <Check size={14} />}
+                  </button>
+                );
+              })}
+            </Popover>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
-// ----- Subcomponents -----
-
-function SegmentButton({
-  active, onClick, icon, label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}) {
+/**
+ * Right-anchored `var(--surface-raised)` popover shared by the Tags + Sort
+ * dropdowns. Sits just below its anchor IconButton.
+ */
+function Popover({ children }: { children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors min-h-[28px] ${
-        active
-          ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-      }`}
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: 'calc(100% + 4px)',
+        minWidth: 240,
+        maxWidth: 320,
+        background: 'var(--surface-raised)',
+        border: '1px solid var(--border-default)',
+        borderRadius: 12,
+        boxShadow: 'var(--shadow-2xl)',
+        overflow: 'hidden',
+        zIndex: 30,
+      }}
     >
-      {icon}
-      <span>{label}</span>
-    </button>
+      {children}
+    </div>
   );
 }
