@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, createContext, useContext } from 'react';
 import LibraryPage from './pages/LibraryPage';
 import SeriesPage from './pages/SeriesPage';
@@ -10,6 +10,8 @@ import BibleEditorPage from './pages/BibleEditorPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import OfflineIndicator from './components/OfflineIndicator';
+import Header from './components/Header';
+import ProfileSheet from './components/ProfileSheet';
 import { flushProgressQueue } from './lib/offline';
 
 interface AuthState {
@@ -82,9 +84,31 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={{ ...auth, logout }}>
+      <Shell authenticated={auth.authenticated} />
+    </AuthContext.Provider>
+  );
+}
+
+/**
+ * Inside-context shell — owns the profile-sheet open state and decides
+ * whether to render the global Bindery header for the current route.
+ * Header + ProfileSheet are hidden on /login (immersive comic spread) and
+ * /read (the reader supplies its own toolbar).
+ */
+function Shell({ authenticated }: { authenticated: boolean }) {
+  const location = useLocation();
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const isLogin = location.pathname === '/login';
+  const isReader = location.pathname.startsWith('/read/');
+  const showChrome = authenticated && !isLogin && !isReader;
+
+  return (
+    <>
+      {showChrome && <Header onOpenProfile={() => setProfileOpen(true)} />}
       <Routes>
         <Route path="/login" element={
-          auth.authenticated ? <Navigate to="/" replace /> : <LoginPage />
+          authenticated ? <Navigate to="/" replace /> : <LoginPage />
         } />
         <Route path="/" element={<AuthGuard><LibraryPage /></AuthGuard>} />
         <Route path="/import" element={<AuthGuard><ImportPage /></AuthGuard>} />
@@ -95,7 +119,10 @@ export default function App() {
         <Route path="/series/:id" element={<AuthGuard><SeriesPage /></AuthGuard>} />
         <Route path="/read/:id/*" element={<AuthGuard><ReaderPage /></AuthGuard>} />
       </Routes>
+      {showChrome && (
+        <ProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
+      )}
       <OfflineIndicator />
-    </AuthContext.Provider>
+    </>
   );
 }
