@@ -20,6 +20,7 @@ zip -r "$OUTPUT" . \
   -x "node_modules/*" \
   -x "ocr-service/node_modules/*" \
   -x "dist/*" \
+  -x "dev-dist/*" \
   -x "data/*" \
   -x "library/*" \
   -x "local-library/*" \
