@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, LayoutGrid, List, Star, RefreshCw, Loader,
+  LayoutGrid, List, Star, RefreshCw, Loader, MoreHorizontal,
   Play, Search, ArrowUpDown, BookOpen, Pencil, Bell, BellOff, Trash2, X,
   Download, CheckCircle, Package, Heart, Plus, Check, AlertTriangle, Sparkles, Pin,
 } from 'lucide-react';
@@ -20,9 +20,11 @@ import SyncSourcePicker from '../components/SyncSourcePicker';
 import SeriesEditModal from '../components/SeriesEditModal';
 import ComicCard from '../components/ComicCard';
 import ComicListItem from '../components/ComicListItem';
-import ProfileMenu, { type ProfileMenuItem } from '../components/ProfileMenu';
+import { type ProfileMenuItem } from '../components/ProfileMenu';
 import ConfirmSheet from '../components/ConfirmSheet';
 import ToolbarIconButton from '../components/ToolbarIconButton';
+import { Button, IconButton, Kicker, StatusPill, SegmentedControl, Badge } from '../components/ds';
+import type { SeriesStatus } from '../components/ds/Badge';
 
 type ViewMode = 'grid' | 'list';
 type SortMode = 'order-asc' | 'order-desc' | 'recent';
@@ -385,156 +387,143 @@ export default function SeriesPage() {
     return sorted;
   }, [comics, search, unreadOnly, sortMode]);
 
+  // Series-admin items — admin-only. Built dynamically so partial-retry /
+  // sync-source / offline-save items appear only when applicable. Surfaced via
+  // the inline ⋯ More button below; the global Bindery header handles identity.
+  const seriesAdminItems: ProfileMenuItem[] = useMemo(() => {
+    if (!isAdmin) return [];
+    const items: ProfileMenuItem[] = [
+      { icon: <Pencil size={15} />, label: 'Edit metadata', onClick: () => setShowEditModal(true) },
+      {
+        icon: syncing ? <Loader size={15} className="animate-spin" /> : <Sparkles size={15} />,
+        label: 'Refresh from AniList',
+        hint: series?.malId ? `MAL ID ${series.malId}` : 'matches by title',
+        onClick: handleRefreshMetadata,
+        disabled: syncing,
+      },
+    ];
+    if (typeof caches !== 'undefined' && comics.length > 0) {
+      if (savedOffline && offlineState === 'idle') {
+        items.push({
+          icon: <CheckCircle size={15} className="text-success" />,
+          label: 'Saved offline · Remove download',
+          hint: 'Frees up cached space',
+          onClick: handleRemoveOffline,
+          keepOpen: true,
+        });
+      } else {
+        items.push({
+          icon: offlineState === 'saving'
+            ? <Loader size={15} className="animate-spin" />
+            : offlineState === 'done'
+              ? <CheckCircle size={15} className="text-success" />
+              : <Download size={15} />,
+          label: offlineState === 'saving'
+            ? `Saving ${offlineProgress.done}/${offlineProgress.total}…`
+            : offlineState === 'done'
+              ? 'Saved offline'
+              : `Save all ${comics.length} offline`,
+          onClick: () => { if (offlineState === 'idle') handleSaveOffline(); },
+          disabled: offlineState !== 'idle',
+          keepOpen: true,
+        });
+      }
+    }
+    if (comics.length > 0) {
+      items.push({
+        icon: <Package size={15} />,
+        label: 'Export as .crz',
+        hint: 'Archive · share across instances',
+        onClick: handleExportCrz,
+      });
+    }
+    if (partialCount > 0) {
+      items.push({
+        icon: syncing ? <Loader size={15} className="animate-spin" /> : <AlertTriangle size={15} className="text-warning" />,
+        label: `Retry ${partialCount} partial chapter${partialCount === 1 ? '' : 's'}`,
+        hint: 'Re-fetch missing pages from the source',
+        onClick: handleRetryPartials,
+        disabled: syncing,
+      });
+    }
+    items.push({
+      icon: syncing ? <Loader size={15} className="animate-spin" /> : <RefreshCw size={15} />,
+      label: series?.syncSource ? 'Check for new chapters' : 'Set up auto-sync',
+      hint: series?.syncSource ? `via ${series.syncSource.sourceId}` : undefined,
+      onClick: series?.syncSource ? handleSyncNow : () => setShowSourcePicker(true),
+      disabled: syncing,
+    });
+    if (series?.syncSource) {
+      items.push({
+        icon: <BellOff size={15} />,
+        label: 'Change sync source',
+        onClick: () => setShowSourcePicker(true),
+      });
+    }
+    items.push({
+      icon: <Trash2 size={15} />,
+      label: 'Delete series',
+      onClick: () => setConfirmDelete(true),
+      destructive: true,
+    });
+    return items;
+  }, [
+    isAdmin, syncing, series, comics.length, savedOffline, offlineState,
+    offlineProgress, partialCount,
+    handleRefreshMetadata, handleRemoveOffline, handleSaveOffline, handleExportCrz,
+    handleRetryPartials, handleSyncNow,
+  ]);
+
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const onClick = () => setShowMoreMenu(false);
+    const t = setTimeout(() => window.addEventListener('click', onClick), 0);
+    return () => { clearTimeout(t); window.removeEventListener('click', onClick); };
+  }, [showMoreMenu]);
+
   if (!series || !id) return null;
 
   const coverUrl = series.coverFile ? getSeriesCoverUrl(id, series.coverFile) : getPlaceholderUrl(series.placeholder);
   const hasCover = !!series.coverFile;
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
-
-      {/* ===== Floating top corner buttons (mirror Reader page) =====
-          top/left/right use safe-area-inset so the buttons clear Dynamic Island
-          in standalone PWA mode (status-bar-style: black-translucent). */}
-      <Link
-        to="/"
-        aria-label="Back to library"
-        className="fixed z-40 p-2.5 rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors shadow-lg"
-        style={{
-          top: 'max(0.75rem, env(safe-area-inset-top))',
-          left: 'max(0.75rem, env(safe-area-inset-left))',
-        }}
-        title="Library"
-      >
-        <ArrowLeft size={18} />
-      </Link>
-
-      {/* Floating ProfileMenu (top-right) — series admin actions injected as a section.
-          Identity / nav / theme / settings / sign-out all come from ProfileMenu itself. */}
-      <div
-        className="fixed z-40"
-        style={{
-          top: 'max(0.75rem, env(safe-area-inset-top))',
-          right: 'max(0.75rem, env(safe-area-inset-right))',
-        }}
-      >
-        <ProfileMenu
-          triggerVariant="floating"
-          sections={isAdmin ? [{
-            title: 'This series',
-            items: ((): ProfileMenuItem[] => {
-              const items: ProfileMenuItem[] = [
-                {
-                  icon: <Pencil size={15} />,
-                  label: 'Edit metadata',
-                  onClick: () => setShowEditModal(true),
-                },
-                {
-                  icon: syncing
-                    ? <Loader size={15} className="animate-spin" />
-                    : <Sparkles size={15} />,
-                  label: 'Refresh from AniList',
-                  hint: series.malId
-                    ? `MAL ID ${series.malId}`
-                    : 'matches by title',
-                  onClick: handleRefreshMetadata,
-                  disabled: syncing,
-                },
-              ];
-              if (typeof caches !== 'undefined' && comics.length > 0) {
-                if (savedOffline && offlineState === 'idle') {
-                  items.push({
-                    icon: <CheckCircle size={15} className="text-success" />,
-                    label: 'Saved offline · Remove download',
-                    hint: 'Frees up cached space',
-                    onClick: handleRemoveOffline,
-                    keepOpen: true,
-                  });
-                } else {
-                  items.push({
-                    icon: offlineState === 'saving'
-                      ? <Loader size={15} className="animate-spin" />
-                      : offlineState === 'done'
-                        ? <CheckCircle size={15} className="text-success" />
-                        : <Download size={15} />,
-                    label: offlineState === 'saving'
-                      ? `Saving ${offlineProgress.done}/${offlineProgress.total}…`
-                      : offlineState === 'done'
-                        ? 'Saved offline'
-                        : `Save all ${comics.length} offline`,
-                    onClick: () => { if (offlineState === 'idle') handleSaveOffline(); },
-                    disabled: offlineState !== 'idle',
-                    keepOpen: true,
-                  });
-                }
-              }
-              if (comics.length > 0) {
-                items.push({
-                  icon: <Package size={15} />,
-                  label: 'Export as .crz',
-                  hint: 'Archive · share across instances',
-                  onClick: handleExportCrz,
-                });
-              }
-              // Show "Retry partial chapters" only when there's something
-              // to retry. Re-attempts every partial in one job (dedupe-on-
-              // enqueue means rapid taps merge harmlessly).
-              if (partialCount > 0) {
-                items.push({
-                  icon: syncing
-                    ? <Loader size={15} className="animate-spin" />
-                    : <AlertTriangle size={15} className="text-warning" />,
-                  label: `Retry ${partialCount} partial chapter${partialCount === 1 ? '' : 's'}`,
-                  hint: 'Re-fetch missing pages from the source',
-                  onClick: handleRetryPartials,
-                  disabled: syncing,
-                });
-              }
-              items.push({
-                icon: syncing ? <Loader size={15} className="animate-spin" /> : <RefreshCw size={15} />,
-                label: series.syncSource ? 'Check for new chapters' : 'Set up auto-sync',
-                hint: series.syncSource ? `via ${series.syncSource.sourceId}` : undefined,
-                onClick: series.syncSource
-                  ? handleSyncNow
-                  : () => setShowSourcePicker(true),
-                disabled: syncing,
-              });
-              if (series.syncSource) {
-                items.push({
-                  icon: <BellOff size={15} />,
-                  label: 'Change sync source',
-                  onClick: () => setShowSourcePicker(true),
-                });
-              }
-              items.push({
-                icon: <Trash2 size={15} />,
-                label: 'Delete series',
-                onClick: () => setConfirmDelete(true),
-                destructive: true,
-              });
-              return items;
-            })(),
-          }] : undefined}
-        />
-      </div>
-
-      {/* ===== HERO ===== */}
+    <div style={{ minHeight: '100dvh', background: 'var(--bg-page)', color: 'var(--text-body)' }}>
+      {/* ===== HERO ===== Immersive cover-as-hero: cover blurred big behind,
+          gradient fading to var(--bg-page) at the bottom so the body picks up
+          the active theme cleanly. Foreground text reads white on dark fade. */}
       <header className="relative">
-        {/* Blurred backdrop */}
-        <div className="absolute inset-0 overflow-hidden -z-0">
+        {/* Blurred backdrop — deeper blur (30px) + brightness drop, matching
+            the Bindery prototype. Fades to the page background at the bottom. */}
+        <div className="absolute inset-0 overflow-hidden -z-0" style={{ height: 400 }}>
           <img
             src={coverUrl}
             alt=""
             aria-hidden="true"
-            className={`absolute inset-0 w-full h-full object-cover scale-110 ${hasCover ? 'opacity-30 blur-2xl' : 'opacity-10 blur-3xl'}`}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              filter: hasCover ? 'blur(30px) brightness(0.45)' : 'blur(40px) brightness(0.3)',
+              transform: 'scale(1.15)',
+            }}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-gray-50/40 via-gray-50/80 to-gray-50 dark:from-gray-950/40 dark:via-gray-950/80 dark:to-gray-950" />
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                'linear-gradient(to bottom, rgb(0 0 0 / 0.25) 0%, rgb(0 0 0 / 0.45) 50%, var(--bg-page) 100%)',
+            }}
+          />
         </div>
 
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-16 sm:pt-20 pb-5">
           <div className="flex gap-4 sm:gap-6 items-start">
             {/* Cover */}
-            <div className="w-24 sm:w-32 md:w-44 shrink-0 rounded-lg overflow-hidden shadow-2xl ring-1 ring-black/10 dark:ring-white/10">
+            <div
+              className="w-24 sm:w-32 md:w-44 shrink-0 overflow-hidden"
+              style={{ borderRadius: 12, boxShadow: 'var(--shadow-2xl)' }}
+            >
               <img
                 src={coverUrl}
                 alt={series.name}
@@ -542,35 +531,37 @@ export default function SeriesPage() {
               />
             </div>
 
-            {/* Title block */}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold leading-tight break-words">{series.name}</h1>
+            {/* Title block — white text on the dark hero fade */}
+            <div className="flex-1 min-w-0" style={{ color: '#fff' }}>
+              <h1
+                className="text-xl sm:text-2xl md:text-3xl font-bold leading-tight break-words"
+                style={{ textShadow: '0 2px 10px rgb(0 0 0 / 0.5)' }}
+              >
+                {series.name}
+              </h1>
               {series.englishTitle && series.englishTitle.toLowerCase() !== series.name.toLowerCase() && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 break-words">{series.englishTitle}</p>
+                <p className="text-sm mt-0.5 break-words" style={{ opacity: 0.85 }}>{series.englishTitle}</p>
               )}
 
-              {/* Meta strip */}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 sm:mt-3 text-sm text-gray-600 dark:text-gray-400">
+              {/* Meta strip — status pill + score + chapter count, all readable on dark */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 sm:mt-3 text-sm" style={{ opacity: 0.92 }}>
+                {series.status && (
+                  <StatusPill status={(series.status as SeriesStatus)} />
+                )}
                 {series.score != null && series.score > 0 && (
-                  <span className="inline-flex items-center gap-1 font-medium text-warning">
+                  <span className="inline-flex items-center gap-1 font-medium" style={{ color: 'rgb(253 230 138)' }}>
                     <Star size={14} fill="currentColor" /> {series.score.toFixed(1)}
                   </span>
                 )}
-                <span>{comics.length} ch{comics.length !== 1 ? 's' : ''}</span>
-                {chapterRange && <span className="hidden sm:inline">{chapterRange}</span>}
-                {series.year && <span>{series.year}</span>}
-                {series.status && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded capitalize ${
-                    series.status === 'completed' ? 'bg-accent/15 text-accent' :
-                    series.status === 'ongoing' ? 'bg-success/15 dark:bg-success/20 text-success' :
-                    'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                  }`}>{series.status}</span>
-                )}
+                <span className="bindery-nums">{comics.length} ch{comics.length !== 1 ? 's' : ''}</span>
+                {chapterRange && <span className="hidden sm:inline bindery-nums">{chapterRange}</span>}
+                {series.year && <span className="bindery-nums">{series.year}</span>}
                 {series.malId && (
                   <a
                     href={`https://myanimelist.net/manga/${series.malId}`}
                     target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-gray-400 dark:text-gray-500 hover:text-accent transition-colors font-mono"
+                    className="text-xs hover:underline font-mono"
+                    style={{ opacity: 0.7 }}
                   >
                     MAL #{series.malId}
                   </a>
@@ -580,124 +571,168 @@ export default function SeriesPage() {
               {/* Read-state strip — only when meaningful */}
               {(readCount > 0 || inProgress > 0) && (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs">
-                  {readCount > 0 && <span className="text-success">{readCount} read</span>}
-                  {inProgress > 0 && <span className="text-accent">{inProgress} in progress</span>}
+                  {readCount > 0 && (
+                    <span style={{ color: 'rgb(134 239 172)' }}>{readCount} read</span>
+                  )}
+                  {inProgress > 0 && (
+                    <span style={{ color: 'rgb(196 181 253)' }}>{inProgress} in progress</span>
+                  )}
                 </div>
               )}
             </div>
           </div>
 
           {/* ===== Primary action row =====
-              Layout: Continue (primary, flex-1 on mobile) → Add (or "In library")
-              → Favorite → Subscribe (admin). All buttons use min-h-44px for
-              comfortable mobile tap targets. Text labels collapse to icon-only
-              on mobile so the row stays single-line. */}
+              Continue (primary) → Recommend / Pin / Add toggles (secondary) →
+              admin: subscribe + inline ⋯ More menu. */}
           <div className="flex items-center gap-2 mt-5 flex-wrap">
             {continueTarget && (
               <Link
                 to={`/read/${id}/${continueTarget.file}`}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-accent hover:bg-accent-hover text-white font-medium text-sm shadow-md transition-colors min-h-[44px]"
+                className="by-btn by-btn--primary by-btn--lg"
+                style={{ textDecoration: 'none', flex: '0 1 auto' }}
               >
                 <Play size={16} fill="currentColor" />
                 <span>{continueLabel}</span>
               </Link>
             )}
 
-            {/* Add to library — only when not already in collection */}
-            {!series.inCollection && (
-              <button
-                onClick={handleAddToLibrary}
-                disabled={addBusy}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-accent hover:text-accent text-sm transition-colors min-h-[44px] disabled:opacity-50"
-                title="Add to my library"
-                aria-label="Add to my library"
-              >
-                {addBusy ? <Loader size={15} className="animate-spin" /> : <Plus size={15} />}
-                <span className="hidden sm:inline">Add to library</span>
-              </button>
-            )}
-
-            {/* In library — non-action indicator */}
-            {series.inCollection && (
-              <span
-                className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-success/10 text-success text-sm"
-                title="In your library"
-              >
-                <Check size={15} />
-                <span className="hidden sm:inline">In your library</span>
-              </span>
-            )}
-
-            {/* Favorite (Recommend) toggle — visible to all logged-in users.
-                Filled heart when favorited; this is the user's "I'd recommend
-                this" mark that surfaces in Discover's Recommended feed. */}
-            <button
+            <Button
+              variant={series.isFavorited ? 'primary' : 'secondary'}
+              size="lg"
+              iconLeft={favBusy ? (
+                <Loader size={16} className="animate-spin" />
+              ) : (
+                <Heart size={16} fill={series.isFavorited ? 'currentColor' : 'none'} strokeWidth={series.isFavorited ? 0 : 2} />
+              )}
               onClick={handleToggleFavorite}
               disabled={favBusy}
-              className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm transition-colors min-h-[44px] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                series.isFavorited
-                  ? 'bg-accent/10 border-accent/30 text-accent hover:bg-accent/15'
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-accent hover:text-accent'
-              }`}
-              title={series.isFavorited ? 'Stop recommending' : 'Recommend this series'}
-              aria-label={series.isFavorited ? 'Stop recommending' : 'Recommend this series'}
               aria-pressed={!!series.isFavorited}
+              title={series.isFavorited ? 'Stop recommending' : 'Recommend this series'}
             >
-              {favBusy ? (
-                <Loader size={15} className="animate-spin" />
-              ) : (
-                <Heart
-                  size={15}
-                  fill={series.isFavorited ? 'currentColor' : 'none'}
-                  strokeWidth={series.isFavorited ? 0 : 2}
-                />
-              )}
               <span className="hidden sm:inline">{series.isFavorited ? 'Recommended' : 'Recommend'}</span>
-            </button>
+            </Button>
 
-            {/* Pin toggle — personal "currently reading" marker. Distinct from
-                Recommend: this is private, just surfaces the series in the
-                library's Pinned filter so you can drop back into it. */}
-            <button
+            {!series.inCollection && (
+              <Button
+                variant="secondary"
+                size="lg"
+                iconLeft={addBusy ? <Loader size={16} className="animate-spin" /> : <Plus size={16} />}
+                onClick={handleAddToLibrary}
+                disabled={addBusy}
+                title="Add to my library"
+              >
+                <span className="hidden sm:inline">Add to library</span>
+              </Button>
+            )}
+            {series.inCollection && (
+              <Badge intent="success" pill>
+                <Check size={12} /> In your library
+              </Badge>
+            )}
+
+            <IconButton
+              title={series.isPinned ? 'Unpin' : 'Pin to currently reading'}
+              active={!!series.isPinned}
               onClick={handleTogglePin}
               disabled={pinBusy}
-              className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm transition-colors min-h-[44px] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                series.isPinned
-                  ? 'bg-accent/10 border-accent/30 text-accent hover:bg-accent/15'
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-accent hover:text-accent'
-              }`}
-              title={series.isPinned ? 'Unpin — remove from "currently reading"' : 'Pin — mark as currently reading'}
-              aria-label={series.isPinned ? 'Unpin series' : 'Pin series as currently reading'}
-              aria-pressed={!!series.isPinned}
             >
               {pinBusy ? (
-                <Loader size={15} className="animate-spin" />
+                <Loader size={16} className="animate-spin" />
               ) : (
-                <Pin
-                  size={15}
-                  fill={series.isPinned ? 'currentColor' : 'none'}
-                  strokeWidth={series.isPinned ? 0 : 2}
-                />
+                <Pin size={16} fill={series.isPinned ? 'currentColor' : 'none'} strokeWidth={series.isPinned ? 0 : 2} />
               )}
-              <span className="hidden sm:inline">{series.isPinned ? 'Pinned' : 'Pin'}</span>
-            </button>
+            </IconButton>
 
             {/* Subscribe quick action — admin only since updating sync source is admin-only */}
             {isAdmin && !series.syncSource && (
-              <button
+              <Button
+                variant="secondary"
+                size="lg"
+                iconLeft={<Bell size={16} />}
                 onClick={() => setShowSourcePicker(true)}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-accent hover:text-accent text-sm transition-colors min-h-[44px]"
                 title="Subscribe to updates from a source"
               >
-                <Bell size={15} />
                 <span className="hidden sm:inline">Subscribe</span>
-              </button>
+              </Button>
             )}
             {isAdmin && series.syncSource && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-accent/10 text-accent text-xs">
-                <Bell size={13} />
+              <Badge intent="accent-soft" pill>
+                <Bell size={12} />
                 <span className="capitalize">{series.syncSource.sourceId}</span>
-              </span>
+              </Badge>
+            )}
+
+            {/* ⋯ More — admin tools dropdown */}
+            {seriesAdminItems.length > 0 && (
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <IconButton
+                  title="More"
+                  active={showMoreMenu}
+                  onClick={() => setShowMoreMenu((v) => !v)}
+                >
+                  <MoreHorizontal size={18} />
+                </IconButton>
+                {showMoreMenu && (
+                  <div
+                    role="menu"
+                    style={{
+                      position: 'absolute', right: 0, top: 'calc(100% + 4px)',
+                      minWidth: 260, zIndex: 30,
+                      background: 'var(--surface-raised)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: 12,
+                      boxShadow: 'var(--shadow-2xl)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {seriesAdminItems.map((item, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          item.onClick?.();
+                          if (!item.keepOpen) setShowMoreMenu(false);
+                        }}
+                        disabled={item.disabled}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '10px 12px',
+                          background: 'none',
+                          border: 'none',
+                          textAlign: 'left',
+                          cursor: item.disabled ? 'not-allowed' : 'pointer',
+                          opacity: item.disabled ? 0.5 : 1,
+                          color: item.destructive ? 'var(--color-danger)' : 'var(--text-body)',
+                          fontSize: 13,
+                          borderTop: i === 0 ? 'none' : '1px solid var(--border-subtle)',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (item.disabled) return;
+                          (e.currentTarget as HTMLButtonElement).style.background = item.destructive
+                            ? 'rgb(var(--danger) / 0.1)'
+                            : 'var(--bg-subtle)';
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLButtonElement).style.background = 'none';
+                        }}
+                      >
+                        <span style={{ color: item.destructive ? 'var(--color-danger)' : 'var(--text-tertiary)', display: 'inline-flex' }}>
+                          {item.icon}
+                        </span>
+                        <span style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <span>{item.label}</span>
+                          {item.hint && (
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.hint}</span>
+                          )}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -757,27 +792,30 @@ export default function SeriesPage() {
           (and the floating Back/⋯ buttons that sit on top of it) all clear
           the time/battery readout. The backdrop blur extends behind the bar. */}
       <div
-        className={`sticky top-0 z-20 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md transition-shadow ${pinned ? 'shadow-md border-b border-gray-200 dark:border-gray-800' : 'border-b border-gray-200/60 dark:border-gray-800/60'}`}
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        className="sticky top-0 z-20 transition-shadow"
+        style={{
+          paddingTop: 'env(safe-area-inset-top)',
+          background: 'var(--chrome-bg)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderBottom: pinned ? '1px solid var(--border-default)' : '1px solid var(--border-subtle)',
+          boxShadow: pinned ? 'var(--shadow-md)' : 'none',
+        }}
       >
-        {/* When pinned, reserve space on each side so the floating Back / ⋯ buttons
-            (fixed at top-3 left/right) don't cover the toolbar's content. */}
-        <div className={`max-w-5xl mx-auto py-2.5 flex items-center gap-2 transition-[padding] ${
-          pinned
-            ? `pl-14 ${isAdmin ? 'pr-14' : 'pr-4 sm:pr-6'}`
-            : 'px-4 sm:px-6'
-        }`}>
+        <div className="max-w-5xl mx-auto py-2.5 px-4 sm:px-6 flex items-center gap-2">
           {/* When pinned, show series name as context */}
           {pinned && (
-            <span className="text-sm font-medium truncate max-w-[40%] sm:max-w-[50%] text-gray-700 dark:text-gray-300" title={series.name}>
+            <span
+              className="text-sm font-medium truncate max-w-[40%] sm:max-w-[50%]"
+              title={series.name}
+              style={{ color: 'var(--text-heading)' }}
+            >
               {series.name}
             </span>
           )}
-          {pinned && <span className="text-gray-300 dark:text-gray-700">·</span>}
+          {pinned && <span style={{ color: 'var(--text-muted)' }}>·</span>}
 
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 shrink-0">
-            {pinned ? comics.length : `Chapters (${comics.length})`}
-          </h2>
+          <Kicker count={comics.length} className="shrink-0">Chapters</Kicker>
 
           <div className="flex-1 min-w-0">
             {showSearch && (
@@ -788,13 +826,15 @@ export default function SeriesPage() {
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search chapters…"
                   autoFocus
-                  className="w-full pl-7 pr-7 py-1.5 text-sm bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="by-input w-full"
+                  style={{ paddingLeft: 28, paddingRight: 28, height: 32, fontSize: 13 }}
                 />
-                <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
                 {search && (
                   <button
                     onClick={() => setSearch('')}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded"
+                    style={{ color: 'var(--text-muted)' }}
                   >
                     <X size={12} />
                   </button>
@@ -833,7 +873,15 @@ export default function SeriesPage() {
             {showSortMenu && (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-10 min-w-[10rem] bg-surface dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden text-sm z-30"
+                className="absolute right-0 overflow-hidden text-sm z-30"
+                style={{
+                  top: 'calc(100% + 4px)',
+                  minWidth: '10rem',
+                  background: 'var(--surface-raised)',
+                  borderRadius: 12,
+                  border: '1px solid var(--border-default)',
+                  boxShadow: 'var(--shadow-2xl)',
+                }}
               >
                 <SortItem active={sortMode === 'order-asc'} onClick={() => { setSortMode('order-asc'); setShowSortMenu(false); }}>
                   Chapter ↑ (1→N)
@@ -848,22 +896,16 @@ export default function SeriesPage() {
             )}
           </div>
 
-          {/* Grid / list */}
-          <div className="hidden sm:flex bg-gray-100 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-l transition-colors ${viewMode === 'list' ? 'bg-gray-200 dark:bg-gray-700' : ''}`}
-              title="List view"
-            >
-              <List size={16} />
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-r transition-colors ${viewMode === 'grid' ? 'bg-gray-200 dark:bg-gray-700' : ''}`}
-              title="Grid view"
-            >
-              <LayoutGrid size={16} />
-            </button>
+          {/* Grid / list — DS SegmentedControl */}
+          <div className="hidden sm:block">
+            <SegmentedControl
+              options={[
+                { value: 'list', label: '', icon: <List size={14} /> },
+                { value: 'grid', label: '', icon: <LayoutGrid size={14} /> },
+              ]}
+              value={viewMode}
+              onChange={setViewMode}
+            />
           </div>
         </div>
       </div>
