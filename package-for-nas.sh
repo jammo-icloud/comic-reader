@@ -27,6 +27,7 @@ zip -r "$OUTPUT" . \
   -x "scripts/*" \
   -x ".git/*" \
   -x ".claude/*" \
+  -x "design-system/*" \
   -x ".env" \
   -x ".DS_Store" \
   -x "*/.DS_Store" \
