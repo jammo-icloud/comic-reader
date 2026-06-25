@@ -1,0 +1,51 @@
+/* ============================================================
+   BINDERY — SHAPE & EFFECT TOKENS
+   ------------------------------------------------------------
+   Radius scales with surface size (bigger surface → bigger radius).
+   Shadows climb with elevation. Borders are 1px; selection is a
+   2px accent ring. Glass surfaces pair a translucent fill with a
+   backdrop blur.
+   ============================================================ */
+
+:root {
+  /* ---- Border radius ---- */
+  --radius-2xl:  16px;  /* drop-zone hero, bottom-sheet top corners */
+  --radius-xl:   12px;  /* cards, modals, toolbar popovers          */
+  --radius-lg:   8px;   /* buttons, inputs, info banners            */
+  --radius-md:   6px;   /* toolbar icon buttons, segmented controls */
+  --radius:      4px;   /* tiny pills, status badges                */
+  --radius-full: 9999px;/* avatars, dots, NEW chip, floating buttons */
+
+  /* ---- Borders & rings ---- */
+  --border-width: 1px;
+  --ring-select: 2px;                       /* selected / hovered card width */
+  --ring-color:  rgb(var(--accent));        /* selection + focus ring color  */
+  --focus-ring:  0 0 0 2px rgb(var(--accent));
+
+  /* ---- Shadows (climb with elevation) ----
+     Cards carry shadow in light mode only; dark mode drops to none and
+     leans on the border instead. */
+  --shadow-sm:  0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md:  0 4px 6px -1px rgb(0 0 0 / 0.10), 0 2px 4px -2px rgb(0 0 0 / 0.10);
+  --shadow-lg:  0 10px 15px -3px rgb(0 0 0 / 0.10), 0 4px 6px -4px rgb(0 0 0 / 0.10);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);   /* modals, sheets */
+  --shadow-card: var(--shadow-sm);          /* default card; none in dark */
+
+  /* Comic-panel hard offset shadow (login CTA, panel borders) */
+  --shadow-comic: 3px 3px 0 rgb(0 0 0 / 1);
+
+  /* ---- Glass / blur ---- */
+  --blur-md: 12px;   /* sticky chrome, floating corner buttons */
+  --blur-sm: 4px;    /* sheet backdrops                        */
+
+  /* ---- Motion ---- */
+  --duration-fast: 200ms;  /* @kind other */ /* default snappy buttons / hovers */
+  --duration-slow: 300ms;  /* @kind other */ /* larger movements, progress fill */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);  /* @kind other */ /* standard easing */
+
+  /* ---- Z-index layers ---- */
+  --z-header:   30;  /* @kind other */ /* sticky page header        */
+  --z-toolbar:  20;  /* @kind other */ /* sticky per-page toolbar   */
+  --z-float:    40;  /* @kind other */ /* floating corner buttons   */
+  --z-modal:    50;  /* @kind other */ /* portaled modals / sheets  */
+}

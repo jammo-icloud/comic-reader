@@ -1,0 +1,327 @@
+/* ============================================================
+   BINDERY — COLOR TOKENS
+   ------------------------------------------------------------
+   Bindery is theme-driven. 12 themes (6 dark + 6 light) each
+   redefine a 50→950 gray ramp plus an --accent pair. Semantic
+   surface/text aliases are derived from the ramp and FLIP between
+   light and dark via the `.dark` class on <html>.
+
+   How to use a theme:
+     <html class="dark" data-theme="midnight">   (a dark theme)
+     <html data-theme="tankobon">                (a light theme)
+
+   The default (:root, no data-theme) is the plain blue theme.
+   Dark themes ALSO need class="dark" so the semantic flip applies.
+
+   Raw tokens are space-separated RGB triplets so they compose with
+   alpha:  rgb(var(--accent) / 0.15). Semantic aliases are ready-made
+   rgb(...) colors you can drop straight into any property.
+   ============================================================ */
+
+:root {
+  /* ---- Default theme : plain (blue accent) ----
+     RGB triplets (no rgb() wrapper) so they compose with alpha. */
+  --gray-50: 249 250 251;   /* @kind color */
+  --gray-100: 243 244 246;  /* @kind color */
+  --gray-200: 229 231 235;  /* @kind color */
+  --gray-300: 209 213 219;  /* @kind color */
+  --gray-400: 156 163 175;  /* @kind color */
+  --gray-500: 107 114 128;  /* @kind color */
+  --gray-600: 75 85 99;     /* @kind color */
+  --gray-700: 55 65 81;     /* @kind color */
+  --gray-800: 31 41 55;     /* @kind color */
+  --gray-900: 17 24 39;     /* @kind color */
+  --gray-950: 3 7 18;       /* @kind color */
+  --accent: 59 130 246;        /* @kind color */
+  --accent-hover: 37 99 235;   /* @kind color */
+
+  /* ---- Semantic intent — stable across all 12 themes ---- */
+  --success: 22 163 74;        /* @kind color */
+  --warning: 217 119 6;        /* @kind color */
+  --danger:  220 38 38;        /* @kind color */
+
+  /* ---- Card surface (light mode only) ----
+     Near-white with a per-theme tint so warm-paper themes don't get a
+     stark white card on a beige page. Dark mode uses gray-900 instead. */
+  --surface: 255 255 255;   /* @kind color */
+
+  /* =========================================================
+     SEMANTIC ALIASES — assume LIGHT mode here; `.dark` flips them.
+     Reach for these first; raw ramp tokens only when you need a
+     specific step or an alpha mix.
+     ========================================================= */
+  --bg-page:        rgb(var(--gray-50));     /* page background          */
+  --bg-subtle:      rgb(var(--gray-100));    /* input / segmented control */
+  --bg-strong:      rgb(var(--gray-200));    /* selected segment / strip  */
+  --surface-card:   rgb(var(--surface));     /* card / modal surface      */
+  --surface-raised: rgb(var(--surface));     /* popover / sheet           */
+
+  --text-body:      rgb(var(--gray-900));    /* default body copy         */
+  --text-heading:   rgb(var(--gray-700));    /* headings, primary labels  */
+  --text-secondary: rgb(var(--gray-600));    /* secondary text            */
+  --text-tertiary:  rgb(var(--gray-500));    /* hint text                 */
+  --text-muted:     rgb(var(--gray-400));    /* disabled / quaternary     */
+
+  --border-default: rgb(var(--gray-200));    /* card / divider edge       */
+  --border-subtle:  rgb(var(--gray-100));    /* faint separator in a card */
+
+  /* Action + intent, ready to drop in */
+  --color-accent:        rgb(var(--accent));
+  --color-accent-hover:  rgb(var(--accent-hover));
+  --on-accent:           #ffffff;            /* text/icons on accent fill */
+  --color-success: rgb(var(--success));
+  --color-warning: rgb(var(--warning));
+  --color-danger:  rgb(var(--danger));
+
+  /* Sticky page chrome — translucent so the theme bg shows through */
+  --chrome-bg: rgb(var(--gray-50) / 0.85);
+
+  /* Theme-independent overlay scrims (legible over any cover art) */
+  --overlay-float:   rgb(0 0 0 / 0.40);   /* floating corner button   */
+  --overlay-backdrop:rgb(0 0 0 / 0.50);   /* modal / sheet backdrop   */
+  --overlay-strong:  rgb(0 0 0 / 0.60);   /* cover label strip        */
+  --overlay-reader:  rgb(0 0 0 / 0.90);   /* reader bottom toolbar    */
+}
+
+/* =========================================================
+   DARK FLIP — applied when <html class="dark">. The ramp tokens
+   above already point at the active theme; here we only re-derive
+   the semantic aliases to their dark counterparts (50↔950, 100↔900…).
+   ========================================================= */
+.dark {
+  --bg-page:        rgb(var(--gray-950));
+  --bg-subtle:      rgb(var(--gray-800));
+  --bg-strong:      rgb(var(--gray-700));
+  --surface-card:   rgb(var(--gray-900));
+  --surface-raised: rgb(var(--gray-900));
+
+  --text-body:      rgb(var(--gray-100));
+  --text-heading:   rgb(var(--gray-300));
+  --text-secondary: rgb(var(--gray-400));
+  --text-tertiary:  rgb(var(--gray-500));
+  --text-muted:     rgb(var(--gray-600));
+
+  --border-default: rgb(var(--gray-800));
+  --border-subtle:  rgb(var(--gray-800));
+
+  --chrome-bg: rgb(var(--gray-950) / 0.85);
+}
+
+/* ====================================================================
+   DARK THEMES — each redefines the gray ramp + accent. Pair with .dark.
+   ==================================================================== */
+
+/* Midnight (Dracula) — playful purple on deep blue-gray */
+[data-theme="midnight"] {
+  --gray-50: 248 248 242;  /* @kind color */
+  --gray-100: 233 230 245;  /* @kind color */
+  --gray-200: 189 147 249;  /* @kind color */
+  --gray-300: 139 133 168;  /* @kind color */
+  --gray-400: 98 114 164;  /* @kind color */
+  --gray-500: 80 92 132;  /* @kind color */
+  --gray-600: 68 71 90;  /* @kind color */
+  --gray-700: 56 58 74;  /* @kind color */
+  --gray-800: 44 47 58;  /* @kind color */
+  --gray-900: 40 42 54;  /* @kind color */
+  --gray-950: 33 34 44;  /* @kind color */
+  --accent: 189 147 249;  /* @kind color */
+  --accent-hover: 255 121 198;  /* @kind color */
+}
+
+/* Nord Frost — cool arctic blues */
+[data-theme="nord-frost"] {
+  --gray-50: 236 239 244;  /* @kind color */
+  --gray-100: 229 233 240;  /* @kind color */
+  --gray-200: 216 222 233;  /* @kind color */
+  --gray-300: 180 190 210;  /* @kind color */
+  --gray-400: 76 86 106;  /* @kind color */
+  --gray-500: 67 76 94;  /* @kind color */
+  --gray-600: 59 66 82;  /* @kind color */
+  --gray-700: 52 60 74;  /* @kind color */
+  --gray-800: 46 52 64;  /* @kind color */
+  --gray-900: 41 46 57;  /* @kind color */
+  --gray-950: 36 40 50;  /* @kind color */
+  --accent: 136 192 208;  /* @kind color */
+  --accent-hover: 129 161 193;  /* @kind color */
+}
+
+/* Mocha (Catppuccin) — warm pastels on deep purple-gray */
+[data-theme="mocha"] {
+  --gray-50: 205 214 244;  /* @kind color */
+  --gray-100: 186 194 222;  /* @kind color */
+  --gray-200: 166 173 200;  /* @kind color */
+  --gray-300: 147 153 178;  /* @kind color */
+  --gray-400: 108 112 134;  /* @kind color */
+  --gray-500: 88 91 112;  /* @kind color */
+  --gray-600: 69 71 90;  /* @kind color */
+  --gray-700: 49 50 68;  /* @kind color */
+  --gray-800: 36 39 58;  /* @kind color */
+  --gray-900: 30 30 46;  /* @kind color */
+  --gray-950: 24 24 37;  /* @kind color */
+  --accent: 203 166 247;  /* @kind color */
+  --accent-hover: 245 194 231;  /* @kind color */
+}
+
+/* Rosewood (Rose Pine) — vintage rose and gold */
+[data-theme="rosewood"] {
+  --gray-50: 224 222 244;  /* @kind color */
+  --gray-100: 200 197 220;  /* @kind color */
+  --gray-200: 144 140 170;  /* @kind color */
+  --gray-300: 110 106 134;  /* @kind color */
+  --gray-400: 82 79 110;  /* @kind color */
+  --gray-500: 64 61 82;  /* @kind color */
+  --gray-600: 46 44 62;  /* @kind color */
+  --gray-700: 38 35 58;  /* @kind color */
+  --gray-800: 31 29 46;  /* @kind color */
+  --gray-900: 25 23 36;  /* @kind color */
+  --gray-950: 20 18 29;  /* @kind color */
+  --accent: 196 167 231;  /* @kind color */
+  --accent-hover: 246 193 119;  /* @kind color */
+}
+
+/* Tankobon Dark — manga cafe at night */
+[data-theme="tankobon-dark"] {
+  --gray-50: 213 208 195;  /* @kind color */
+  --gray-100: 190 184 170;  /* @kind color */
+  --gray-200: 165 158 144;  /* @kind color */
+  --gray-300: 138 130 117;  /* @kind color */
+  --gray-400: 105 98 86;  /* @kind color */
+  --gray-500: 80 75 65;  /* @kind color */
+  --gray-600: 58 54 46;  /* @kind color */
+  --gray-700: 44 41 36;  /* @kind color */
+  --gray-800: 38 35 32;  /* @kind color */
+  --gray-900: 26 24 22;  /* @kind color */
+  --gray-950: 20 18 16;  /* @kind color */
+  --accent: 230 53 37;  /* @kind color */
+  --accent-hover: 38 67 72;  /* @kind color */
+}
+
+/* Newsprint Dark — comic shop after hours */
+[data-theme="newsprint-dark"] {
+  --gray-50: 232 220 192;  /* @kind color */
+  --gray-100: 210 198 170;  /* @kind color */
+  --gray-200: 180 168 140;  /* @kind color */
+  --gray-300: 148 138 112;  /* @kind color */
+  --gray-400: 122 112 96;  /* @kind color */
+  --gray-500: 90 82 68;  /* @kind color */
+  --gray-600: 62 56 44;  /* @kind color */
+  --gray-700: 46 42 34;  /* @kind color */
+  --gray-800: 40 37 32;  /* @kind color */
+  --gray-900: 28 26 21;  /* @kind color */
+  --gray-950: 22 20 16;  /* @kind color */
+  --accent: 226 0 37;  /* @kind color */
+  --accent-hover: 0 96 170;  /* @kind color */
+}
+
+/* ====================================================================
+   LIGHT THEMES — redefine the ramp + accent + a tinted card --surface.
+   Do NOT add .dark for these.
+   ==================================================================== */
+
+/* Latte (Catppuccin) — warm lavender-gray */
+[data-theme="latte"] {
+  --gray-50: 239 241 245;  /* @kind color */
+  --gray-100: 230 233 239;  /* @kind color */
+  --gray-200: 204 208 218;  /* @kind color */
+  --gray-300: 188 192 204;  /* @kind color */
+  --gray-400: 140 143 161;  /* @kind color */
+  --gray-500: 108 111 133;  /* @kind color */
+  --gray-600: 92 95 119;  /* @kind color */
+  --gray-700: 76 79 105;  /* @kind color */
+  --gray-800: 65 69 89;  /* @kind color */
+  --gray-900: 54 58 79;  /* @kind color */
+  --gray-950: 44 48 65;  /* @kind color */
+  --accent: 136 57 239;  /* @kind color */
+  --accent-hover: 114 135 253;  /* @kind color */
+  --surface: 254 254 255;  /* @kind color */
+}
+
+/* Dawn (Rose Pine) — warm parchment */
+[data-theme="dawn"] {
+  --gray-50: 250 244 237;  /* @kind color */
+  --gray-100: 255 250 243;  /* @kind color */
+  --gray-200: 242 233 222;  /* @kind color */
+  --gray-300: 223 218 217;  /* @kind color */
+  --gray-400: 152 147 165;  /* @kind color */
+  --gray-500: 121 117 147;  /* @kind color */
+  --gray-600: 87 82 121;  /* @kind color */
+  --gray-700: 68 65 100;  /* @kind color */
+  --gray-800: 55 52 82;  /* @kind color */
+  --gray-900: 42 39 63;  /* @kind color */
+  --gray-950: 32 30 48;  /* @kind color */
+  --accent: 144 122 169;  /* @kind color */
+  --accent-hover: 215 130 126;  /* @kind color */
+  --surface: 255 253 250;  /* @kind color */
+}
+
+/* Alucard (Dracula Light) — aged ivory */
+[data-theme="alucard"] {
+  --gray-50: 255 251 235;  /* @kind color */
+  --gray-100: 250 245 230;  /* @kind color */
+  --gray-200: 245 240 222;  /* @kind color */
+  --gray-300: 230 225 207;  /* @kind color */
+  --gray-400: 160 155 130;  /* @kind color */
+  --gray-500: 108 102 75;  /* @kind color */
+  --gray-600: 80 75 55;  /* @kind color */
+  --gray-700: 50 48 38;  /* @kind color */
+  --gray-800: 40 38 30;  /* @kind color */
+  --gray-900: 31 31 31;  /* @kind color */
+  --gray-950: 22 22 22;  /* @kind color */
+  --accent: 100 74 201;  /* @kind color */
+  --accent-hover: 189 147 249;  /* @kind color */
+  --surface: 255 255 250;  /* @kind color */
+}
+
+/* Gruvbox Sand — retro warm with bold orange */
+[data-theme="gruvbox-sand"] {
+  --gray-50: 251 241 199;  /* @kind color */
+  --gray-100: 242 229 188;  /* @kind color */
+  --gray-200: 235 219 178;  /* @kind color */
+  --gray-300: 213 196 161;  /* @kind color */
+  --gray-400: 146 131 116;  /* @kind color */
+  --gray-500: 124 111 100;  /* @kind color */
+  --gray-600: 102 92 84;  /* @kind color */
+  --gray-700: 80 73 69;  /* @kind color */
+  --gray-800: 60 56 54;  /* @kind color */
+  --gray-900: 40 40 40;  /* @kind color */
+  --gray-950: 29 32 33;  /* @kind color */
+  --accent: 214 93 14;  /* @kind color */
+  --accent-hover: 152 151 26;  /* @kind color */
+  --surface: 255 253 240;  /* @kind color */
+}
+
+/* Tankobon — authentic manga paper */
+[data-theme="tankobon"] {
+  --gray-50: 237 232 213;  /* @kind color */
+  --gray-100: 227 220 202;  /* @kind color */
+  --gray-200: 215 208 190;  /* @kind color */
+  --gray-300: 201 193 174;  /* @kind color */
+  --gray-400: 138 130 117;  /* @kind color */
+  --gray-500: 110 104 92;  /* @kind color */
+  --gray-600: 82 76 66;  /* @kind color */
+  --gray-700: 52 48 40;  /* @kind color */
+  --gray-800: 38 35 30;  /* @kind color */
+  --gray-900: 26 23 20;  /* @kind color */
+  --gray-950: 18 16 14;  /* @kind color */
+  --accent: 230 53 37;  /* @kind color */
+  --accent-hover: 38 67 72;  /* @kind color */
+  --surface: 255 252 241;  /* @kind color */
+}
+
+/* Newsprint — classic comic book paper */
+[data-theme="newsprint"] {
+  --gray-50: 242 232 201;  /* @kind color */
+  --gray-100: 236 224 190;  /* @kind color */
+  --gray-200: 232 217 181;  /* @kind color */
+  --gray-300: 212 196 158;  /* @kind color */
+  --gray-400: 160 148 120;  /* @kind color */
+  --gray-500: 122 112 96;  /* @kind color */
+  --gray-600: 90 82 70;  /* @kind color */
+  --gray-700: 60 54 44;  /* @kind color */
+  --gray-800: 40 36 28;  /* @kind color */
+  --gray-900: 24 22 16;  /* @kind color */
+  --gray-950: 15 14 12;  /* @kind color */
+  --accent: 226 0 37;  /* @kind color */
+  --accent-hover: 0 96 170;  /* @kind color */
+  --surface: 255 251 235;  /* @kind color */
+}
