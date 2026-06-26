@@ -342,6 +342,7 @@ export default function ReaderPage() {
               currentPage={currentPage}
               totalPages={totalPages}
               onJumpPage={(n) => viewerRef.current?.goToPage(n)}
+              getPageThumbnail={(n, w) => viewerRef.current?.getPageThumbnail(n, w) ?? Promise.resolve(null)}
             />
           </div>
         )}

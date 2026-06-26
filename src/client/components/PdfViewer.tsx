@@ -42,6 +42,13 @@ export interface PdfViewerHandle {
   zoomOut: () => void;
   resetZoom: () => void;
   totalPages: number;
+  /**
+   * Render a single page to a small JPEG data URL, off-screen. Used by the
+   * reader's ChapterRail to populate page-thumb cells without spinning up a
+   * second PDF document. Returns null if the page isn't loaded yet or
+   * rendering fails.
+   */
+  getPageThumbnail: (pageIdx: number, maxWidth?: number) => Promise<string | null>;
 }
 
 interface PdfViewerProps {
@@ -340,6 +347,35 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     else if (onPastStart) onPastStart();
   }, [goToPage, currentPage, onPastStart]);
 
+  // Off-screen thumbnail rendering — reuses the already-loaded pdfDocRef
+  // proxy so we don't open a second copy of the PDF just for the rail.
+  // pageIdx is 0-based to match the rest of the file's conventions.
+  const getPageThumbnail = useCallback(
+    async (pageIdx: number, maxWidth: number = 140): Promise<string | null> => {
+      const doc = pdfDocRef.current;
+      if (!doc) return null;
+      if (pageIdx < 0 || pageIdx >= doc.numPages) return null;
+      try {
+        const page = await doc.getPage(pageIdx + 1);
+        const baseVp = page.getViewport({ scale: 1.0 });
+        const scale = maxWidth / baseVp.width;
+        const vp = page.getViewport({ scale });
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(vp.width);
+        cv.height = Math.round(vp.height);
+        const ctx = cv.getContext('2d');
+        if (!ctx) { page.cleanup(); return null; }
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        const dataUrl = cv.toDataURL('image/jpeg', 0.65);
+        page.cleanup();
+        return dataUrl;
+      } catch {
+        return null;
+      }
+    },
+    [],
+  );
+
   // Imperative API for parent toolbar
   useImperativeHandle(
     ref,
@@ -351,8 +387,9 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       zoomOut: () => setZoom((z) => Math.max(0.5, z - 0.25)),
       resetZoom: () => { setZoom(1); setPan({ x: 0, y: 0 }); },
       totalPages,
+      getPageThumbnail,
     }),
-    [prevPage, nextPage, goToPage, totalPages],
+    [prevPage, nextPage, goToPage, totalPages, getPageThumbnail],
   );
 
   // ----- Keyboard (page-level nav only) -----
