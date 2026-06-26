@@ -366,7 +366,7 @@ function PageThumb({
   onVisible: (pageIdx: number) => void;
   onClick: () => void;
 }) {
-  const ref = useRef<HTMLButtonElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (thumb) return;
@@ -391,87 +391,105 @@ function PageThumb({
     return () => obs.disconnect();
   }, [pageIdx, thumb, onVisible]);
 
+  // GRID ITEM is a plain <div ref> with `aspect-ratio: 2 / 3` — Chrome's
+  // grid track sizing honors aspect-ratio on regular block-level elements
+  // but apparently does NOT honor it on form-control children. When the
+  // <button> was the grid item, row tracks computed to ~65px (the intrinsic
+  // size of the button labels) and each 140-px button overflowed into the
+  // next row — pages stacked. Wrapping the button in a div fixes track
+  // sizing while keeping the button accessible/interactive.
   return (
-    <button
+    <div
       ref={ref}
-      onClick={onClick}
       style={{
         position: 'relative',
-        padding: 0,
-        border: isCurrent
-          ? '2px solid rgb(var(--accent))'
-          : '2px solid transparent',
-        borderRadius: 5,
-        overflow: 'hidden',
-        cursor: 'pointer',
-        background: 'rgb(255 255 255 / 0.05)',
-        aspectRatio: '2/3',
-        opacity: isPast || isCurrent ? 1 : 0.6,
+        width: '100%',
+        aspectRatio: '2 / 3',
       }}
     >
-      {thumb ? (
-        <img
-          src={thumb}
-          alt=""
-          loading="lazy"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            display: 'block',
-          }}
-        />
-      ) : (
-        <div
+      <button
+        onClick={onClick}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          padding: 0,
+          border: isCurrent
+            ? '2px solid rgb(var(--accent))'
+            : '2px solid transparent',
+          borderRadius: 5,
+          overflow: 'hidden',
+          cursor: 'pointer',
+          background: 'rgb(255 255 255 / 0.05)',
+          opacity: isPast || isCurrent ? 1 : 0.6,
+          display: 'block',
+        }}
+      >
+        {thumb ? (
+          <img
+            src={thumb}
+            alt=""
+            loading="lazy"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block',
+            }}
+          />
+        ) : (
+          <div
+            className="bindery-nums"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 11,
+              fontFamily: 'var(--font-mono)',
+              color: 'rgb(255 255 255 / 0.4)',
+            }}
+          >
+            {pageIdx + 1}
+          </div>
+        )}
+        <span
           className="bindery-nums"
           style={{
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 11,
-            fontFamily: 'var(--font-mono)',
-            color: 'rgb(255 255 255 / 0.4)',
+            position: 'absolute',
+            bottom: 2,
+            right: 3,
+            fontSize: 9,
+            color: '#fff',
+            background: 'rgb(0 0 0 / 0.6)',
+            padding: '0 4px',
+            borderRadius: 3,
           }}
         >
           {pageIdx + 1}
-        </div>
-      )}
-      <span
-        className="bindery-nums"
-        style={{
-          position: 'absolute',
-          bottom: 2,
-          right: 3,
-          fontSize: 9,
-          color: '#fff',
-          background: 'rgb(0 0 0 / 0.6)',
-          padding: '0 4px',
-          borderRadius: 3,
-        }}
-      >
-        {pageIdx + 1}
-      </span>
-      {isPast && (
-        <span
-          style={{
-            position: 'absolute',
-            top: 3,
-            left: 3,
-            width: 14,
-            height: 14,
-            borderRadius: '50%',
-            background: 'rgb(var(--success))',
-            color: '#fff',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Check size={9} strokeWidth={3} />
         </span>
-      )}
-    </button>
+        {isPast && (
+          <span
+            style={{
+              position: 'absolute',
+              top: 3,
+              left: 3,
+              width: 14,
+              height: 14,
+              borderRadius: '50%',
+              background: 'rgb(var(--success))',
+              color: '#fff',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Check size={9} strokeWidth={3} />
+          </span>
+        )}
+      </button>
+    </div>
   );
 }
