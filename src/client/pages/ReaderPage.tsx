@@ -22,6 +22,14 @@ const STORY_BOTTOM = '42dvh';
 const BREAKPOINT = 900;
 const HIDE_MS = 3200;
 const SWIPE_THRESHOLD_PCT = 0.18;
+/**
+ * Chrome auto-reveals only when the pointer/touch is within EDGE_ZONE_PX
+ * of the top or bottom of the viewport (where the chrome lives).
+ * Otherwise page-turn actions, scrolling through the middle of the page,
+ * and middle-of-screen swipes leave the chrome alone — the reader stays
+ * immersive instead of flashing the bars every flip.
+ */
+const EDGE_ZONE_PX = 80;
 
 type Mode = 'tap' | 'swipe' | 'scroll';
 
@@ -89,7 +97,11 @@ export default function ReaderPage() {
   const [railOpen, setRailOpen] = useState(true);
   const [drawer, setDrawer] = useState(false);
 
-  // Auto-hide chrome
+  // Auto-hide chrome. The bars only reveal when the user actually reaches
+  // for them: pointer or touch within EDGE_ZONE_PX of the top or bottom of
+  // the viewport, an explicit center-tap in Tap/Swipe modes, or a chapter
+  // boundary (so the new chapter's title isn't a mystery). Page-turn taps,
+  // keyboard nav, and middle-of-screen swipes leave chrome alone.
   const [chromeOn, setChromeOn] = useState(true);
   const hideTimer = useRef<number | null>(null);
   const poke = useCallback(() => {
@@ -97,10 +109,17 @@ export default function ReaderPage() {
     if (hideTimer.current) window.clearTimeout(hideTimer.current);
     hideTimer.current = window.setTimeout(() => setChromeOn(false), HIDE_MS);
   }, []);
+  const pokeIfNearEdge = useCallback((y: number) => {
+    const h = window.innerHeight;
+    if (y < EDGE_ZONE_PX || y > h - EDGE_ZONE_PX) poke();
+  }, [poke]);
+  // Initial reveal + cleanup, plus a re-poke on chapter boundary so the new
+  // title gets its 3.2s of fame. NOT on page change (that was the chaos
+  // the user flagged) and NOT on mode change (the user just clicked chrome).
   useEffect(() => {
     poke();
     return () => { if (hideTimer.current) window.clearTimeout(hideTimer.current); };
-  }, [poke, currentPage, file, mode]);
+  }, [poke, file]);
 
   // Story mode
   const [storyAvailable, setStoryAvailable] = useState(false);
@@ -277,11 +296,13 @@ export default function ReaderPage() {
   }, [nextChapter, prevChapter, goToChapter]);
 
   // ----- Keyboard -----
+  // Keyboard nav is intentionally chrome-quiet — arrow keys / Space flip
+  // pages without revealing the bars, matching the user's "every page turn
+  // shouldn't pop chrome" preference.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
       if (e.key === 'Escape') { navigate(`/series/${seriesId}`); return; }
-      poke();
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
         go(rtl ? -1 : +1);
@@ -292,7 +313,7 @@ export default function ReaderPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [go, rtl, poke, navigate, seriesId]);
+  }, [go, rtl, navigate, seriesId]);
 
   // ----- Tap surface: vertical-thirds click handler -----
   const onTapSurface = useCallback((e: React.MouseEvent) => {
@@ -319,7 +340,11 @@ export default function ReaderPage() {
 
   return (
     <div
-      onMouseMove={wide ? poke : undefined}
+      onMouseMove={(e) => pokeIfNearEdge(e.clientY)}
+      onTouchStart={(e) => {
+        const t = e.touches[0];
+        if (t) pokeIfNearEdge(t.clientY);
+      }}
       style={{
         position: 'fixed',
         inset: 0,
