@@ -368,27 +368,45 @@ function PageThumb({
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
+  // While we don't have a thumb yet, observe visibility AND retry every
+  // second so the cell can recover from "PDF wasn't loaded the first time
+  // I asked." The retry stops the moment a thumb lands (the effect's deps
+  // include `thumb`; once it's set, this whole effect early-returns).
   useEffect(() => {
     if (thumb) return;
     const el = ref.current;
-    if (!el || typeof IntersectionObserver === 'undefined') {
-      onVisible(pageIdx);
-      return;
+    if (!el) return;
+
+    let visible = false;
+    let interval: number | null = null;
+    const tryFetch = () => { if (visible) onVisible(pageIdx); };
+
+    if (typeof IntersectionObserver === 'undefined') {
+      // No IO support — fall back to "always visible" and just poll.
+      visible = true;
+      tryFetch();
+      interval = window.setInterval(tryFetch, 1000);
+      return () => { if (interval) clearInterval(interval); };
     }
+
     const obs = new IntersectionObserver(
       (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            onVisible(pageIdx);
-            obs.disconnect();
-            break;
-          }
+        visible = entries[entries.length - 1]?.isIntersecting ?? false;
+        if (visible) {
+          tryFetch();
+          if (interval == null) interval = window.setInterval(tryFetch, 1000);
+        } else if (interval != null) {
+          clearInterval(interval);
+          interval = null;
         }
       },
       { rootMargin: '120px 0px' },
     );
     obs.observe(el);
-    return () => obs.disconnect();
+    return () => {
+      obs.disconnect();
+      if (interval != null) clearInterval(interval);
+    };
   }, [pageIdx, thumb, onVisible]);
 
   // GRID ITEM is a plain <div ref> with `aspect-ratio: 2 / 3` — Chrome's

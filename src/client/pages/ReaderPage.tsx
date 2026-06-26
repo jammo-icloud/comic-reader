@@ -663,6 +663,7 @@ export default function ReaderPage() {
           currentPage={currentPage}
           totalPages={totalPages}
           onJumpPage={(n) => { viewerRef.current?.goToPage(n); setDrawer(false); }}
+          getPageThumbnail={(n, w) => viewerRef.current?.getPageThumbnail(n, w) ?? Promise.resolve(null)}
           onClose={() => setDrawer(false)}
           drawer
         />
