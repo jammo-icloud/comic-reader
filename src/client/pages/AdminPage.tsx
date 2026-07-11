@@ -292,7 +292,11 @@ export default function AdminPage() {
           Tabs + version on the left, Tools dropdown on the right.
           ======================================================================== */}
       <header
-        className="sticky z-20"
+        // z-[25] sits above the per-tab StickyToolbar (z-20) so the Tools
+        // dropdown — trapped in this header's stacking context — paints over the
+        // toolbar instead of being sliced by it, while staying below the global
+        // Header (z-30) so its bell/profile menus still win.
+        className="sticky z-[25]"
         style={{
           top: GLOBAL_HEADER_PX,
           paddingTop: 'env(safe-area-inset-top)',
