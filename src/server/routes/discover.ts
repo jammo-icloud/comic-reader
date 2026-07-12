@@ -172,6 +172,9 @@ router.get('/discover/progress', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  // Disable proxy buffering so live progress streams through nginx-based reverse
+  // proxies (Synology's reverse proxy, Cloudflare) instead of being held back.
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
   const cleanup = onProgress((job) => {
     if (job.username === username) {
