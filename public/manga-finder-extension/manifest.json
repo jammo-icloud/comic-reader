@@ -8,6 +8,7 @@
     "alarms",
     "scripting",
     "downloads",
+    "cookies",
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess"
   ],
