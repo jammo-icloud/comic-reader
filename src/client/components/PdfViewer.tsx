@@ -1,13 +1,8 @@
 import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
-// Bundle the worker as a same-origin asset (Vite emits a hashed URL) instead of
-// fetching it from a CDN — a CDN worker is unreachable offline, which left the
-// reader with a blank canvas. Served from our origin, it gets precached too.
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { BBox } from '../lib/api';
+import { analyzePage, renderPageThumbnail, type PdfDoc, type PdfRenderTask } from '../lib/pdf';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-
+/** 'fit' = whole page on screen; 'scroll' = fit the art's width, scroll down the page. */
 export type ViewMode = 'fit' | 'scroll';
 export type ReadingDirection = 'ltr' | 'rtl';
 
@@ -38,6 +33,12 @@ export interface PdfViewerHandle {
   prevPage: () => void;
   nextPage: () => void;
   goToPage: (n: number) => void;
+  /**
+   * One "reading step" from user input (tap, swipe, arrow key). When the page
+   * is taller than the screen (fit-width) this scrolls within the page first
+   * and only turns the page at its top/bottom edge.
+   */
+  step: (delta: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
   resetZoom: () => void;
@@ -52,7 +53,8 @@ export interface PdfViewerHandle {
 }
 
 interface PdfViewerProps {
-  url: string;
+  /** The loaded chapter PDF — owned by ReaderPage (see usePdfDocument). */
+  doc: PdfDoc;
   initialPage?: number;
   viewMode: ViewMode;
   readingDirection?: ReadingDirection;
@@ -92,13 +94,19 @@ const DOUBLE_TAP_DIST = 40;
 const DOUBLE_TAP_ZOOM = 2.5;
 
 const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer(
-  { url, initialPage = 0, viewMode, readingDirection = 'ltr', onPageChange, onTotalPagesChange, overlay, onAmbient, onPastEnd, onPastStart },
+  { doc, initialPage = 0, viewMode, onPageChange, onTotalPagesChange, overlay, onAmbient, onPastEnd, onPastStart },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
-  const renderTaskRef = useRef<ReturnType<pdfjsLib.PDFPageProxy['render']> | null>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const pdfDocRef = useRef<PdfDoc | null>(doc);
+  pdfDocRef.current = doc;
+  const renderTaskRef = useRef<PdfRenderTask | null>(null);
+  // Bumped on every render request so a slow, superseded one can bail out.
+  const renderSeq = useRef(0);
+  // Fit-width: how far the canvas is shifted left to hide the blank margin.
+  const [cropX, setCropX] = useState(0);
 
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [totalPages, setTotalPages] = useState(0);
@@ -123,17 +131,26 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         renderTaskRef.current = null;
       }
 
+      const seq = ++renderSeq.current;
       const page = await doc.getPage(pageNum + 1);
       const viewport = page.getViewport({ scale: 1.0 });
 
       let scale: number;
+      let cropLeft = 0;
       if (viewMode === 'fit') {
         const scaleW = container.clientWidth / viewport.width;
         const scaleH = container.clientHeight / viewport.height;
         scale = Math.min(scaleW, scaleH);
       } else {
-        scale = container.clientWidth / viewport.width;
+        // Fit the ART to the screen width, not the page: blank side margins
+        // are detected and pushed off-screen so the content is as large as
+        // it can be.
+        const { left, right } = await analyzePage(doc, pageNum);
+        scale = container.clientWidth / (viewport.width * (right - left));
+        cropLeft = left * viewport.width * scale;
       }
+      if (seq !== renderSeq.current) return; // a newer render took over
+      setCropX(cropLeft);
 
       const effectiveScale = viewMode === 'fit' ? scale * zoom : scale;
       const scaledViewport = page.getViewport({ scale: effectiveScale });
@@ -226,36 +243,27 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   // ----- Effects: load doc, render, react to changes -----
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
     setCurrentPage(initialPage);
     setZoom(1);
     setPan({ x: 0, y: 0 });
-    // Cache-first: if the PDF is in any cache (the sticky offline cache or the
-    // runtime pdf-cache), render from those bytes directly. This makes saved
-    // series openable with no network — and doesn't depend on the service
-    // worker intercepting the request — while online reads still fall through
-    // to the URL. pdf.js loads the whole file into memory, fine for a chapter.
-    const load = async () => {
-      try {
-        const hit = typeof caches !== 'undefined' ? await caches.match(url) : undefined;
-        if (hit) return pdfjsLib.getDocument({ data: await hit.arrayBuffer() }).promise;
-      } catch { /* fall through to network */ }
-      return pdfjsLib.getDocument(url).promise;
-    };
-    load().then((doc) => {
-      if (cancelled) return;
-      pdfDocRef.current = doc;
-      setTotalPages(doc.numPages);
-      onTotalPagesChange?.(doc.numPages);
-      setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-      pdfDocRef.current?.destroy();
-      pdfDocRef.current = null;
-    };
-  }, [url, initialPage, onTotalPagesChange]);
+    setTotalPages(doc.numPages);
+    onTotalPagesChange?.(doc.numPages);
+    setLoading(false);
+  }, [doc, initialPage, onTotalPagesChange]);
+
+  // Stop any in-flight render when the viewer goes away (chapter / layout change).
+  useEffect(() => () => {
+    renderSeq.current++;
+    if (renderTaskRef.current) {
+      try { renderTaskRef.current.cancel(); } catch { /* already settled */ }
+    }
+  }, []);
+
+  // A new page always starts at its top — otherwise fit-width would show the
+  // next page at whatever depth the previous one was scrolled to.
+  useEffect(() => {
+    if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
+  }, [currentPage, viewMode]);
 
   useEffect(() => {
     if (!loading && pdfDocRef.current) renderPage(currentPage);
@@ -351,29 +359,23 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   // proxy so we don't open a second copy of the PDF just for the rail.
   // pageIdx is 0-based to match the rest of the file's conventions.
   const getPageThumbnail = useCallback(
-    async (pageIdx: number, maxWidth: number = 140): Promise<string | null> => {
-      const doc = pdfDocRef.current;
-      if (!doc) return null;
-      if (pageIdx < 0 || pageIdx >= doc.numPages) return null;
-      try {
-        const page = await doc.getPage(pageIdx + 1);
-        const baseVp = page.getViewport({ scale: 1.0 });
-        const scale = maxWidth / baseVp.width;
-        const vp = page.getViewport({ scale });
-        const cv = document.createElement('canvas');
-        cv.width = Math.round(vp.width);
-        cv.height = Math.round(vp.height);
-        const ctx = cv.getContext('2d');
-        if (!ctx) { page.cleanup(); return null; }
-        await page.render({ canvasContext: ctx, viewport: vp }).promise;
-        const dataUrl = cv.toDataURL('image/jpeg', 0.65);
-        page.cleanup();
-        return dataUrl;
-      } catch {
-        return null;
+    (pageIdx: number, maxWidth: number = 140) => renderPageThumbnail(doc, pageIdx, maxWidth),
+    [doc],
+  );
+
+  const step = useCallback(
+    (delta: number) => {
+      const sc = scrollerRef.current;
+      if (viewMode === 'scroll' && sc) {
+        const max = sc.scrollHeight - sc.clientHeight;
+        const jump = sc.clientHeight * 0.85;
+        if (delta > 0 && sc.scrollTop < max - 4) { sc.scrollBy({ top: jump, behavior: 'smooth' }); return; }
+        if (delta < 0 && sc.scrollTop > 4) { sc.scrollBy({ top: -jump, behavior: 'smooth' }); return; }
       }
+      if (delta > 0) nextPage();
+      else if (delta < 0) prevPage();
     },
-    [],
+    [viewMode, nextPage, prevPage],
   );
 
   // Imperative API for parent toolbar
@@ -383,32 +385,22 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       prevPage,
       nextPage,
       goToPage,
+      step,
       zoomIn: () => setZoom((z) => Math.min(5, z + 0.25)),
       zoomOut: () => setZoom((z) => Math.max(0.5, z - 0.25)),
       resetZoom: () => { setZoom(1); setPan({ x: 0, y: 0 }); },
       totalPages,
       getPageThumbnail,
     }),
-    [prevPage, nextPage, goToPage, totalPages, getPageThumbnail],
+    [prevPage, nextPage, goToPage, step, totalPages, getPageThumbnail],
   );
 
-  // ----- Keyboard (page-level nav only) -----
+  // ----- Keyboard (zoom only — page navigation keys live in ReaderPage) -----
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
       switch (e.key) {
-        case 'ArrowRight':
-        case ' ':
-          e.preventDefault();
-          if (readingDirection === 'rtl') prevPage();
-          else nextPage();
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          if (readingDirection === 'rtl') nextPage();
-          else prevPage();
-          break;
         case '+': case '=':
           e.preventDefault(); if (viewMode === 'fit') setZoom((z) => Math.min(z + 0.25, 5)); break;
         case '-':
@@ -419,7 +411,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [nextPage, prevPage, readingDirection, viewMode]);
+  }, [viewMode]);
 
   // ----- Wheel zoom (desktop) -----
 
@@ -627,19 +619,23 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onDoubleClick={handleDoubleClick}
     >
       <div
-        className={`w-full h-full flex items-center justify-center ${viewMode === 'scroll' ? 'overflow-y-auto overflow-x-hidden no-scrollbar' : ''}`}
+        ref={scrollerRef}
+        className={`w-full h-full flex ${viewMode === 'scroll' ? 'overflow-y-auto overflow-x-hidden no-scrollbar' : 'items-center justify-center'}`}
       >
         {/* Page wrapper — shrink-wraps the canvas so the translation overlay
             can position bubbles in page-fraction percentages. The pan
             transform lives here so canvas and overlay move as one.
             No CSS transition — a stale pan from the previous page would
-            otherwise animate during a page swap and look broken. */}
+            otherwise animate during a page swap and look broken.
+            Fit-width: auto margins (not align-items) centre a short page
+            without clipping the top of a tall one, and the negative left
+            margin slides the blank page margin out of view. */}
         <div
           className="relative"
           style={
             viewMode === 'fit'
               ? { transform: `translate(${pan.x}px, ${pan.y}px)` }
-              : undefined
+              : { margin: `auto 0 auto ${-cropX}px`, flexShrink: 0 }
           }
         >
           <canvas ref={canvasRef} className="block" />

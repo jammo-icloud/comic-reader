@@ -1,4 +1,4 @@
-import type { Series, Comic, ContinueReadingItem, PendingImport, MangaDexManga, MangaDexChapter, RecommendedItem } from './types';
+import type { ReaderPrefs, Series, Comic, ContinueReadingItem, PendingImport, MangaDexManga, MangaDexChapter, RecommendedItem } from './types';
 import { enqueueProgress } from './offline';
 
 const BASE = '/api';
@@ -228,6 +228,14 @@ export function getSeries(type?: 'comic' | 'magazine'): Promise<Series[]> {
 
 export function getSeriesDetail(id: string): Promise<Series> {
   return fetchJson(`/series/${id}`);
+}
+
+export function saveReaderPrefs(seriesId: string, prefs: ReaderPrefs): Promise<ReaderPrefs> {
+  return fetchJson(`/series/${seriesId}/reader-prefs`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(prefs),
+  });
 }
 
 export function deleteSeries(id: string): Promise<void> {

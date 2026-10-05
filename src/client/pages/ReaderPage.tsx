@@ -5,16 +5,19 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   PanelLeft, Pointer, MoveHorizontal, GalleryVertical, BookOpen,
+  Maximize2, ArrowLeftRight, FoldVertical,
 } from 'lucide-react';
 import {
-  getPdfUrl, updateProgress, getComics, getSeriesDetail,
+  getPdfUrl, updateProgress, getComics, getSeriesDetail, saveReaderPrefs,
   getTranslationStatus, getPageTranslation, type PageTranslation,
 } from '../lib/api';
-import PdfViewer, { type PdfViewerHandle, type ReadingDirection } from '../components/PdfViewer';
+import PdfViewer, { type PdfViewerHandle } from '../components/PdfViewer';
+import StripViewer from '../components/StripViewer';
+import { usePdfDocument, getPageRatios, type PdfDoc } from '../lib/pdf';
 import StoryPanel from '../components/StoryPanel';
 import ChapterRail from '../components/ChapterRail';
 import { SegmentedControl } from '../components/ds';
-import type { Comic, Series } from '../lib/types';
+import type { Comic, ReaderPrefs, Series } from '../lib/types';
 
 const RAIL_W = 304;
 const STORY_W = 384;
@@ -31,7 +34,19 @@ const SWIPE_THRESHOLD_PCT = 0.18;
  */
 const EDGE_ZONE_PX = 80;
 
-type Mode = 'tap' | 'swipe' | 'scroll';
+/** How pages are turned in the Pages layout — a personal, per-device habit. */
+type Turn = 'tap' | 'swipe';
+/** The top-bar control: the two page-turn styles, or the continuous strip. */
+type Mode = Turn | 'strip';
+
+/** Pages at least this tall (height / width) read as a webtoon strip. */
+const STRIP_RATIO = 2;
+const STRIP_TAGS = new Set(['webtoon', 'webtoons', 'long strip']);
+
+const prefsKey = (seriesId: string) => `bindery.reader.series.${seriesId}`;
+function readLocalPrefs(seriesId: string): ReaderPrefs {
+  try { return JSON.parse(localStorage.getItem(prefsKey(seriesId)) || '{}') || {}; } catch { return {}; }
+}
 
 /**
  * Series tags that imply right-to-left reading (manga-family). Used to
@@ -48,12 +63,17 @@ const RTL_TAGS = new Set([
  *   [ ChapterRail (304, desktop) ] [ reading surface ] [ StoryPanel (384, story on + wide) ]
  *
  * On mobile (<900px) the rail moves into a drawer + the top-bar splits into
- * two rows (controls below). The reading surface accepts one of three input
- * modes: Tap (vertical thirds), Swipe (drag, 18% threshold), Scroll (webtoon).
+ * two rows (controls below).
  *
- * Reading direction is auto-detected from series tags and exposed as an
- * RTL/LTR toggle in the top bar. RTL only flips *which side advances reading*;
- * the page counter and toolbar prev/next stay direction-agnostic.
+ * Two layouts: Pages (one page at a time, turned by Tap thirds or Swipe, shown
+ * whole or fitted to the art's width) and Strip (the whole chapter as one
+ * continuous scroll, for webtoons). Layout, fit, direction and gap trimming
+ * are saved per user per series — how one person reads a series never changes
+ * it for anyone else — and default to what the pages themselves suggest.
+ * Tap vs Swipe is a per-device habit and stays in localStorage.
+ *
+ * RTL only flips *which side advances reading*; the page counter and toolbar
+ * prev/next stay direction-agnostic.
  *
  * Chrome auto-hides after 3.2s of inactivity. Mouse-move (desktop) / tap
  * (mobile) / key-press / page-flip pokes it back. The bottom scrubber is
@@ -75,12 +95,31 @@ export default function ReaderPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
-  // Mode persists across chapters; per-chapter resume page persists too.
-  const [mode, setMode] = useState<Mode>(() => {
-    const v = localStorage.getItem('bindery.reader.mode');
-    return v === 'swipe' || v === 'scroll' ? v : 'tap';
-  });
-  useEffect(() => { try { localStorage.setItem('bindery.reader.mode', mode); } catch { /* ignore */ } }, [mode]);
+  // Page-turn habit persists per device, across series and chapters.
+  const [turn, setTurn] = useState<Turn>(() =>
+    (localStorage.getItem('bindery.reader.mode') === 'swipe' ? 'swipe' : 'tap'),
+  );
+  useEffect(() => { try { localStorage.setItem('bindery.reader.mode', turn); } catch { /* ignore */ } }, [turn]);
+
+  // This reader's settings for this series. Seeded from the device copy so the
+  // first paint is already right; the server copy (which follows the user
+  // across devices) replaces it when it is newer.
+  const [prefs, setPrefs] = useState<ReaderPrefs>(() => readLocalPrefs(seriesId));
+  useEffect(() => { setPrefs(readLocalPrefs(seriesId)); }, [seriesId]);
+  useEffect(() => {
+    const remote = series?.id === seriesId ? series.readerPrefs : null;
+    if (!remote) return;
+    setPrefs((local) => ((remote.updatedAt ?? 0) > (local.updatedAt ?? 0) ? remote : local));
+  }, [series, seriesId]);
+  const updatePrefs = useCallback((patch: Partial<ReaderPrefs>) => {
+    setPrefs((prev) => {
+      const next = { ...prev, ...patch, updatedAt: Date.now() };
+      try { localStorage.setItem(prefsKey(seriesId), JSON.stringify(next)); } catch { /* ignore */ }
+      // Offline or a failed save just leaves the device copy in charge.
+      saveReaderPrefs(seriesId, next).catch(() => {});
+      return next;
+    });
+  }, [seriesId]);
 
   // 900px breakpoint
   const [wide, setWide] = useState(
@@ -135,13 +174,42 @@ export default function ReaderPage() {
     () => (series?.tags || []).some((t) => RTL_TAGS.has(t.toLowerCase())),
     [series],
   );
-  const [rtl, setRtl] = useState(rtlAuto);
-  // Reset to auto when series changes (covers initial load).
-  useEffect(() => { setRtl(rtlAuto); }, [rtlAuto]);
-  const readingDirection: ReadingDirection = rtl ? 'rtl' : 'ltr';
+  const rtl = (prefs.direction ?? (rtlAuto ? 'rtl' : 'ltr')) === 'rtl';
+
+  // ----- The chapter PDF, and what its pages suggest -----
+  const doc = usePdfDocument(getPdfUrl(seriesId, file));
+  const [detected, setDetected] = useState<{ doc: PdfDoc; strip: boolean } | null>(null);
+  useEffect(() => {
+    if (!doc) return;
+    let cancelled = false;
+    getPageRatios(doc).then((ratios) => {
+      if (cancelled) return;
+      const sorted = [...ratios].sort((a, b) => a - b);
+      setDetected({ doc, strip: sorted[sorted.length >> 1] >= STRIP_RATIO });
+    }).catch(() => { if (!cancelled) setDetected({ doc, strip: false }); });
+    return () => { cancelled = true; };
+  }, [doc]);
+  const stripTagged = useMemo(
+    () => (series?.tags || []).some((t) => STRIP_TAGS.has(t.toLowerCase())),
+    [series],
+  );
+  // null while we don't know yet — the surface stays dark rather than
+  // flashing the wrong layout.
+  const layout: 'pages' | 'strip' | null =
+    prefs.layout
+    ?? (detected && detected.doc === doc ? (detected.strip || stripTagged ? 'strip' : 'pages') : null);
+  const fitWidth = (prefs.fit ?? 'page') === 'width';
+  const trimGaps = (prefs.gaps ?? 'trim') === 'trim';
+  const mode: Mode = layout === 'strip' ? 'strip' : turn;
+  const setMode = useCallback((next: Mode) => {
+    if (next === 'strip') { updatePrefs({ layout: 'strip' }); return; }
+    setTurn(next);
+    if (layout !== 'pages') updatePrefs({ layout: 'pages' });
+  }, [layout, updatePrefs]);
 
   const viewerRef = useRef<PdfViewerHandle | null>(null);
   const pageRef = useRef(0);
+  const pageFileRef = useRef('');
   const totalRef = useRef(0);
   const lastSavedPage = useRef(-1);
 
@@ -194,6 +262,7 @@ export default function ReaderPage() {
   const handlePageChange = useCallback(
     (page: number, total: number) => {
       pageRef.current = page;
+      pageFileRef.current = file;
       totalRef.current = total;
       setCurrentPage(page);
       setTotalPages(total);
@@ -285,15 +354,50 @@ export default function ReaderPage() {
     navigate(`/read/${seriesId}/${comic.file}${hash}`, { replace: true });
   }, [navigate, seriesId]);
 
-  const go = useCallback((delta: number) => {
-    if (delta > 0) {
-      if (pageRef.current < totalRef.current - 1) viewerRef.current?.nextPage();
-      else if (nextChapter) goToChapter(nextChapter, 'first');
-    } else if (delta < 0) {
-      if (pageRef.current > 0) viewerRef.current?.prevPage();
-      else if (prevChapter) goToChapter(prevChapter, 'last');
+  // `go` is one reading step from tap / swipe / keys: the viewer scrolls
+  // within a tall page (fit-width, strip) before it moves on. `turnPage` is
+  // the toolbar's exact one-page move. Both flow across chapter boundaries
+  // through the viewer's onPastEnd / onPastStart.
+  const go = useCallback((delta: number) => { viewerRef.current?.step(delta); }, []);
+  const turnPage = useCallback((delta: number) => {
+    if (delta > 0) viewerRef.current?.nextPage();
+    else viewerRef.current?.prevPage();
+  }, []);
+  const toNextChapter = useCallback(
+    () => { if (nextChapter) goToChapter(nextChapter, 'first'); },
+    [nextChapter, goToChapter],
+  );
+  const toPrevChapter = useCallback(
+    () => { if (prevChapter) goToChapter(prevChapter, 'last'); },
+    [prevChapter, goToChapter],
+  );
+
+  // Switching layout mid-chapter keeps your place; a new chapter starts where
+  // the server says you left off.
+  const startPage = useMemo(
+    () => (pageFileRef.current === file ? pageRef.current : initialPage),
+    // `layout` is listed so the value refreshes exactly when the viewer remounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [file, layout, initialPage],
+  );
+
+  // Swipe on a surface that also scrolls (fit-width): a mostly-horizontal
+  // drag past the threshold turns the page, a still tap toggles the chrome,
+  // and anything vertical is left to the browser's scroll.
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  const swipeEnd = useCallback((x: number, y: number) => {
+    const s = swipeStart.current;
+    swipeStart.current = null;
+    if (!s) return;
+    const dx = x - s.x;
+    const dy = y - s.y;
+    if (Math.abs(dx) >= window.innerWidth * SWIPE_THRESHOLD_PCT && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0) go(rtl ? -1 : +1);
+      else go(rtl ? +1 : -1);
+    } else if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+      setChromeOn((c) => !c);
     }
-  }, [nextChapter, prevChapter, goToChapter]);
+  }, [go, rtl]);
 
   // ----- Keyboard -----
   // Keyboard nav is intentionally chrome-quiet — arrow keys / Space flip
@@ -330,6 +434,17 @@ export default function ReaderPage() {
       <div style={{ position: 'fixed', inset: 0, background: '#0a0a0a' }} />
     );
   }
+
+  const controls: ReaderControlsProps = {
+    mode,
+    onMode: setMode,
+    fitWidth,
+    onFitWidth: (v) => updatePrefs({ fit: v ? 'width' : 'page' }),
+    rtl,
+    onRtl: (v) => updatePrefs({ direction: v ? 'rtl' : 'ltr' }),
+    trimGaps,
+    onTrimGaps: (v) => updatePrefs({ gaps: v ? 'trim' : 'keep' }),
+  };
 
   // ----- Layout -----
   const showStorySide = storyOn && wide;
@@ -374,28 +489,68 @@ export default function ReaderPage() {
 
         {/* Center reading surface */}
         <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
-          {/* PdfViewer renders the real PDF. Mode controls the input layer
-              that overlays it: tap-thirds, drag, or scroll (handled inside
-              PdfViewer when viewMode='scroll'). */}
-          <div style={{ position: 'absolute', inset: 0 }}>
-            <PdfViewer
-              ref={viewerRef}
-              url={getPdfUrl(seriesId, file)}
-              initialPage={initialPage}
-              viewMode={mode === 'scroll' ? 'scroll' : 'fit'}
-              readingDirection={readingDirection}
-              onPageChange={handlePageChange}
-              onTotalPagesChange={handleTotalPages}
-              overlay={storyOn ? { page: currentPage, highlight: highlightBox } : null}
-              onAmbient={storyOn ? setAmbient : undefined}
-              onPastEnd={() => nextChapter && goToChapter(nextChapter, 'first')}
-              onPastStart={() => prevChapter && goToChapter(prevChapter, 'last')}
-            />
+          {/* The reading surface. In Strip and fit-width the viewer scrolls,
+              so input is read from this wrapper (clicks and drags bubble up
+              through the scrolling content). Whole-page mode keeps its
+              dedicated overlays below. */}
+          <div
+            style={{ position: 'absolute', inset: 0 }}
+            {...(layout === 'strip'
+              ? { onClick: () => setChromeOn((c) => !c) }
+              : layout === 'pages' && fitWidth && turn === 'tap'
+                ? { onClick: onTapSurface }
+                : layout === 'pages' && fitWidth
+                  ? {
+                      onTouchStart: (e: React.TouchEvent) => {
+                        const t = e.touches[0];
+                        swipeStart.current = { x: t.clientX, y: t.clientY };
+                      },
+                      onTouchEnd: (e: React.TouchEvent) => {
+                        const t = e.changedTouches[0];
+                        swipeEnd(t.clientX, t.clientY);
+                      },
+                      onMouseDown: (e: React.MouseEvent) => {
+                        swipeStart.current = { x: e.clientX, y: e.clientY };
+                      },
+                      onMouseUp: (e: React.MouseEvent) => swipeEnd(e.clientX, e.clientY),
+                    }
+                  : {})}
+          >
+            {doc && layout === 'strip' && (
+              <StripViewer
+                key={file}
+                ref={viewerRef}
+                doc={doc}
+                initialPage={startPage}
+                trimGaps={trimGaps}
+                onPageChange={handlePageChange}
+                onTotalPagesChange={handleTotalPages}
+                onAmbient={storyOn ? setAmbient : undefined}
+                nextLabel={nextChapter ? chapterLabel(nextChapter) : null}
+                prevLabel={prevChapter ? chapterLabel(prevChapter) : null}
+                onPastEnd={toNextChapter}
+                onPastStart={toPrevChapter}
+              />
+            )}
+            {doc && layout === 'pages' && (
+              <PdfViewer
+                key={file}
+                ref={viewerRef}
+                doc={doc}
+                initialPage={startPage}
+                viewMode={fitWidth ? 'scroll' : 'fit'}
+                onPageChange={handlePageChange}
+                onTotalPagesChange={handleTotalPages}
+                overlay={storyOn ? { page: currentPage, highlight: highlightBox } : null}
+                onAmbient={storyOn ? setAmbient : undefined}
+                onPastEnd={toNextChapter}
+                onPastStart={toPrevChapter}
+              />
+            )}
           </div>
 
-          {/* Input overlay — only in paged modes. Scroll mode lets the PDF
-              own the scroll events directly. */}
-          {mode === 'tap' && (
+          {/* Input overlays — whole-page mode only. */}
+          {layout === 'pages' && !fitWidth && turn === 'tap' && (
             <div
               onClick={onTapSurface}
               style={{
@@ -403,7 +558,7 @@ export default function ReaderPage() {
               }}
             />
           )}
-          {mode === 'swipe' && (
+          {layout === 'pages' && !fitWidth && turn === 'swipe' && (
             <SwipeOverlay
               onSwipe={(dx) => {
                 const w = window.innerWidth;
@@ -416,7 +571,7 @@ export default function ReaderPage() {
           )}
 
           {/* Desktop side arrows — paged modes only, chrome visible */}
-          {wide && mode !== 'scroll' && chromeOn && (
+          {wide && layout === 'pages' && chromeOn && (
             <>
               <button
                 onClick={() => go(rtl ? +1 : -1)}
@@ -522,36 +677,7 @@ export default function ReaderPage() {
               Page {currentPage + 1} / {totalPages || '?'}
             </div>
           </div>
-          {wide && (
-            <>
-              <SegmentedControl
-                options={[
-                  { value: 'tap', label: 'Tap', icon: <Pointer size={15} /> },
-                  { value: 'swipe', label: 'Swipe', icon: <MoveHorizontal size={15} /> },
-                  { value: 'scroll', label: 'Scroll', icon: <GalleryVertical size={15} /> },
-                ]}
-                value={mode}
-                onChange={(v) => setMode(v)}
-                className="reader-seg"
-              />
-              <button
-                onClick={() => setRtl((r) => !r)}
-                title={rtl ? 'Right-to-left (manga)' : 'Left-to-right'}
-                aria-label="Toggle reading direction"
-                style={{
-                  ...chromeBtn,
-                  width: 'auto',
-                  padding: '0 12px',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  gap: 6,
-                }}
-              >
-                {rtl ? <ArrowLeft size={15} /> : <ArrowRight size={15} />}
-                {rtl ? 'RTL' : 'LTR'}
-              </button>
-            </>
-          )}
+          {wide && <ReaderControls {...controls} />}
           {storyAvailable && (
             <button
               onClick={() => setStoryOn((s) => !s)}
@@ -566,19 +692,10 @@ export default function ReaderPage() {
             </button>
           )}
         </div>
-        {/* Narrow screen: mode switcher gets its own full-width row */}
+        {/* Narrow screen: the controls get their own full-width row */}
         {!wide && (
-          <div style={{ marginTop: 10 }}>
-            <SegmentedControl
-              options={[
-                { value: 'tap', label: 'Tap', icon: <Pointer size={15} /> },
-                { value: 'swipe', label: 'Swipe', icon: <MoveHorizontal size={15} /> },
-                { value: 'scroll', label: 'Scroll', icon: <GalleryVertical size={15} /> },
-              ]}
-              value={mode}
-              onChange={(v) => setMode(v)}
-              className="reader-seg reader-seg-full"
-            />
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <ReaderControls {...controls} compact />
           </div>
         )}
       </div>
@@ -607,13 +724,13 @@ export default function ReaderPage() {
             <ChevronsLeft size={18} />
           </button>
           <button
-            onClick={() => go(-1)}
+            onClick={() => turnPage(-1)}
             title="Previous page"
             style={chromeBtn}
           >
             <ChevronLeft size={18} />
           </button>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span
               className="bindery-nums"
               style={{ fontSize: 12, opacity: 0.7, minWidth: 30, textAlign: 'right' }}
@@ -626,7 +743,7 @@ export default function ReaderPage() {
               max={Math.max(1, totalPages)}
               value={currentPage + 1}
               onChange={(e) => viewerRef.current?.goToPage(parseInt(e.target.value, 10) - 1)}
-              style={{ flex: 1, accentColor: 'rgb(var(--accent))', cursor: 'pointer' }}
+              style={{ flex: 1, minWidth: 0, accentColor: 'rgb(var(--accent))', cursor: 'pointer' }}
             />
             <span
               className="bindery-nums"
@@ -636,7 +753,7 @@ export default function ReaderPage() {
             </span>
           </div>
           <button
-            onClick={() => go(+1)}
+            onClick={() => turnPage(+1)}
             title="Next page"
             style={chromeBtn}
           >
@@ -669,6 +786,90 @@ export default function ReaderPage() {
         />
       )}
     </div>
+  );
+}
+
+function chapterLabel(c: Comic): string {
+  return c.order > 0 ? `Chapter ${c.order}` : 'the next chapter';
+}
+
+interface ReaderControlsProps {
+  mode: Mode;
+  onMode: (m: Mode) => void;
+  fitWidth: boolean;
+  onFitWidth: (v: boolean) => void;
+  rtl: boolean;
+  onRtl: (v: boolean) => void;
+  trimGaps: boolean;
+  onTrimGaps: (v: boolean) => void;
+  /** Narrow screens: full-width mode switcher, icon-only option buttons. */
+  compact?: boolean;
+}
+
+/**
+ * The reading controls: how to move through the chapter (Tap / Swipe / Strip)
+ * plus the options that apply to that choice — fit and direction for pages,
+ * gap trimming for the strip. Everything but Tap-vs-Swipe is remembered for
+ * this series.
+ */
+function ReaderControls({
+  mode, onMode, fitWidth, onFitWidth, rtl, onRtl, trimGaps, onTrimGaps, compact,
+}: ReaderControlsProps) {
+  const option = (active: boolean): CSSProperties => ({
+    ...chromeBtn,
+    width: 'auto',
+    padding: compact ? '0 11px' : '0 12px',
+    fontSize: 12,
+    fontWeight: 600,
+    gap: 6,
+    background: active ? 'rgb(var(--accent) / 0.85)' : chromeBtn.background,
+  });
+  return (
+    <>
+      <SegmentedControl
+        options={[
+          { value: 'tap', label: 'Tap', icon: <Pointer size={15} /> },
+          { value: 'swipe', label: 'Swipe', icon: <MoveHorizontal size={15} /> },
+          { value: 'strip', label: 'Strip', icon: <GalleryVertical size={15} /> },
+        ]}
+        value={mode}
+        onChange={onMode}
+        className={compact ? 'reader-seg reader-seg-full' : 'reader-seg'}
+      />
+      {mode === 'strip' ? (
+        <button
+          onClick={() => onTrimGaps(!trimGaps)}
+          aria-pressed={trimGaps}
+          title={trimGaps ? 'Blank gaps are trimmed — show them as drawn' : 'Trim the blank gaps between frames'}
+          aria-label="Trim blank gaps"
+          style={option(trimGaps)}
+        >
+          <FoldVertical size={15} />
+          {!compact && 'Trim gaps'}
+        </button>
+      ) : (
+        <>
+          <button
+            onClick={() => onFitWidth(!fitWidth)}
+            title={fitWidth ? 'Fitting the art to the screen width — show the whole page' : 'Fit the art to the screen width'}
+            aria-label={fitWidth ? 'Show the whole page' : 'Fit to width'}
+            style={option(false)}
+          >
+            {fitWidth ? <ArrowLeftRight size={15} /> : <Maximize2 size={15} />}
+            {!compact && (fitWidth ? 'Fit width' : 'Fit page')}
+          </button>
+          <button
+            onClick={() => onRtl(!rtl)}
+            title={rtl ? 'Right-to-left (manga)' : 'Left-to-right'}
+            aria-label="Toggle reading direction"
+            style={option(false)}
+          >
+            {rtl ? <ArrowLeft size={15} /> : <ArrowRight size={15} />}
+            {rtl ? 'RTL' : 'LTR'}
+          </button>
+        </>
+      )}
+    </>
   );
 }
 

@@ -30,6 +30,20 @@ export interface Series {
   inCollection: boolean;
   isFavorited?: boolean; // populated by /api/series/:id, optional elsewhere
   isPinned?: boolean;    // personal "currently reading" marker
+  /** This user's reader settings for the series; null/absent = all auto. */
+  readerPrefs?: ReaderPrefs | null;
+}
+
+/**
+ * How one user reads one series. Every field is optional — absent means
+ * "auto" (detected from the pages / tags).
+ */
+export interface ReaderPrefs {
+  layout?: 'pages' | 'strip';
+  fit?: 'page' | 'width';
+  direction?: 'ltr' | 'rtl';
+  gaps?: 'trim' | 'keep';
+  updatedAt?: number;
 }
 
 /**

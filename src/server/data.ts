@@ -680,6 +680,69 @@ export function savePreferences(username: string, prefs: UserPreferences): void 
   fs.writeFileSync(prefsPath(username), JSON.stringify(cloned, null, 2));
 }
 
+// --- Per-user, per-series reader settings ---
+// How a reader wants to read a given series (continuous strip vs pages, fit,
+// direction, gap trimming). Personal by design: one person's choice never
+// changes how anyone else reads the same series. Stored as one small JSON map
+// per user, keyed by series id; an absent key means "auto" for everything.
+
+export interface ReaderPrefs {
+  layout?: 'pages' | 'strip';
+  fit?: 'page' | 'width';
+  direction?: 'ltr' | 'rtl';
+  gaps?: 'trim' | 'keep';
+  updatedAt?: number;
+}
+
+const readerPrefsCache = new Map<string, Record<string, ReaderPrefs>>();
+
+function readerPrefsPath(username: string): string {
+  return path.join(userDir(username), 'reader-prefs.json');
+}
+
+function getReaderPrefsCached(username: string): Record<string, ReaderPrefs> {
+  let cached = readerPrefsCache.get(username);
+  if (!cached) {
+    cached = {};
+    const p = readerPrefsPath(username);
+    if (fs.existsSync(p)) {
+      try {
+        cached = JSON.parse(fs.readFileSync(p, 'utf-8')) || {};
+      } catch {
+        console.error(`Corrupt reader prefs for "${username}", starting fresh`);
+      }
+    }
+    readerPrefsCache.set(username, cached!);
+  }
+  return cached!;
+}
+
+export function loadReaderPrefs(username: string, seriesId: string): ReaderPrefs | null {
+  const entry = getReaderPrefsCached(username)[seriesId];
+  return entry ? clone(entry) : null;
+}
+
+const READER_PREF_VALUES: Record<string, readonly string[]> = {
+  layout: ['pages', 'strip'],
+  fit: ['page', 'width'],
+  direction: ['ltr', 'rtl'],
+  gaps: ['trim', 'keep'],
+};
+
+/** Validate + store. Unknown keys and invalid values are dropped, not errors. */
+export function saveReaderPrefs(username: string, seriesId: string, raw: any): ReaderPrefs {
+  const clean: ReaderPrefs = {};
+  for (const [key, allowed] of Object.entries(READER_PREF_VALUES)) {
+    if (allowed.includes(raw?.[key])) (clean as any)[key] = raw[key];
+  }
+  clean.updatedAt = typeof raw?.updatedAt === 'number' ? raw.updatedAt : Date.now();
+  ensureUserDir(username);
+  const all = getReaderPrefsCached(username);
+  all[seriesId] = clean;
+  fs.writeFileSync(readerPrefsPath(username), JSON.stringify(all, null, 2));
+  return clone(clean);
+}
+
 // --- Merged queries (shared comics + user progress) ---
 
 export function loadComicsForUser(seriesId: string, username: string): ComicRecord[] {

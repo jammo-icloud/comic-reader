@@ -7,6 +7,7 @@ import {
   loadCollection, addToCollection, removeFromCollection, isInCollection,
   loadUserProgress, updateUserProgress,
   loadPreferences, savePreferences,
+  loadReaderPrefs, saveReaderPrefs,
   isFavorited,
   isPinned, addPin, removePin, pinnedSet,
   resolveComicPath,
@@ -76,7 +77,16 @@ router.get('/series/:id', (req, res) => {
     inCollection: isInCollection(req.username, series.id),
     isFavorited: isFavorited(req.username, series.id),
     isPinned: isPinned(req.username, series.id),
+    readerPrefs: loadReaderPrefs(req.username, series.id),
   });
+});
+
+// --- Reader settings — how THIS user reads this series ---
+
+router.put('/series/:id/reader-prefs', (req, res) => {
+  const series = loadAllSeries().find((s) => s.id === req.params.id);
+  if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
+  res.json(saveReaderPrefs(req.username, series.id, req.body));
 });
 
 // --- Pinned series — personal "currently reading" marker ---
