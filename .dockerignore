@@ -1,8 +1,15 @@
 node_modules
 dist
+dev-dist
 data
 comics
+local-library
+ocr-service
+design-system
 .git
 .claude
+.env
+.env.*
+.DS_Store
 *.md
 scripts
