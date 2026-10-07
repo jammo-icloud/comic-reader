@@ -19,6 +19,9 @@ RUN npm prune --omit=dev
 # ---- Runtime stage: Node, production dependencies, built output ----
 FROM node:20-alpine
 
+# bsdtar (libarchive) extracts CBR archives for import.
+RUN apk add --no-cache libarchive-tools
+
 WORKDIR /app
 
 # package.json is read at runtime for the version string.

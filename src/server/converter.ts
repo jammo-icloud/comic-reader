@@ -1,8 +1,13 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { shortHash } from './hash.js';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
+
+const execFileAsync = promisify(execFile);
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp']);
 
@@ -69,34 +74,50 @@ export async function cbzToPdf(cbzPath: string, outputPath: string): Promise<voi
 }
 
 /**
- * Convert a CBR (RAR) file to PDF
+ * Convert a CBR (RAR) file to PDF.
+ *
+ * Extraction is delegated to `bsdtar` (libarchive, BSD-licensed), which reads
+ * RAR and RAR5. The previous in-process extractor embedded the UnRAR sources,
+ * whose licence doesn't sit with this project's AGPL. bsdtar ships with macOS
+ * and is the `libarchive-tools` package on Alpine/Debian.
  */
 export async function cbrToPdf(cbrPath: string, outputPath: string): Promise<void> {
-  const { createExtractorFromData } = await import('node-unrar-js');
-  const data = fs.readFileSync(cbrPath);
-  const extractor = await createExtractorFromData({ data: new Uint8Array(data).buffer as ArrayBuffer });
-
-  const list = extractor.getFileList();
-  const fileHeaders = [...list.fileHeaders].filter(
-    (h) => !h.flags.directory && isImageFile(h.name)
-  );
-
-  if (fileHeaders.length === 0) throw new Error('No images found in CBR');
-
-  const extracted = extractor.extract({ files: fileHeaders.map((h) => h.name) });
-  const images: { name: string; data: Buffer }[] = [];
-
-  for (const file of extracted.files) {
-    if (file.extraction) {
-      images.push({
-        name: file.fileHeader.name,
-        data: Buffer.from(file.extraction),
-      });
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bindery-cbr-'));
+  try {
+    try {
+      // bsdtar refuses absolute paths and `..` members by default, so an
+      // untrusted archive can't write outside `tmp`.
+      await execFileAsync('bsdtar', ['-xf', cbrPath, '-C', tmp, '--no-same-owner'], { maxBuffer: 4 * 1024 * 1024 });
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException & { stderr?: string };
+      if (e.code === 'ENOENT') {
+        throw new Error('CBR import needs bsdtar (libarchive) on the server — install the libarchive-tools package');
+      }
+      throw new Error(`CBR extraction failed: ${(e.stderr || e.message || '').trim()}`);
     }
-  }
 
-  console.log(`  CBR: ${images.length} images → PDF`);
-  await imagesToPdf(images, outputPath);
+    const files = listFilesRecursive(tmp)
+      .filter(isImageFile)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    if (files.length === 0) throw new Error('No images found in CBR');
+
+    const images = files.map((rel) => ({ name: rel, data: fs.readFileSync(path.join(tmp, rel)) }));
+    console.log(`  CBR: ${images.length} images → PDF`);
+    await imagesToPdf(images, outputPath);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+/** All regular files under `root`, as paths relative to it. */
+function listFilesRecursive(root: string, dir = root): string[] {
+  const out: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...listFilesRecursive(root, full));
+    else if (entry.isFile()) out.push(path.relative(root, full));
+  }
+  return out;
 }
 
 /**

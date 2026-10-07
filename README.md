@@ -8,7 +8,7 @@
 [![PDF.js](https://img.shields.io/badge/PDF.js-4-FF6600?logo=adobe&logoColor=white)](https://mozilla.github.io/pdf.js/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com)
 [![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white)](https://web.dev/articles/progressive-web-apps)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
 A self-hosted manga & comic reader for your NAS. Multi-user, multi-source,
 multi-device. Browse a shared library, recommend series to your household,
@@ -286,4 +286,10 @@ on a project of this size, the trail is all there.
 
 ## License
 
-MIT.
+[GNU AGPL-3.0-or-later](LICENSE). Bindery renders PDFs with
+[MuPDF](https://mupdf.com), which is itself AGPL-licensed, so the project as a
+whole carries the same licence. Shipped dependencies and their licences are
+listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+The login artwork is created by the Bindery contributors with ComfyUI. It is
+not part of the repository.
