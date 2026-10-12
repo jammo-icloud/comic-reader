@@ -74,22 +74,9 @@ router.get('/discover/chapters/:sourceId/:mangaId', async (req, res) => {
   }
 });
 
-// Proxy cover images from MangaDex CDN (CORS workaround)
-router.get('/discover/cover/:mangaId/:filename', async (req, res) => {
-  try {
-    const url = `https://uploads.mangadex.org/covers/${req.params.mangaId}/${req.params.filename}`;
-    const response = await fetch(url);
-    if (!response.ok) { res.status(response.status).end(); return; }
-    res.setHeader('Content-Type', response.headers.get('content-type') || 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=604800');
-    res.send(Buffer.from(await response.arrayBuffer()));
-  } catch {
-    res.status(502).end();
-  }
-});
-
 // Known CDN → referer mappings
 const cdnReferers: Record<string, string> = {
+  'uploads.mangadex.org': 'https://mangadex.org/',
   'fmcdn.mfcdn.net': 'https://fanfox.net/',
   'zjcdn.mangafox.me': 'https://fanfox.net/',
   'mfcdn.net': 'https://fanfox.net/',

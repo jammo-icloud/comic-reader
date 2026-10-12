@@ -78,7 +78,7 @@ export async function searchManga(query: string, offset = 0, limit = 20): Promis
     // Extract cover
     const coverRel = manga.relationships?.find((r: any) => r.type === 'cover_art');
     const coverFilename = coverRel?.attributes?.fileName;
-    const coverUrl = coverFilename ? `/api/discover/cover/${manga.id}/${coverFilename}.512.jpg` : null;
+    const coverUrl = coverFilename ? `/api/discover/proxy-image?url=${encodeURIComponent(`${COVER_CDN}/${manga.id}/${coverFilename}.512.jpg`)}` : null;
 
     // Extract tags
     const tags = (manga.attributes.tags || [])
@@ -115,7 +115,7 @@ export async function getMangaDetail(id: string): Promise<MangaDexManga | null> 
 
   const coverRel = manga.relationships?.find((r: any) => r.type === 'cover_art');
   const coverFilename = coverRel?.attributes?.fileName;
-  const coverUrl = coverFilename ? `/api/discover/cover/${manga.id}/${coverFilename}.512.jpg` : null;
+  const coverUrl = coverFilename ? `/api/discover/proxy-image?url=${encodeURIComponent(`${COVER_CDN}/${manga.id}/${coverFilename}.512.jpg`)}` : null;
 
   const altTitles = (manga.attributes.altTitles || [])
     .flatMap((t: any) => Object.values(t))

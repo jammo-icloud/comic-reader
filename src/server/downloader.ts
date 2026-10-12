@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
-import { getChapterPages, pageImageUrl, getMangaDetail, type MangaDexChapter } from './mangadex.js';
 import { getPageUrlsFromSource } from './sources/index.js';
 import { loadAllSeries, saveSeries, addToCollection, type SeriesRecord } from './data.js';
 import { rescanLibrary } from './scanner.js';
@@ -24,7 +23,7 @@ export interface DownloadJob {
   progress: { current: number; total: number; currentChapter: string | null; pagesDownloaded: number; pagesTotal: number };
   error?: string;
   createdAt: string;
-  // MangaDex metadata
+  // Series metadata captured from the source at enqueue time
   metadata?: {
     description?: string;
     status?: string;
@@ -135,68 +134,6 @@ async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function downloadImage(url: string, retries = 3): Promise<Buffer> {
-  for (let attempt = 0; attempt < retries; attempt++) {
-    const res = await fetch(url);
-    if (res.ok) return Buffer.from(await res.arrayBuffer());
-    if (res.status === 429) {
-      console.log(`  Rate limited, waiting ${(attempt + 1) * 3}s...`);
-      await sleep((attempt + 1) * 3000);
-      continue;
-    }
-    if (attempt < retries - 1) {
-      await sleep(1000);
-      continue;
-    }
-    throw new Error(`Failed to download image: ${res.status}`);
-  }
-  throw new Error('Download failed after retries');
-}
-
-async function assembleChapterPdf(
-  chapterId: string,
-  outputPath: string,
-  onPageDone?: () => void,
-): Promise<void> {
-  const { baseUrl, pages, hash } = await getChapterPages(chapterId);
-
-  const pdf = await PDFDocument.create();
-  const PDF_WIDTH = 800; // consistent width for all pages
-
-  for (let i = 0; i < pages.length; i++) {
-    const url = pageImageUrl(baseUrl, hash, pages[i]);
-
-    try {
-      const imgBuffer = await downloadImage(url);
-
-      // Resize to consistent width, get dimensions
-      const resized = sharp(imgBuffer).resize({ width: PDF_WIDTH, withoutEnlargement: true });
-      const { width, height } = await resized.metadata().then((m) => ({
-        width: m.width || PDF_WIDTH,
-        height: m.height || 1200,
-      }));
-
-      // Convert to JPEG for consistent embedding
-      const jpegBuffer = await resized.jpeg({ quality: 90 }).toBuffer();
-      const jpegImage = await pdf.embedJpg(jpegBuffer);
-
-      const page = pdf.addPage([width, height]);
-      page.drawImage(jpegImage, { x: 0, y: 0, width, height });
-
-      onPageDone?.();
-    } catch (err) {
-      console.error(`  Failed to download page ${i + 1}/${pages.length} of chapter ${chapterId}:`, (err as Error).message);
-      onPageDone?.();
-    }
-
-    // Delay between pages to be nice to CDN and avoid rate limits
-    if (i < pages.length - 1) await sleep(200);
-  }
-
-  const pdfBytes = await pdf.save();
-  fs.writeFileSync(outputPath, pdfBytes);
-}
-
 // CDN → Referer mapping. Many image hosts gate on Referer to block hotlinking;
 // without the right Referer they 403 or return empty bytes. Used for both
 // chapter page images and cover-art downloads.
@@ -245,8 +182,9 @@ function refererFor(url: string, sourceId?: string): string {
 }
 
 /**
- * Download chapter from a non-MangaDex source (MangaFox, etc.)
- * Uses the source adapter to get page URLs, then downloads images via proxy-compatible fetch.
+ * Download one chapter from any source: ask the source adapter for the page
+ * URLs, then fetch and stitch the images into a PDF (or save the file directly
+ * when the source hands back a whole PDF/CBZ/CBR/EPUB).
  */
 async function assembleChapterFromSource(
   chapterId: string,
@@ -254,15 +192,7 @@ async function assembleChapterFromSource(
   onPageDone?: () => void,
   sourceId?: string,
 ): Promise<void> {
-  // Use provided sourceId, or try to detect from chapter ID format
-  let detectedSource = sourceId;
-  if (!detectedSource) {
-    if (chapterId.includes('/c') && chapterId.match(/\/c[\d.]+$/)) {
-      detectedSource = 'mangafox';
-    } else {
-      detectedSource = 'readallcomics'; // Default for non-MangaFox slugs
-    }
-  }
+  const detectedSource = sourceId || inferSourceId(chapterId);
   const pageUrls = await getPageUrlsFromSource(detectedSource, chapterId);
 
   if (pageUrls.length === 0) {
@@ -414,6 +344,16 @@ async function assembleChapterFromSource(
 }
 
 /**
+ * Jobs queued by older versions could lack metadata.sourceId. Every current
+ * producer records it, so this only guesses for tasks already on disk.
+ */
+function inferSourceId(chapterId: string): string {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-/.test(chapterId)) return 'mangadex';
+  if (/\/c[\d.]+$/.test(chapterId)) return 'mangafox';
+  return 'readallcomics';
+}
+
+/**
  * Build the reader-page URL for a given source + chapterId. Used as a Referer
  * for per-page image fetches when the CDN gates on the specific chapter page
  * (which a real browser would send naturally).
@@ -518,11 +458,10 @@ async function processQueue() {
           // Resolve cover URLs to actual CDN URLs
           let actualUrl: string;
           if (coverUrl.startsWith('/api/discover/proxy-image?url=')) {
-            // MangaFox proxy URL — extract the real CDN URL
+            // Proxied cover (what sources hand out) — extract the real CDN URL
             actualUrl = decodeURIComponent(coverUrl.replace('/api/discover/proxy-image?url=', ''));
           } else if (coverUrl.startsWith('/api/discover/cover/')) {
-            // MangaDex proxy URL — convert to direct CDN URL
-            // /api/discover/cover/{mangaId}/{filename} → https://uploads.mangadex.org/covers/{mangaId}/{filename}
+            // Pre-refactor MangaDex proxy URL, kept for jobs already on disk
             const parts = coverUrl.replace('/api/discover/cover/', '').split('/');
             actualUrl = `https://uploads.mangadex.org/covers/${parts[0]}/${parts[1]}`;
           } else if (coverUrl.startsWith('/')) {
@@ -625,20 +564,10 @@ async function processQueue() {
           console.log(`  Downloading Ch.${chapterNum} (${ch.pages} pages)...`);
 
           try {
-            // Determine source — MangaDex chapter IDs are UUIDs, others are slugs
-            const isMangaDex = /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(ch.id);
-
-            if (isMangaDex) {
-              await assembleChapterPdf(ch.id, outputPath, () => {
-                job.progress.pagesDownloaded++;
-                emitProgress(job);
-              });
-            } else {
-              await assembleChapterFromSource(ch.id, outputPath, () => {
-                job.progress.pagesDownloaded++;
-                emitProgress(job);
-              }, job.metadata?.sourceId);
-            }
+            await assembleChapterFromSource(ch.id, outputPath, () => {
+              job.progress.pagesDownloaded++;
+              emitProgress(job);
+            }, job.metadata?.sourceId);
 
             // Post-condition guard — even if no error was thrown, the assembler
             // could have produced no PDF (e.g. all pages 404'd silently in the
