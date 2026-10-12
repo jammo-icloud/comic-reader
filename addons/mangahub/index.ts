@@ -1,24 +1,14 @@
-import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
+import { createFetch, type MangaSource, type SearchResult, type ChapterResult } from '@bindery/addon-api';
 
 const API_URL = 'https://api.mghcdn.com/graphql';
 const CDN_URL = 'https://imgx.mghcdn.com';
 const SITE_URL = 'https://mangahub.io';
-const RATE_LIMIT_MS = 500;
-
-let lastRequest = 0;
 let apiKey: string | null = null;
 
-async function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-async function rateLimitedFetch(url: string, init?: RequestInit): Promise<Response> {
-  const now = Date.now();
-  const wait = Math.max(0, RATE_LIMIT_MS - (now - lastRequest));
-  if (wait > 0) await sleep(wait);
-  lastRequest = Date.now();
-  return fetch(url, init);
-}
+// The site visit that hands out the access cookie wants a full browser UA;
+// the GraphQL API has always been called with the shorter one.
+const site = createFetch({ rateLimitMs: 500, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' });
+const api = createFetch({ rateLimitMs: 500, referer: `${SITE_URL}/`, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' });
 
 /**
  * Get/refresh the API access key from MangaHub
@@ -27,11 +17,7 @@ async function getApiKey(): Promise<string> {
   if (apiKey) return apiKey;
 
   try {
-    const res = await fetch(SITE_URL, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    });
+    const res = await site(SITE_URL);
     const cookies = res.headers.getSetCookie?.() || [];
     for (const cookie of cookies) {
       const match = cookie.match(/mhub_access=([^;]+)/);
@@ -52,14 +38,12 @@ async function getApiKey(): Promise<string> {
 async function graphql(query: string, variables: Record<string, any> = {}): Promise<any> {
   const key = await getApiKey();
 
-  const res = await rateLimitedFetch(API_URL, {
+  const res = await api(API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-mhub-access': key || '',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       'Origin': SITE_URL,
-      'Referer': `${SITE_URL}/`,
     },
     body: JSON.stringify({ query, variables }),
   });

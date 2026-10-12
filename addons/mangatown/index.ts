@@ -5,29 +5,14 @@
  * Pages: /manga/{slug}/vXX/cYY/N.html — image at //zjcdn.mangahere.org/store/manga/{id}/{chap}/compressed/bNNN.jpg
  * No per-page auth tokens — URLs are predictable once we fetch page 1.
  */
-import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
+import { createFetch, type MangaSource, type SearchResult, type ChapterResult } from '@bindery/addon-api';
 
 const SITE_URL = 'https://www.mangatown.com';
-const RATE_LIMIT_MS = 300;
 
-let lastRequest = 0;
-
-async function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+const get = createFetch({ rateLimitMs: 300, referer: `${SITE_URL}/`, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' });
 
 async function fetchPage(url: string): Promise<string> {
-  const now = Date.now();
-  const wait = Math.max(0, RATE_LIMIT_MS - (now - lastRequest));
-  if (wait > 0) await sleep(wait);
-  lastRequest = Date.now();
-
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Referer': `${SITE_URL}/`,
-    },
-  });
+  const res = await get(url);
   if (!res.ok) throw new Error(`MangaTown fetch failed: ${res.status}`);
   return res.text();
 }

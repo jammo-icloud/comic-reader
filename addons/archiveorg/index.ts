@@ -11,24 +11,14 @@
  * Download path: pageUrls returns a single URL to the file. The downloader
  * short-circuits its normal image-stitching flow and downloads the file directly.
  */
-import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
+import { createFetch, type MangaSource, type SearchResult, type ChapterResult } from '@bindery/addon-api';
 
 const API = 'https://archive.org';
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
-const RATE_LIMIT_MS = 300;
 
-let lastRequest = 0;
-async function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+const get = createFetch({ rateLimitMs: 300, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' });
 
 async function fetchJson(url: string): Promise<any> {
-  const now = Date.now();
-  const wait = Math.max(0, RATE_LIMIT_MS - (now - lastRequest));
-  if (wait > 0) await sleep(wait);
-  lastRequest = Date.now();
-
-  const res = await fetch(url, {
-    headers: { 'User-Agent': UA, 'Accept': 'application/json' },
-  });
+  const res = await get(url, { headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`Archive.org fetch failed: ${res.status}`);
   return res.json();
 }

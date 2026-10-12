@@ -15,34 +15,16 @@
  *
  * The nonce is rotated per session; we fetch a fresh one before each search.
  */
-import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
+import { createFetch, type MangaSource, type SearchResult, type ChapterResult } from '@bindery/addon-api';
 
 const SITE_URL = 'https://rawkuma.net';
 const AJAX_URL = `${SITE_URL}/wp-admin/admin-ajax.php`;
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
-const RATE_LIMIT_MS = 400;
-
-let lastRequest = 0;
 let cachedNonce: { value: string; fetchedAt: number } | null = null;
 
-async function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
-
-async function rateLimit() {
-  const wait = Math.max(0, RATE_LIMIT_MS - (Date.now() - lastRequest));
-  if (wait > 0) await sleep(wait);
-  lastRequest = Date.now();
-}
+const get = createFetch({ rateLimitMs: 400, referer: `${SITE_URL}/`, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' });
 
 async function fetchText(url: string, init?: RequestInit): Promise<string> {
-  await rateLimit();
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      'User-Agent': UA,
-      'Referer': `${SITE_URL}/`,
-      ...(init?.headers || {}),
-    },
-  });
+  const res = await get(url, init);
   if (!res.ok) throw new Error(`Rawkuma fetch failed: ${res.status}`);
   return res.text();
 }

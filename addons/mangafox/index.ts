@@ -1,27 +1,16 @@
-import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
+import { createFetch, type MangaSource, type SearchResult, type ChapterResult } from '@bindery/addon-api';
 
 const SITE_URL = 'https://fanfox.net';
-const RATE_LIMIT_MS = 300;
-
-let lastRequest = 0;
 
 async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function fetchPage(url: string): Promise<string> {
-  const now = Date.now();
-  const wait = Math.max(0, RATE_LIMIT_MS - (now - lastRequest));
-  if (wait > 0) await sleep(wait);
-  lastRequest = Date.now();
+const get = createFetch({ rateLimitMs: 300, referer: `${SITE_URL}/`, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' });
 
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Cookie': 'isAdult=1',
-      'Referer': `${SITE_URL}/`,
-    },
-  });
+async function fetchPage(url: string): Promise<string> {
+  // isAdult=1 skips the age gate that otherwise hides half the catalogue.
+  const res = await get(url, { headers: { Cookie: 'isAdult=1' } });
   if (!res.ok) throw new Error(`MangaFox fetch failed: ${res.status}`);
   return res.text();
 }

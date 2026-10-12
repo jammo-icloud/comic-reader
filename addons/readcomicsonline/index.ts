@@ -7,30 +7,14 @@
  * Pages: /comic/{slug}/{ch} has <img data-src="..."> for each page
  * Covers: /uploads/manga/{slug}/cover/cover_250x350.jpg
  */
-import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
+import { createFetch, type MangaSource, type SearchResult, type ChapterResult } from '@bindery/addon-api';
 
 const SITE_URL = 'https://readcomicsonline.ru';
-const RATE_LIMIT_MS = 300;
 
-let lastRequest = 0;
-
-async function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+const get = createFetch({ rateLimitMs: 300, referer: `${SITE_URL}/`, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' });
 
 async function fetchWithRateLimit(url: string, asJson = false): Promise<string> {
-  const now = Date.now();
-  const wait = Math.max(0, RATE_LIMIT_MS - (now - lastRequest));
-  if (wait > 0) await sleep(wait);
-  lastRequest = Date.now();
-
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Accept': asJson ? 'application/json' : 'text/html',
-      'Referer': `${SITE_URL}/`,
-    },
-  });
+  const res = await get(url, { headers: { Accept: asJson ? 'application/json' : 'text/html' } });
   if (!res.ok) throw new Error(`ReadComicsOnline fetch failed: ${res.status}`);
   return res.text();
 }
