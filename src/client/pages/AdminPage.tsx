@@ -1,15 +1,17 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, Trash2, RotateCcw, Square, Loader, Check, AlertCircle,
   Users, Database, HardDrive, Zap, Search, X, Sparkles, GitMerge, Wrench,
   BookOpen, Tag, Link as LinkIcon, Bell, ChevronDown, Rss,
+  Puzzle, Upload, Globe, Plug, Package, AlertTriangle,
 } from 'lucide-react';
 import {
   getAdminStats, getAdminTasks, deleteAdminTask, retryAdminTask, cancelAdminTask, clearAdminTasks,
   getAdminCatalog, purgeAdminSeries, adminEnrich, adminRescan, adminCleanup, adminMaintenance,
   getAdminSubscriptions, adminSyncAll, syncSeriesNow, updateSeriesSyncSource,
   getAdminUsers,
+  getAdminAddons, reloadAdminAddons, installAdminAddon, removeAdminAddon, type AdminAddon,
 } from '../lib/api';
 import MergeModal from '../components/MergeModal';
 import SeriesEditModal from '../components/SeriesEditModal';
@@ -19,7 +21,7 @@ import ConfirmSheet from '../components/ConfirmSheet';
 import SeriesAdminRow from '../components/SeriesAdminRow';
 import { Avatar, Badge, Button, IconButton, Kicker, ProgressBar } from '../components/ds';
 
-type Tab = 'library' | 'tasks' | 'subscriptions' | 'users';
+type Tab = 'library' | 'tasks' | 'subscriptions' | 'users' | 'addons';
 
 // Single-row admin chrome (~48px tabs strip) pinned below the 48px global
 // Bindery header. Per-tab toolbars stack below the admin row at 96px.
@@ -114,8 +116,66 @@ export default function AdminPage() {
     } else if (tab === 'users') {
       setLoadingUsers(true);
       getAdminUsers().then(setUsers).finally(() => setLoadingUsers(false));
+    } else if (tab === 'addons') {
+      setLoadingAddons(true);
+      getAdminAddons().then(setAddons).finally(() => setLoadingAddons(false));
     }
   }, [tab]);
+
+  // ----- Add-ons -----
+  const [addons, setAddons] = useState<AdminAddon[]>([]);
+  const [loadingAddons, setLoadingAddons] = useState(false);
+  const [addonBusy, setAddonBusy] = useState(false);
+  const [addonMessage, setAddonMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const addonFileRef = useRef<HTMLInputElement>(null);
+  const addonStatCards = useMemo(() => ({
+    loaded: addons.filter((a) => a.status === 'loaded').length,
+    bundled: addons.filter((a) => a.origin === 'bundled').length,
+    installed: addons.filter((a) => a.origin === 'installed').length,
+    skipped: addons.filter((a) => a.status !== 'loaded').length,
+  }), [addons]);
+  const handleAddonInstall = async (file: File) => {
+    setAddonBusy(true);
+    setAddonMessage(null);
+    try {
+      const { addon } = await installAdminAddon(file);
+      setAddons(await getAdminAddons());
+      setAddonMessage(addon.status === 'loaded'
+        ? { kind: 'ok', text: `Installed ${addon.name} ${addon.version}` }
+        : { kind: 'error', text: `${addon.name} installed but not loaded: ${addon.error || addon.status}` });
+    } catch (err) {
+      setAddonMessage({ kind: 'error', text: (err as Error).message });
+    } finally {
+      setAddonBusy(false);
+      if (addonFileRef.current) addonFileRef.current.value = '';
+    }
+  };
+  const handleAddonReload = async () => {
+    setAddonBusy(true);
+    setAddonMessage(null);
+    try {
+      setAddons(await reloadAdminAddons());
+      setAddonMessage({ kind: 'ok', text: 'Add-ons reloaded' });
+    } catch (err) {
+      setAddonMessage({ kind: 'error', text: (err as Error).message });
+    } finally {
+      setAddonBusy(false);
+    }
+  };
+  const handleAddonRemove = async (a: AdminAddon) => {
+    if (!window.confirm(`Remove ${a.name}? Its files are deleted from the add-ons folder.`)) return;
+    setAddonBusy(true);
+    setAddonMessage(null);
+    try {
+      await removeAdminAddon(a.id);
+      setAddons(await getAdminAddons());
+      setAddonMessage({ kind: 'ok', text: `Removed ${a.name}` });
+    } catch (err) {
+      setAddonMessage({ kind: 'error', text: (err as Error).message });
+    } finally {
+      setAddonBusy(false);
+    }
+  };
 
   const refreshTasks = () => {
     setLoadingTasks(true);
@@ -313,6 +373,7 @@ export default function AdminPage() {
             <TabButton active={tab === 'tasks'} onClick={() => setTab('tasks')}>Tasks</TabButton>
             <TabButton active={tab === 'subscriptions'} onClick={() => setTab('subscriptions')}>Subscriptions</TabButton>
             <TabButton active={tab === 'users'} onClick={() => setTab('users')}>Users</TabButton>
+            <TabButton active={tab === 'addons'} onClick={() => setTab('addons')}>Add-ons</TabButton>
           </div>
 
           {stats?.version && (
@@ -437,6 +498,19 @@ export default function AdminPage() {
             />
           </div>
         )}
+        {tab === 'addons' && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard icon={<Puzzle size={12} />} label="Loaded" value={addonStatCards.loaded} />
+            <StatCard icon={<Package size={12} />} label="Bundled" value={addonStatCards.bundled} hint="Ship with Bindery" />
+            <StatCard icon={<Plug size={12} />} label="Installed" value={addonStatCards.installed} hint="Added here" />
+            <StatCard
+              icon={<AlertTriangle size={12} />}
+              label="Not loaded"
+              value={addonStatCards.skipped}
+              accent={addons.some((a) => a.status === 'error') ? 'amber' : undefined}
+            />
+          </div>
+        )}
       </section>
 
       {/* ========================================================================
@@ -511,6 +585,40 @@ export default function AdminPage() {
             <>
               <Kicker count={users.length} className="shrink-0">Registered Users</Kicker>
               <div className="flex-1" />
+            </>
+          )}
+        </StickyToolbar>
+      )}
+      {tab === 'addons' && (
+        <StickyToolbar topPx={HEADER_PX}>
+          {() => (
+            <>
+              <Kicker count={addons.length} className="shrink-0">Add-ons</Kicker>
+              <div className="flex-1" />
+              <input
+                ref={addonFileRef}
+                type="file"
+                accept=".zip,application/zip"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAddonInstall(f); }}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={addonBusy ? <Loader size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                disabled={addonBusy}
+                onClick={handleAddonReload}
+              >
+                Reload
+              </Button>
+              <Button
+                size="sm"
+                iconLeft={<Upload size={14} />}
+                disabled={addonBusy}
+                onClick={() => addonFileRef.current?.click()}
+              >
+                Install from zip
+              </Button>
             </>
           )}
         </StickyToolbar>
@@ -788,6 +896,49 @@ export default function AdminPage() {
           </>
         )}
 
+        {/* Add-ons Tab */}
+        {tab === 'addons' && (
+          <>
+            {addonMessage && (
+              <div
+                role="status"
+                className="by-card"
+                style={{
+                  padding: '10px 14px', marginBottom: 14, fontSize: 13,
+                  background: 'var(--surface-card)',
+                  color: addonMessage.kind === 'error' ? 'var(--color-danger)' : 'var(--text-body)',
+                }}
+              >
+                {addonMessage.text}
+              </div>
+            )}
+            {loadingAddons && (
+              <div className="flex justify-center py-12"><Loader size={20} className="animate-spin text-accent" /></div>
+            )}
+            {!loadingAddons && addons.length === 0 && (
+              <div className="text-center py-16 text-sm text-gray-500 dark:text-gray-400">
+                <Puzzle size={32} className="mx-auto mb-2 opacity-40" />
+                <p>No add-ons found.</p>
+              </div>
+            )}
+            {!loadingAddons && addons.length > 0 && (
+              <div
+                className="stat-grid"
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}
+              >
+                {addons.map((a) => (
+                  <AddonCard key={a.id} addon={a} busy={addonBusy} onRemove={() => handleAddonRemove(a)} />
+                ))}
+              </div>
+            )}
+            <p style={{ marginTop: 18, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              Add-ons run inside Bindery with the same access it has — install only ones you trust.
+              Installed add-ons live in the data folder under <code>addons/</code> and survive updates;
+              an installed add-on with the same id as a bundled one replaces it.
+            </p>
+          </>
+        )}
+
         {/* Users Tab */}
         {tab === 'users' && (
           <>
@@ -980,6 +1131,61 @@ function StatCard({
           whiteSpace: 'nowrap',
         }}>{hint}</p>
       )}
+    </div>
+  );
+}
+
+function AddonCard({ addon: a, busy, onRemove }: { addon: AdminAddon; busy: boolean; onRemove: () => void }) {
+  const statusIntent = a.status === 'loaded' ? 'success' : a.status === 'disabled' ? 'neutral' : 'warning';
+  const statusLabel = a.status === 'loaded' ? 'Loaded' : a.status === 'disabled' ? 'Disabled' : 'Not loaded';
+  const kindLabel = a.kind === 'source' ? 'Source' : a.kind === 'art' ? 'Art pack' : 'Converter';
+  return (
+    <div className="by-card" style={{ padding: 16, background: 'var(--surface-card)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div
+          aria-hidden
+          style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: a.color ? `${a.color}22` : 'var(--surface-raised)',
+            color: a.color || 'var(--text-muted)',
+          }}
+        >
+          {a.favicon
+            ? <img src={a.favicon} alt="" width={18} height={18} style={{ borderRadius: 4 }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+            : <Puzzle size={18} />}
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-body)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {a.name}
+          </div>
+          <div className="bindery-nums" style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+            {kindLabel} · v{a.version} · {a.origin === 'bundled' ? 'bundled' : 'installed'}
+          </div>
+        </div>
+        <Badge intent={statusIntent} pill>{statusLabel}</Badge>
+      </div>
+      {a.description && (
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>{a.description}</p>
+      )}
+      {a.error && (
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--color-warning)', lineHeight: 1.45 }}>{a.error}</p>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 'auto' }}>
+        {a.nsfw && <Badge intent="danger">NSFW</Badge>}
+        {a.hosts.length > 0 && (
+          <span title={a.hosts.join(', ')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+            <Globe size={11} /> {a.hosts[0]}{a.hosts.length > 1 ? ` +${a.hosts.length - 1}` : ''}
+          </span>
+        )}
+        <div style={{ flex: 1 }} />
+        {a.url && (
+          <a href={a.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--color-accent)' }}>Site</a>
+        )}
+        {a.origin === 'installed' && (
+          <Button variant="ghost" size="sm" disabled={busy} onClick={onRemove}>Remove</Button>
+        )}
+      </div>
     </div>
   );
 }

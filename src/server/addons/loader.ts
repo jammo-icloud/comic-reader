@@ -75,7 +75,8 @@ async function loadOne(dir: string, origin: LoadedAddon['origin']): Promise<Load
 
   if (manifest.kind === 'source') {
     try {
-      const mod = await import(pathToFileURL(resolveMain(dir, manifest.main || 'index.js')).href);
+      // A cache-busting query so a reload picks up a replaced add-on, not the module Node already has.
+      const mod = await import(pathToFileURL(resolveMain(dir, manifest.main || 'index.js')).href + `?t=${Date.now()}`);
       const source: MangaSource | undefined = mod.default ?? Object.values(mod).find(
         (v: any) => v && typeof v.search === 'function' && typeof v.getPageUrls === 'function',
       );
@@ -117,4 +118,24 @@ export async function loadAddons(): Promise<LoadedAddon[]> {
 
 export function getLoadedAddons(): LoadedAddon[] {
   return loaded;
+}
+
+export function installedAddonsDir(): string {
+  const dir = path.resolve(process.env.DATA_DIR || './data', 'addons');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+/**
+ * Validate a manifest's JSON text the same way the loader does, without
+ * touching disk. Used before an install writes anything.
+ */
+export function validateManifestText(text: string): AddonManifest {
+  const tmp = fs.mkdtempSync(path.join(installedAddonsDir(), '.validate-'));
+  try {
+    fs.writeFileSync(path.join(tmp, 'addon.json'), text);
+    return readManifest(tmp);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 }

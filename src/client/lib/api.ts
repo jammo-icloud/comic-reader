@@ -215,6 +215,46 @@ export async function uploadSeriesCover(seriesId: string, file: File): Promise<{
   return res.json();
 }
 
+export interface AdminAddon {
+  id: string;
+  name: string;
+  version: string;
+  kind: 'source' | 'art' | 'converter';
+  origin: 'bundled' | 'installed';
+  status: 'loaded' | 'disabled' | 'error';
+  error: string | null;
+  nsfw: boolean;
+  hosts: string[];
+  homepage: string | null;
+  url: string | null;
+  favicon: string | null;
+  description: string | null;
+  color: string | null;
+}
+
+export function getAdminAddons(): Promise<AdminAddon[]> {
+  return fetchJson('/admin/addons');
+}
+
+export function reloadAdminAddons(): Promise<AdminAddon[]> {
+  return fetchJson('/admin/addons/reload', { method: 'POST' });
+}
+
+export async function installAdminAddon(file: File): Promise<{ ok: true; addon: AdminAddon }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${BASE}/admin/addons/install`, { method: 'POST', body: formData });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || `Install failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export function removeAdminAddon(id: string): Promise<{ ok: true }> {
+  return fetchJson(`/admin/addons/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
 export function getAdminUsers(): Promise<{ username: string; collectionSize: number; progressEntries: number; readChapters: number }[]> {
   return fetchJson('/admin/users');
 }

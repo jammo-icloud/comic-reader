@@ -33,10 +33,13 @@ const primarySources: MangaSource[] = [mangadexSource];
 const meta = new Map<string, SourceMeta>(Object.entries(builtinMeta));
 
 /**
- * Register add-on sources. Called once at startup, before the server listens,
- * so every request sees the full list.
+ * Register add-on sources. Called at startup before the server listens, and
+ * again from the admin Add-ons page after an install or removal.
  */
 export async function initSources(): Promise<void> {
+  primarySources.length = 0;
+  primarySources.push(mangadexSource);
+  for (const id of [...meta.keys()]) if (!(id in builtinMeta)) meta.delete(id);
   for (const addon of await loadAddons()) {
     if (!addon.source) continue;
     if (primarySources.some((s) => s.id === addon.source!.id)) {

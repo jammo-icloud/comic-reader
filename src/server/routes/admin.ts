@@ -13,6 +13,9 @@ import { buildMergePreview, executeMerge } from '../merge.js';
 import { runMaintenance } from '../maintenance.js';
 import { shortHash } from '../hash.js';
 import { syncAll } from '../sync.js';
+import multer from 'multer';
+import { getLoadedAddons, installedAddonsDir, validateManifestText } from '../addons/loader.js';
+import { initSources } from '../sources/index.js';
 
 const router = Router();
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -449,3 +452,100 @@ router.get('/admin/users', (_req, res) => {
 });
 
 export default router;
+
+// ============================================================================
+// Add-ons — what's loaded, install from a zip, remove, reload.
+// Everything bundled stays installed and enabled; this page is for seeing
+// what's there and adding more.
+// ============================================================================
+
+function addonSummary() {
+  return getLoadedAddons().map((a) => ({
+    id: a.manifest.id,
+    name: a.manifest.name,
+    version: a.manifest.version,
+    kind: a.manifest.kind,
+    origin: a.origin,
+    status: a.error ? (a.error.startsWith('disabled') ? 'disabled' : 'error') : 'loaded',
+    error: a.error && !a.error.startsWith('disabled') ? a.error : null,
+    nsfw: !!a.manifest.nsfw,
+    hosts: a.manifest.hosts || [],
+    homepage: a.manifest.homepage || null,
+    url: a.manifest.url || null,
+    favicon: a.manifest.favicon || null,
+    description: a.manifest.description || null,
+    color: a.manifest.color || null,
+  }));
+}
+
+router.get('/admin/addons', (_req, res) => {
+  res.json(addonSummary());
+});
+
+router.post('/admin/addons/reload', async (_req, res) => {
+  await initSources();
+  res.json(addonSummary());
+});
+
+const addonUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+/**
+ * Install an add-on from a zip. The zip may hold the files at its root or
+ * inside one top-level folder (how GitHub packages a repo). Entries are
+ * written only under DATA_DIR/addons/<id>; anything that escapes is rejected.
+ */
+router.post('/admin/addons/install', addonUpload.single('file'), async (req, res) => {
+  if (!req.file) { res.status(400).json({ error: 'No file uploaded' }); return; }
+  let staging: string | null = null;
+  try {
+    const unzipper = await import('unzipper');
+    const zip = await unzipper.Open.buffer(req.file.buffer);
+    const files = zip.files.filter((f) => f.type === 'File');
+
+    // Find addon.json: at the root, or one folder down.
+    const manifestEntry = files.find((f) => f.path === 'addon.json')
+      || files.find((f) => /^[^/]+\/addon\.json$/.test(f.path));
+    if (!manifestEntry) { res.status(400).json({ error: 'Zip has no addon.json at its root' }); return; }
+    const prefix = manifestEntry.path.slice(0, -'addon.json'.length);
+
+    const manifest = validateManifestText((await manifestEntry.buffer()).toString('utf-8'));
+    const dest = path.join(installedAddonsDir(), manifest.id);
+    staging = dest + '.installing';
+    fs.rmSync(staging, { recursive: true, force: true });
+    fs.mkdirSync(staging, { recursive: true });
+
+    for (const f of files) {
+      if (!f.path.startsWith(prefix)) continue;
+      const rel = f.path.slice(prefix.length);
+      if (!rel || rel.includes('\0')) continue;
+      const target = path.resolve(staging, rel);
+      if (!target.startsWith(staging + path.sep)) throw new Error(`Refusing to write outside the add-on folder: ${f.path}`);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, await f.buffer());
+    }
+    fs.rmSync(dest, { recursive: true, force: true });
+    fs.renameSync(staging, dest);
+
+    await initSources();
+    const installed = addonSummary().find((a) => a.id === manifest.id);
+    console.log(`Admin installed add-on: ${manifest.id} v${manifest.version} (${installed?.status})`);
+    res.json({ ok: true, addon: installed });
+  } catch (err) {
+    // A rejected install must leave nothing behind.
+    if (staging) fs.rmSync(staging, { recursive: true, force: true });
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+router.delete('/admin/addons/:id', async (req, res) => {
+  const addon = getLoadedAddons().find((a) => a.manifest.id === req.params.id);
+  if (!addon) { res.status(404).json({ error: 'Add-on not found' }); return; }
+  if (addon.origin !== 'installed') { res.status(400).json({ error: 'Bundled add-ons ship with Bindery and can\'t be removed' }); return; }
+  const dir = path.join(installedAddonsDir(), addon.manifest.id);
+  if (path.resolve(addon.dir) !== dir) { res.status(400).json({ error: 'Unexpected add-on location' }); return; }
+  fs.rmSync(dir, { recursive: true, force: true });
+  await initSources();
+  console.log(`Admin removed add-on: ${addon.manifest.id}`);
+  res.json({ ok: true });
+});
+
