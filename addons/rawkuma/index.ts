@@ -48,7 +48,10 @@ async function getSearchNonce(): Promise<string> {
  */
 async function getMangaId(slug: string): Promise<number | null> {
   const html = await fetchText(`${SITE_URL}/manga/${slug}/`);
-  const match = html.match(/manga_id=(\d+)[^"]*action=chapter_list/);
+  // The attribute is HTML-encoded (`&#038;` between params), so match the id
+  // and the action independently rather than as one run.
+  const match = html.match(/manga_id=(\d+)(?:&(?:#038;|amp;)?|&)[^"]*action=chapter_list/)
+    || html.match(/manga_id=(\d+)/);
   return match ? parseInt(match[1], 10) : null;
 }
 
@@ -137,11 +140,13 @@ export const rawkumaSource: MangaSource = {
     // chapterId is "slug/chapter-N.ID"
     const html = await fetchText(`${SITE_URL}/manga/${chapterId}/`);
 
-    // Images are at rcdn.kyut.dev with a single-letter path prefix
-    // that corresponds to the first letter of the slug (e.g. /o/one-piece/, /j/jujutsu-kaisen/).
+    // Page images sit on a kyut.dev CDN under <letter>/<slug>/<chapter>/<n>.<ext>.
+    // The host and the folder before <letter> have both changed before
+    // (rcdn… /chapter-N/ → kuma… /wp-content/kuma_B/ /N/), so match the
+    // stable tail: slug, a numeric chapter folder, a numeric page file.
     const urls: string[] = [];
     const seen = new Set<string>();
-    const regex = /https:\/\/[^"'\s]+\/[a-z0-9]\/[^"'\s/]+\/chapter-[^/]+\/\d+\.(?:jpg|jpeg|png|webp)/gi;
+    const regex = /https:\/\/[^"'\s<>]+\/(?:[a-z0-9]\/)?[a-z0-9-]+\/\d+(?:\.\d+)?\/\d+\.(?:jpe?g|png|webp)/gi;
     let match;
     while ((match = regex.exec(html)) !== null) {
       if (!seen.has(match[0])) {
