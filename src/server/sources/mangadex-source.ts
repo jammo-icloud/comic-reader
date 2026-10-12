@@ -1,4 +1,4 @@
-import type { MangaSource, SearchResult, ChapterResult } from './types.js';
+import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
 import { searchManga, getChapterList, getChapterPages, pageImageUrl } from '../mangadex.js';
 
 export const mangadexSource: MangaSource = {

@@ -1,0 +1,16 @@
+{
+  "id": "rawkuma",
+  "name": "Rawkuma",
+  "version": "1.0.0",
+  "api": 1,
+  "kind": "source",
+  "main": "index.js",
+  "hosts": [
+    "rawkuma.net",
+    "rcdn.kyut.dev"
+  ],
+  "color": "#7c3aed",
+  "description": "Raw Japanese manga \u2014 new chapters often before translations. Pair with Translate.",
+  "url": "https://rawkuma.net",
+  "favicon": "https://rawkuma.net/favicon-32x32.png"
+}

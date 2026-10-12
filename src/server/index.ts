@@ -28,6 +28,7 @@ import { migrateToMultiUser } from './migrate.js';
 import { runCleanup } from './cleanup.js';
 import { warmCache } from './data.js';
 import { startSyncScheduler } from './sync.js';
+import { initSources } from './sources/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.SERVER_PORT || '3000', 10);
@@ -98,6 +99,9 @@ warmCache();
 
 // Compact and clean up data files
 runCleanup();
+
+// Register add-on sources before accepting requests so the source list is complete.
+await initSources();
 
 app.listen(PORT, () => {
   console.log(`Bindery running on http://localhost:${PORT}`);

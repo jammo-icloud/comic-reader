@@ -15,7 +15,7 @@
  *
  * The nonce is rotated per session; we fetch a fresh one before each search.
  */
-import type { MangaSource, SearchResult, ChapterResult } from './types.js';
+import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
 
 const SITE_URL = 'https://rawkuma.net';
 const AJAX_URL = `${SITE_URL}/wp-admin/admin-ajax.php`;
@@ -178,3 +178,5 @@ export const rawkumaSource: MangaSource = {
     return urls;
   },
 };
+
+export default rawkumaSource;

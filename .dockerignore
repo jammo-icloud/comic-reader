@@ -12,4 +12,5 @@ design-system
 .env.*
 .DS_Store
 *.md
-scripts
+scripts/*
+!scripts/copy-addon-manifests.mjs

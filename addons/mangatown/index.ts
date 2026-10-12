@@ -5,7 +5,7 @@
  * Pages: /manga/{slug}/vXX/cYY/N.html — image at //zjcdn.mangahere.org/store/manga/{id}/{chap}/compressed/bNNN.jpg
  * No per-page auth tokens — URLs are predictable once we fetch page 1.
  */
-import type { MangaSource, SearchResult, ChapterResult } from './types.js';
+import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
 
 const SITE_URL = 'https://www.mangatown.com';
 const RATE_LIMIT_MS = 300;
@@ -217,3 +217,5 @@ export const mangatownSource: MangaSource = {
     return urls;
   },
 };
+
+export default mangatownSource;

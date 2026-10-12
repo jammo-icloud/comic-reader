@@ -1,4 +1,4 @@
-import type { MangaSource, SearchResult, ChapterResult } from './types.js';
+import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
 
 const SITE_URL = 'https://fanfox.net';
 const RATE_LIMIT_MS = 300;
@@ -191,3 +191,5 @@ export const mangafoxSource: MangaSource & { lastMetadata: any } = {
     return pages;
   },
 };
+
+export default mangafoxSource;

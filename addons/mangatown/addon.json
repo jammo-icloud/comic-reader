@@ -1,0 +1,17 @@
+{
+  "id": "mangatown",
+  "name": "MangaTown",
+  "version": "1.0.0",
+  "api": 1,
+  "kind": "source",
+  "main": "index.js",
+  "hosts": [
+    "mangatown.com",
+    "zjcdn.mangahere.org",
+    "mangahere.cc"
+  ],
+  "color": "#0284c7",
+  "description": "Large manga library. Predictable image URLs for fast downloads.",
+  "url": "https://www.mangatown.com",
+  "favicon": "https://www.mangatown.com/favicon.ico"
+}

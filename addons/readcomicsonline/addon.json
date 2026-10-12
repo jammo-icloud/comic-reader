@@ -1,0 +1,15 @@
+{
+  "id": "readcomicsonline",
+  "name": "ReadComicsOnline",
+  "version": "1.0.0",
+  "api": 1,
+  "kind": "source",
+  "main": "index.js",
+  "hosts": [
+    "readcomicsonline.ru"
+  ],
+  "color": "#dc2626",
+  "description": "Western comics \u2014 DC, Marvel, Image, and more.",
+  "url": "https://readcomicsonline.ru",
+  "favicon": "https://readcomicsonline.ru/favicon.ico"
+}

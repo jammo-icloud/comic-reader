@@ -1,0 +1,17 @@
+{
+  "id": "readallcomics",
+  "name": "ReadAllComics",
+  "version": "1.0.0",
+  "api": 1,
+  "kind": "source",
+  "main": "index.js",
+  "hosts": [
+    "readallcomics.com",
+    "bp.blogspot.com",
+    "blogger.googleusercontent.com"
+  ],
+  "color": "#f59e0b",
+  "description": "Western comics, DC, Marvel, and more.",
+  "url": "https://readallcomics.com",
+  "favicon": "https://readallcomics.com/wp-content/uploads/cropped-logo-readallcomic-seo-2-32x32.jpg"
+}

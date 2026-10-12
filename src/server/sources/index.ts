@@ -1,71 +1,21 @@
-import type { MangaSource, SearchResult, ChapterResult } from './types.js';
+/**
+ * Source registry. MangaDex and MyAnimeList are built in; every other source
+ * is an add-on (see src/server/addons/loader.ts). The functions exported here
+ * are the only way the rest of the server talks to sources.
+ */
+import type { AddonManifest, MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
 import { mangadexSource } from './mangadex-source.js';
 import { malSource } from './mal-source.js';
-import { mangafoxSource } from './mangafox.js';
-import { mangatownSource } from './mangatown.js';
-import { readallcomicsSource } from './readallcomics.js';
-import { readcomicsonlineSource } from './readcomicsonline.js';
-import { archiveorgSource } from './archiveorg.js';
-import { rawkumaSource } from './rawkuma.js';
-// import { mangahubSource } from './mangahub.js'; // Disabled: Cloudflare protected
+import { loadAddons } from '../addons/loader.js';
 
-// Primary sources (have downloadable chapters)
-const primarySources: MangaSource[] = [
-  mangadexSource,
-  mangafoxSource,
-  mangatownSource,
-  rawkumaSource,
-  readallcomicsSource,
-  readcomicsonlineSource,
-  archiveorgSource,
-];
+type SourceMeta = Pick<AddonManifest, 'color' | 'description' | 'url' | 'favicon' | 'nsfw'>;
 
-// All sources including metadata-only (MAL)
-const allSources: MangaSource[] = [...primarySources, malSource];
-
-// Display metadata for the client picker
-const sourceMeta: Record<string, { color: string; description: string; url: string; favicon: string }> = {
+const builtinMeta: Record<string, SourceMeta> = {
   mangadex: {
     color: '#ea580c',
     description: 'Community-driven scanlations. Largest free manga library.',
     url: 'https://mangadex.org',
     favicon: 'https://mangadex.org/favicon.ico',
-  },
-  mangafox: {
-    color: '#059669',
-    description: 'Long-running manga site. Fast chapter updates.',
-    url: 'https://fanfox.net',
-    favicon: 'https://fanfox.net/favicon.ico',
-  },
-  mangatown: {
-    color: '#0284c7',
-    description: 'Large manga library. Predictable image URLs for fast downloads.',
-    url: 'https://www.mangatown.com',
-    favicon: 'https://www.mangatown.com/favicon.ico',
-  },
-  rawkuma: {
-    color: '#7c3aed',
-    description: 'Raw Japanese manga — new chapters often before translations. Pair with Translate.',
-    url: 'https://rawkuma.net',
-    favicon: 'https://rawkuma.net/favicon-32x32.png',
-  },
-  readallcomics: {
-    color: '#f59e0b',
-    description: 'Western comics, DC, Marvel, and more.',
-    url: 'https://readallcomics.com',
-    favicon: 'https://readallcomics.com/wp-content/uploads/cropped-logo-readallcomic-seo-2-32x32.jpg',
-  },
-  readcomicsonline: {
-    color: '#dc2626',
-    description: 'Western comics — DC, Marvel, Image, and more.',
-    url: 'https://readcomicsonline.ru',
-    favicon: 'https://readcomicsonline.ru/favicon.ico',
-  },
-  archiveorg: {
-    color: '#8b5cf6',
-    description: 'Internet Archive — public domain comics, magazines, manga collections.',
-    url: 'https://archive.org',
-    favicon: 'https://archive.org/favicon.ico',
   },
   mal: {
     color: '#2e51a2',
@@ -75,18 +25,48 @@ const sourceMeta: Record<string, { color: string; description: string; url: stri
   },
 };
 
+// Sources with downloadable chapters, in the order the Discover picker shows
+// them. The loader finds add-ons alphabetically; this keeps the established
+// order, with anything new (installed add-ons) appended after it.
+const SOURCE_ORDER = ['mangadex', 'mangafox', 'mangatown', 'rawkuma', 'readallcomics', 'readcomicsonline', 'archiveorg'];
+const primarySources: MangaSource[] = [mangadexSource];
+const meta = new Map<string, SourceMeta>(Object.entries(builtinMeta));
+
+/**
+ * Register add-on sources. Called once at startup, before the server listens,
+ * so every request sees the full list.
+ */
+export async function initSources(): Promise<void> {
+  for (const addon of await loadAddons()) {
+    if (!addon.source) continue;
+    if (primarySources.some((s) => s.id === addon.source!.id)) {
+      console.warn(`  add-on ${addon.manifest.id} shadows a built-in source — skipped`);
+      continue;
+    }
+    primarySources.push(addon.source);
+    meta.set(addon.source.id, addon.manifest);
+  }
+  const rank = (id: string) => { const i = SOURCE_ORDER.indexOf(id); return i < 0 ? SOURCE_ORDER.length : i; };
+  primarySources.sort((x, y) => rank(x.id) - rank(y.id));
+}
+
+// All sources including metadata-only (MAL)
+function allSources(): MangaSource[] {
+  return [...primarySources, malSource];
+}
+
 export function getSource(id: string): MangaSource | undefined {
-  return allSources.find((s) => s.id === id);
+  return allSources().find((s) => s.id === id);
 }
 
 export function getAllSources(): { id: string; name: string; color: string; description: string; url: string; favicon: string }[] {
-  return allSources.map((s) => ({
+  return allSources().map((s) => ({
     id: s.id,
     name: s.name,
-    color: sourceMeta[s.id]?.color || '#64748b',
-    description: sourceMeta[s.id]?.description || '',
-    url: sourceMeta[s.id]?.url || '',
-    favicon: sourceMeta[s.id]?.favicon || '',
+    color: meta.get(s.id)?.color || '#64748b',
+    description: meta.get(s.id)?.description || '',
+    url: meta.get(s.id)?.url || '',
+    favicon: meta.get(s.id)?.favicon || '',
   }));
 }
 
@@ -150,4 +130,4 @@ export async function getPageUrlsFromSource(sourceId: string, chapterId: string)
   return source.getPageUrls(chapterId);
 }
 
-export type { MangaSource, SearchResult, ChapterResult } from './types.js';
+export type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';

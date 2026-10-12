@@ -8,7 +8,7 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "SERVER_PORT=5882 tsx watch src/server/index.ts",
     "dev:client": "vite",
-    "build": "vite build && tsc -p tsconfig.server.json",
+    "build": "npm run build -w @bindery/addon-api && vite build && tsc -p tsconfig.server.json && tsc -p tsconfig.addons.json && node scripts/copy-addon-manifests.mjs",
     "start": "node dist/server/index.js",
     "start:local": "node --env-file=.env dist/server/index.js",
     "scan": "tsx src/server/scan-cli.ts",
@@ -23,7 +23,8 @@
     "mupdf": "^1.27.0",
     "pdf-lib": "^1.17.1",
     "sharp": "^0.34.1",
-    "unzipper": "^0.12.3"
+    "unzipper": "^0.12.3",
+    "@bindery/addon-api": "1.0.0"
   },
   "devDependencies": {
     "@types/archiver": "^6.0.4",
@@ -49,5 +50,8 @@
     "vite": "^6.3.2",
     "vite-plugin-pwa": "^1.2.0",
     "workbox-window": "^7.4.0"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }

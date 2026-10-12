@@ -11,7 +11,7 @@
  * Download path: pageUrls returns a single URL to the file. The downloader
  * short-circuits its normal image-stitching flow and downloads the file directly.
  */
-import type { MangaSource, SearchResult, ChapterResult } from './types.js';
+import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
 
 const API = 'https://archive.org';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
@@ -231,3 +231,5 @@ export const archiveorgSource: MangaSource = {
     return [`${API}/download/${identifier}/${encodeURIComponent(filename)}`];
   },
 };
+
+export default archiveorgSource;

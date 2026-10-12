@@ -1,4 +1,4 @@
-import type { MangaSource, SearchResult, ChapterResult } from './types.js';
+import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
 
 const API_URL = 'https://api.mghcdn.com/graphql';
 const CDN_URL = 'https://imgx.mghcdn.com';
@@ -178,3 +178,5 @@ export const mangahubSource: MangaSource = {
     }
   },
 };
+
+export default mangahubSource;

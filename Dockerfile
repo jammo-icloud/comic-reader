@@ -27,6 +27,10 @@ WORKDIR /app
 # package.json is read at runtime for the version string.
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
+# The add-on API is a workspace package: node_modules/@bindery/addon-api is a
+# symlink into packages/, so the package has to come along.
+COPY --from=build /app/packages/addon-api/package.json ./packages/addon-api/
+COPY --from=build /app/packages/addon-api/dist ./packages/addon-api/dist
 COPY --from=build /app/dist ./dist
 
 ENV NODE_ENV=production

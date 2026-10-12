@@ -1,0 +1,15 @@
+{
+  "id": "archiveorg",
+  "name": "Internet Archive",
+  "version": "1.0.0",
+  "api": 1,
+  "kind": "source",
+  "main": "index.js",
+  "hosts": [
+    "archive.org"
+  ],
+  "color": "#8b5cf6",
+  "description": "Internet Archive \u2014 public domain comics, magazines, manga collections.",
+  "url": "https://archive.org",
+  "favicon": "https://archive.org/favicon.ico"
+}

@@ -1,4 +1,4 @@
-import type { MangaSource, SearchResult, ChapterResult } from './types.js';
+import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
 
 const JIKAN_BASE = 'https://api.jikan.moe/v4';
 const RATE_LIMIT_MS = 400;

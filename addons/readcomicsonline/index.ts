@@ -7,7 +7,7 @@
  * Pages: /comic/{slug}/{ch} has <img data-src="..."> for each page
  * Covers: /uploads/manga/{slug}/cover/cover_250x350.jpg
  */
-import type { MangaSource, SearchResult, ChapterResult } from './types.js';
+import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
 
 const SITE_URL = 'https://readcomicsonline.ru';
 const RATE_LIMIT_MS = 300;
@@ -128,3 +128,5 @@ export const readcomicsonlineSource: MangaSource = {
     return urls;
   },
 };
+
+export default readcomicsonlineSource;

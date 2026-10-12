@@ -1,0 +1,17 @@
+{
+  "id": "mangafox",
+  "name": "MangaFox",
+  "version": "1.0.0",
+  "api": 1,
+  "kind": "source",
+  "main": "index.js",
+  "hosts": [
+    "fanfox.net",
+    "fmcdn.mfcdn.net",
+    "zjcdn.mangafox.me"
+  ],
+  "color": "#059669",
+  "description": "Long-running manga site. Fast chapter updates.",
+  "url": "https://fanfox.net",
+  "favicon": "https://fanfox.net/favicon.ico"
+}
