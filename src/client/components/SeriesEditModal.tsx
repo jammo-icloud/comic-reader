@@ -280,12 +280,12 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
               </select>
             </div>
             <Field label="Status" value={status} onChange={setStatus} placeholder="ongoing, completed..." />
-            <Field label="Year" value={year} onChange={setYear} type="number" />
+            <Field label="Year" value={year} onChange={setYear} inputMode="numeric" />
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <Field label="Score" value={score} onChange={setScore} type="number" placeholder="0-10" />
-            <Field label="MAL ID" value={malId} onChange={setMalId} type="number" />
+            <Field label="Score" value={score} onChange={setScore} inputMode="decimal" placeholder="0-10" />
+            <Field label="MAL ID" value={malId} onChange={setMalId} inputMode="numeric" />
             <Field label="MangaDex ID" value={mangaDexId} onChange={setMangaDexId} />
           </div>
 
@@ -467,14 +467,16 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
   );
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string;
+function Field({ label, value, onChange, type = 'text', inputMode, placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']; placeholder?: string;
 }) {
   return (
     <div>
       <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">{label}</label>
       <input
         type={type}
+        inputMode={inputMode}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
