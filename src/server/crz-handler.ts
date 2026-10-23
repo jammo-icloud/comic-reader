@@ -46,7 +46,7 @@ const DATA_DIR = process.env.DATA_DIR || './data';
 const SOURCE_TAGS: Record<string, string[]> = {
   mangadex: ['manga'],
   mangafox: ['manga'],
-  mangahub: ['manga'],
+
   mangadna: ['manga'],
   manga18fx: ['manga', 'adult'],
   omegascans: ['manhwa', 'adult'],

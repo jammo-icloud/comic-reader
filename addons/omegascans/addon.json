@@ -1,0 +1,18 @@
+{
+  "id": "omegascans",
+  "name": "Omega Scans",
+  "version": "1.0.0",
+  "api": 1,
+  "kind": "source",
+  "main": "index.js",
+  "hosts": [
+    "omegascans.org",
+    "api.omegascans.org",
+    "media.omegascans.org"
+  ],
+  "color": "#e11d48",
+  "nsfw": true,
+  "description": "Adult manhwa and webtoons.",
+  "url": "https://omegascans.org",
+  "favicon": "https://omegascans.org/favicon.ico"
+}

@@ -95,7 +95,7 @@ router.post('/import/chapter-images', upload.array('images', 500), async (req, r
     const SOURCE_TAGS: Record<string, string[]> = {
       mangadex: ['manga'],
       mangafox: ['manga'],
-      mangahub: ['manga'],
+
       mangadna: ['manga'],
       manga18fx: ['manga', 'adult'],
       omegascans: ['manhwa', 'adult'],

@@ -28,7 +28,7 @@ const builtinMeta: Record<string, SourceMeta> = {
 // Sources with downloadable chapters, in the order the Discover picker shows
 // them. The loader finds add-ons alphabetically; this keeps the established
 // order, with anything new (installed add-ons) appended after it.
-const SOURCE_ORDER = ['mangadex', 'mangafox', 'mangatown', 'rawkuma', 'readallcomics', 'readcomicsonline', 'archiveorg', 'elftoon'];
+const SOURCE_ORDER = ['mangadex', 'mangafox', 'mangatown', 'rawkuma', 'readallcomics', 'readcomicsonline', 'archiveorg', 'elftoon', 'omegascans'];
 const primarySources: MangaSource[] = [mangadexSource];
 const meta = new Map<string, SourceMeta>(Object.entries(builtinMeta));
 
