@@ -1,0 +1,16 @@
+{
+  "id": "elftoon",
+  "name": "Elf Toon",
+  "version": "1.0.0",
+  "api": 1,
+  "kind": "source",
+  "main": "index.js",
+  "hosts": [
+    "elftoon.net",
+    "elftoon.com"
+  ],
+  "color": "#22c55e",
+  "description": "Manhwa, manhua & comics. Free webtoon reader.",
+  "url": "https://elftoon.net",
+  "favicon": "https://elftoon.net/uploads/settings/logo-250fe90e.webp"
+}

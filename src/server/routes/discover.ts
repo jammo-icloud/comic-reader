@@ -80,6 +80,7 @@ const cdnReferers: Record<string, string> = {
   'fmcdn.mfcdn.net': 'https://fanfox.net/',
   'zjcdn.mangafox.me': 'https://fanfox.net/',
   'mfcdn.net': 'https://fanfox.net/',
+  'elftoon.net': 'https://elftoon.net/',
 };
 
 function getReferer(url: string): string {
