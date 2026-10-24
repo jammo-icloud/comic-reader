@@ -23,6 +23,7 @@ export interface Series {
   syncSource?: SyncSource | null;
   lastSyncAt?: string | null;
   newChapterCount?: number | null;
+  addedAt?: string | null;
   // Stats (from API)
   count: number;
   readCount: number;

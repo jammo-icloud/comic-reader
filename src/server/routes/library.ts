@@ -29,14 +29,16 @@ router.get('/series', (req, res) => {
   const { type, scope } = req.query;
   const username = req.username;
 
+  const collection = loadCollection(username);
+  const collectionMap = new Map(collection.map((e) => [e.seriesId, e]));
+
   // scope=catalog returns all series (for browse/search dedup)
   // default returns only user's collection
   let filtered: SeriesRecord[];
   if (scope === 'catalog') {
     filtered = allSeries;
   } else {
-    const collection = new Set(loadCollection(username).map((e) => e.seriesId));
-    filtered = allSeries.filter((s) => collection.has(s.id));
+    filtered = allSeries.filter((s) => collectionMap.has(s.id));
   }
 
   if (type && typeof type === 'string') {
@@ -49,13 +51,13 @@ router.get('/series', (req, res) => {
     filtered = filtered.filter((s) => !isNsfwSeries(s));
   }
 
-  const collectionSet = new Set(loadCollection(username).map((e) => e.seriesId));
   const pinned = pinnedSet(username);
   const result = filtered.map((s) => ({
     ...s,
     ...getSeriesStatsForUser(s.id, username),
-    inCollection: collectionSet.has(s.id),
+    inCollection: collectionMap.has(s.id),
     isPinned: pinned.has(s.id),
+    addedAt: collectionMap.get(s.id)?.addedAt ?? null,
   }));
 
   res.json(result);

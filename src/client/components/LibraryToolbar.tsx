@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { SegmentedControl, IconButton } from './ds';
 
-export type SortMode = 'name-asc' | 'name-desc' | 'score-desc' | 'year-desc' | 'count-desc' | 'new-desc';
+export type SortMode = 'name-asc' | 'name-desc' | 'score-desc' | 'year-desc' | 'count-desc' | 'new-desc' | 'recent-desc';
 
 const SORT_LABELS: Record<SortMode, string> = {
   'name-asc': 'Title A → Z',
@@ -14,6 +14,7 @@ const SORT_LABELS: Record<SortMode, string> = {
   'year-desc': 'Newest',
   'count-desc': 'Most chapters',
   'new-desc': 'New chapters first',
+  'recent-desc': 'Recently added',
 };
 
 const SORT_SHORT: Record<SortMode, string> = {
@@ -23,6 +24,7 @@ const SORT_SHORT: Record<SortMode, string> = {
   'year-desc': 'Newest',
   'count-desc': 'Most',
   'new-desc': 'New',
+  'recent-desc': 'Recent',
 };
 
 interface LibraryToolbarProps {

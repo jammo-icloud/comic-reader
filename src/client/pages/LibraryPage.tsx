@@ -189,6 +189,11 @@ export default function LibraryPage() {
       case 'year-desc':   arr.sort((a, b) => (b.year ?? 0) - (a.year ?? 0)); break;
       case 'count-desc':  arr.sort((a, b) => b.count - a.count); break;
       case 'new-desc':    arr.sort((a, b) => (b.newChapterCount ?? 0) - (a.newChapterCount ?? 0)); break;
+      case 'recent-desc': arr.sort((a, b) => {
+        const ta = Math.max(Date.parse(a.lastSyncAt || '') || 0, Date.parse(a.addedAt || '') || 0);
+        const tb = Math.max(Date.parse(b.lastSyncAt || '') || 0, Date.parse(b.addedAt || '') || 0);
+        return tb - ta;
+      }); break;
     }
     return arr;
   }, [filtered, sortBy]);
