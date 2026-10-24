@@ -179,6 +179,10 @@ export const mangafoxSource: MangaSource & { lastMetadata: any } = {
 
     return pages;
   },
+
+  getMangaUrl(mangaId: string) {
+    return `${SITE_URL}/manga/${mangaId}/`;
+  },
 };
 
 export default mangafoxSource;

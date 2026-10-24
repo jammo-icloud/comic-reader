@@ -220,6 +220,10 @@ export const archiveorgSource: MangaSource = {
     // Return a single URL to the file — downloader short-circuits for PDF/CBR/CBZ
     return [`${API}/download/${identifier}/${encodeURIComponent(filename)}`];
   },
+
+  getMangaUrl(mangaId: string) {
+    return `https://archive.org/details/${mangaId}`;
+  },
 };
 
 export default archiveorgSource;

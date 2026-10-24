@@ -169,4 +169,13 @@ export function getSourceTags(sourceId: string): string[] {
   return meta.get(sourceId)?.tags || [];
 }
 
+/**
+ * Resolve the URL for a manga on its source website.
+ */
+export async function getMangaUrl(sourceId: string, mangaId: string): Promise<string | null> {
+  const source = getSource(sourceId);
+  if (!source?.getMangaUrl) return null;
+  return source.getMangaUrl(mangaId);
+}
+
 export type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';

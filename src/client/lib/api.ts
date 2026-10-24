@@ -719,6 +719,10 @@ export function discoverChapters(sourceId: string, mangaId: string): Promise<{ c
   return fetchJson(`/discover/chapters/${sourceId}/${encodeURIComponent(mangaId)}`);
 }
 
+export function getMangaSourceUrl(sourceId: string, mangaId: string): Promise<{ url: string }> {
+  return fetchJson(`/discover/manga-url/${sourceId}/${encodeURIComponent(mangaId)}`);
+}
+
 export function startDownload(
   mangaDexId: string,
   mangaTitle: string,

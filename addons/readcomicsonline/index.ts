@@ -111,6 +111,10 @@ export const readcomicsonlineSource: MangaSource = {
 
     return urls;
   },
+
+  getMangaUrl(mangaId: string) {
+    return `${SITE_URL}/comic/${mangaId}`;
+  },
 };
 
 export default readcomicsonlineSource;

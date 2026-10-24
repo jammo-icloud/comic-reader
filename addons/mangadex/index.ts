@@ -36,6 +36,10 @@ export const mangadexSource: MangaSource = {
     const { baseUrl, pages, hash } = await getChapterPages(chapterId);
     return pages.map((filename) => pageImageUrl(baseUrl, hash, filename));
   },
+
+  getMangaUrl(mangaId: string) {
+    return `https://mangadex.org/title/${mangaId}`;
+  },
 };
 
 export default mangadexSource;

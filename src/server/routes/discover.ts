@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { searchAllSources, getChaptersFromSource, getPageUrlsFromSource, getAllSources, getSource, getCdnReferer } from '../sources/index.js';
+import { searchAllSources, getChaptersFromSource, getPageUrlsFromSource, getAllSources, getSource, getCdnReferer, getMangaUrl } from '../sources/index.js';
 import { queueDownload, getQueue, removeFromQueue, cancelDownload, onProgress } from '../downloader.js';
 import { loadAllSeries, isInCollection, NSFW_TAGS } from '../data.js';
 
@@ -72,6 +72,13 @@ router.get('/discover/chapters/:sourceId/:mangaId', async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: 'Failed to fetch chapters' });
   }
+});
+
+// Resolve the URL to view a manga on its source website
+router.get('/discover/manga-url/:sourceId/:mangaId', async (req, res) => {
+  const url = await getMangaUrl(req.params.sourceId, req.params.mangaId);
+  if (!url) { res.status(404).json({ error: 'No URL available' }); return; }
+  res.json({ url });
 });
 
 function getReferer(url: string): string {

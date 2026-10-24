@@ -83,6 +83,7 @@ export interface MangaSource {
   search(query: string, limit?: number): Promise<SearchResult[]>;
   getChapters(mangaId: string): Promise<ChapterResult[]>;
   getPageUrls(chapterId: string): Promise<string[]>;
+  getMangaUrl?(mangaId: string): string | Promise<string>;
 }
 
 /** Identity helper that gives authors type checking and completion. */

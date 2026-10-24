@@ -124,6 +124,10 @@ export const elftoonSource: MangaSource & { lastMetadata: any } = {
 
     return pages;
   },
+
+  getMangaUrl(mangaId: string) {
+    return `${SITE_URL}/series/${mangaId}`;
+  },
 };
 
 export default elftoonSource;

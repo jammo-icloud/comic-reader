@@ -144,6 +144,10 @@ export const readallcomicsSource: MangaSource & { lastMetadata: any } = {
 
     return pages;
   },
+
+  getMangaUrl(mangaId: string) {
+    return `${SITE_URL}/category/${mangaId}/`;
+  },
 };
 
 export default readallcomicsSource;

@@ -85,6 +85,12 @@ export const omegascansSource: MangaSource & { lastMetadata: any } = {
     const images: string[] = data.chapter?.chapter_data?.images || [];
     return images;
   },
+
+  async getMangaUrl(mangaId: string) {
+    const data = await fetchJson(`${API}/chapter/query?series_id=${mangaId}&perPage=1`);
+    const slug = data.data?.[0]?.series?.series_slug;
+    return slug ? `https://omegascans.org/series/${slug}` : `https://omegascans.org`;
+  },
 };
 
 export default omegascansSource;

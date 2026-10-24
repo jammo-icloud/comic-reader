@@ -4,6 +4,7 @@ import {
   ArrowLeft, LayoutGrid, List, Star, RefreshCw, Loader, MoreHorizontal,
   Play, Search, ArrowUpDown, BookOpen, Pencil, Bell, BellOff, Trash2, X,
   Download, CheckCircle, Package, Heart, Plus, Check, AlertTriangle, Sparkles, Pin,
+  ExternalLink,
 } from 'lucide-react';
 import type { Series, Comic } from '../lib/types';
 import {
@@ -13,6 +14,7 @@ import {
   pinSeries, unpinSeries,
   retryPartialChapters, refreshSeriesMetadata,
   getSimilarSeries, type SimilarSeriesItem,
+  getMangaSourceUrl,
 } from '../lib/api';
 import { saveSeriesOffline, removeSeriesOffline, getOfflineSeriesIds } from '../lib/offline';
 import { useAuth } from '../App';
@@ -701,8 +703,14 @@ export default function SeriesPage() {
               </Button>
             )}
             {isAdmin && series.syncSource && (
-              <span
-                title={`Subscribed via ${series.syncSource.sourceId}`}
+              <button
+                title={`Open on ${series.syncSource.sourceId}`}
+                onClick={() => {
+                  const { sourceId, mangaId } = series.syncSource!;
+                  getMangaSourceUrl(sourceId, mangaId)
+                    .then(({ url }) => window.open(url, '_blank', 'noopener'))
+                    .catch(() => {});
+                }}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -716,11 +724,14 @@ export default function SeriesPage() {
                   fontWeight: 500,
                   textTransform: 'capitalize',
                   whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  border: 'none',
                 }}
               >
                 <Bell size={16} />
                 {series.syncSource.sourceId}
-              </span>
+                <ExternalLink size={12} />
+              </button>
             )}
 
             {/* ⋯ More — admin tools dropdown */}

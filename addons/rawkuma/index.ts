@@ -164,6 +164,10 @@ export const rawkumaSource: MangaSource = {
 
     return urls;
   },
+
+  getMangaUrl(mangaId: string) {
+    return `${SITE_URL}/manga/${mangaId}/`;
+  },
 };
 
 export default rawkumaSource;

@@ -62,6 +62,10 @@ export const malSource: MangaSource = {
   async getPageUrls(_chapterId: string): Promise<string[]> {
     return [];
   },
+
+  getMangaUrl(mangaId: string) {
+    return `https://myanimelist.net/manga/${mangaId}`;
+  },
 };
 
 export default malSource;
