@@ -41,7 +41,7 @@ export const readallcomicsSource: MangaSource & { lastMetadata: any } = {
         sourceName: 'ReadAllComics',
         mangaId: slug,
         title: title.trim(),
-        coverUrl: covers[idx] || null,
+        coverUrl: covers[idx] ? `/api/discover/proxy-image?url=${encodeURIComponent(covers[idx])}` : null,
         description: '',
         status: 'unknown',
         year: null,
