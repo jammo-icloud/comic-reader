@@ -105,6 +105,15 @@ export function cleanupDownloads(): number {
   return cleaned;
 }
 
+function clearNewChapterBadge(mangaId: string) {
+  for (const series of loadAllSeries()) {
+    if (series.syncSource?.mangaId === mangaId && series.newChapterCount) {
+      saveSeries({ ...series, newChapterCount: 0 });
+      break;
+    }
+  }
+}
+
 export function cancelDownload(id: string): boolean {
   const job = loadTask(id);
   if (!job) return false;
@@ -558,7 +567,6 @@ async function processQueue() {
           job.status = 'complete';
           job.progress.current = job.chapters.length;
           job.progress.currentChapter = null;
-          saveTask(job);
           emitProgress(job);
 
           // Note skipped chapters in the job error field (visible in UI)
@@ -570,13 +578,22 @@ async function processQueue() {
           const skipNote = skippedChapters.length > 0 ? ` (${skippedChapters.length} skipped)` : '';
           console.log(`  Download complete: ${job.mangaTitle}${skipNote}. Rescanning...`);
           await rescanLibrary();
+
+          // Auto-clear: remove the task file so completed entries don't
+          // reappear in the notification popup on refresh or restart.
+          deleteTask(job.id);
+
+          // Auto-clear the "new chapters" badge on the series that triggered
+          // this download — the sync already queued these chapters, so the
+          // notification has served its purpose.
+          clearNewChapterBadge(job.mangaDexId);
         }
 
       } catch (err) {
         job.status = 'error';
         job.error = (err as Error).message;
-        saveTask(job);
         emitProgress(job);
+        deleteTask(job.id);
       }
     }
   } finally {

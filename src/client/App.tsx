@@ -118,6 +118,7 @@ function Shell({ authenticated }: { authenticated: boolean }) {
         <Route path="/admin/bible/:seriesId" element={<AuthGuard><BibleEditorPage /></AuthGuard>} />
         <Route path="/series/:id" element={<AuthGuard><SeriesPage /></AuthGuard>} />
         <Route path="/read/:id/*" element={<AuthGuard><ReaderPage /></AuthGuard>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {showChrome && (
         <ProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />

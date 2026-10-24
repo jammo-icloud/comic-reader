@@ -6,10 +6,10 @@ import fs from 'fs';
 import path from 'path';
 import {
   loadAllSeries, writeAllSeries, loadComics, writeComics,
-  loadCollection, loadUserProgress, userDir,
+  loadCollection, loadUserProgress, userDir, saveSeries,
   type SeriesRecord, type ComicRecord, type CollectionEntry, type UserProgressRecord,
 } from './data.js';
-import { cleanupDownloads } from './downloader.js';
+import { cleanupDownloads, getQueue } from './downloader.js';
 import { cleanupConversions } from './converter.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -212,10 +212,30 @@ function cleanupTasks(): number {
   let cleaned = 0;
   cleaned += cleanupDownloads();
   cleaned += cleanupConversions();
+  cleaned += clearStaleNewChapterBadges();
   if (cleaned > 0) {
     console.log(`  Cleaned ${cleaned} completed/stale tasks`);
   }
   return cleaned;
+}
+
+function clearStaleNewChapterBadges(): number {
+  const activeDownloadIds = new Set(
+    getQueue()
+      .filter((j) => j.status === 'queued' || j.status === 'downloading')
+      .map((j) => j.mangaDexId),
+  );
+  let cleared = 0;
+  for (const series of loadAllSeries()) {
+    if (series.newChapterCount && series.newChapterCount > 0) {
+      const hasActiveDownload = series.syncSource?.mangaId && activeDownloadIds.has(series.syncSource.mangaId);
+      if (!hasActiveDownload) {
+        saveSeries({ ...series, newChapterCount: 0 });
+        cleared++;
+      }
+    }
+  }
+  return cleared;
 }
 
 /**
