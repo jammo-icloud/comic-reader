@@ -148,6 +148,7 @@ export default function LibraryToolbar({
           display: 'flex',
           alignItems: 'center',
           gap: 10,
+          flexWrap: 'wrap',
         }}
       >
         {/* Type filter — DS SegmentedControl */}
@@ -172,9 +173,10 @@ export default function LibraryToolbar({
               : <>{totalCount} series</>}
         </span>
 
-        <div style={{ flex: 1 }} />
+        {/* Icon actions — wraps to second row on narrow screens */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
 
-        {/* Inline search input — by-input, appears next to the Search toggle */}
+        {/* Inline search input */}
         {showSearch && (
           <input
             autoFocus
@@ -182,7 +184,7 @@ export default function LibraryToolbar({
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={`Search ${typeFilter === 'comic' ? 'manga' : 'magazines'}…`}
             className="by-input"
-            style={{ width: 200, height: 36 }}
+            style={{ flex: 1, minWidth: 100, maxWidth: 200, height: 36 }}
           />
         )}
 
@@ -381,6 +383,7 @@ export default function LibraryToolbar({
               })}
             </Popover>
           )}
+        </div>
         </div>
       </div>
     </div>
