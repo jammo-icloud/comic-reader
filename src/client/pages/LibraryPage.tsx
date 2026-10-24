@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Download, Pin } from 'lucide-react';
 import type { Series, ContinueReadingItem } from '../lib/types';
@@ -12,6 +12,14 @@ import { CoverThumb, Badge } from '../components/ds';
 const HEADER_PX = 48;
 
 const NSFW_TAGS = new Set(['adult', 'hentai', 'nsfw', 'erotica']);
+
+// Scroll-restoration store — survives component unmount/remount but resets on
+// full page refresh (intentional: a refresh should start at the top).
+const scrollStore: {
+  y: number;
+  search: string;
+  tags: string[];
+} = { y: 0, search: '', tags: [] };
 
 export default function LibraryPage() {
   const [seriesList, setSeriesList] = useState<Series[]>([]);
@@ -31,9 +39,10 @@ export default function LibraryPage() {
     return 'name-asc';
   });
 
-  // Filter state (transient — resets on page change)
-  const [search, setSearch] = useState('');
-  const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
+  // Filter state — restored from the scroll store so the grid matches the
+  // saved scroll position when returning from a series page.
+  const [search, setSearch] = useState(() => scrollStore.search);
+  const [tagFilters, setTagFilters] = useState<Set<string>>(() => new Set(scrollStore.tags));
 
   // Persisted: hide series that are "all caught up" — every chapter read AND
   // no new chapters waiting in the subscription queue. Lets the library feel
@@ -74,7 +83,46 @@ export default function LibraryPage() {
     }
   }, [typeFilter]);
 
+  // Track scroll position. The browser resets scroll to 0 during route
+  // changes (fires a scroll event BEFORE React unmounts the component),
+  // so we keep both the current and previous position to recover from that.
+  useEffect(() => {
+    let prev = 0;
+    let curr = 0;
+    const onScroll = () => {
+      prev = curr;
+      curr = window.scrollY;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      scrollStore.y = curr > 0 ? curr : prev;
+    };
+  }, []);
+
+  const scrollTarget = useRef(scrollStore.y);
+
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Restore scroll position once the page is tall enough. Runs after every
+  // render so it catches the Continue Reading shelf loading after the grid.
+  useEffect(() => {
+    const y = scrollTarget.current;
+    if (y <= 0 || seriesList.length === 0) return;
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    if (maxScroll >= y) {
+      scrollTarget.current = 0;
+      window.scrollTo(0, y);
+    }
+  });
+
+  // Save transient filters on unmount so the grid matches the restored scroll.
+  useEffect(() => {
+    return () => {
+      scrollStore.search = search;
+      scrollStore.tags = [...tagFilters];
+    };
+  });
 
   // Reset tag filters when switching type — tags are type-specific
   useEffect(() => { setTagFilters(new Set()); }, [typeFilter]);
