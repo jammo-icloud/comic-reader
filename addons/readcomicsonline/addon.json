@@ -8,6 +8,7 @@
   "hosts": [
     "readcomicsonline.ru"
   ],
+  "tags": ["western", "comics"],
   "color": "#dc2626",
   "description": "Western comics \u2014 DC, Marvel, Image, and more.",
   "url": "https://readcomicsonline.ru",

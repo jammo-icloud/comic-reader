@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
-import { getPageUrlsFromSource } from './sources/index.js';
+import { getPageUrlsFromSource, getCdnReferer, getSourceHome, getSourceTags } from './sources/index.js';
 import { loadAllSeries, saveSeries, addToCollection, type SeriesRecord } from './data.js';
 import { rescanLibrary } from './scanner.js';
 import { readPartial, writePartial, clearPartial, hasPartial } from './partial.js';
@@ -137,48 +137,13 @@ async function sleep(ms: number) {
 // CDN → Referer mapping. Many image hosts gate on Referer to block hotlinking;
 // without the right Referer they 403 or return empty bytes. Used for both
 // chapter page images and cover-art downloads.
-//
-// When adding a new source: add its CDN hosts here in ONE place. The cover
-// downloader and the chapter-image downloader both read from this table.
-const CDN_REFERERS: Record<string, string> = {
-  'zjcdn.mangafox.me': 'https://fanfox.net/',
-  'fmcdn.mfcdn.net': 'https://fanfox.net/',
-  'mfcdn.net': 'https://fanfox.net/',
-  'zjcdn.mangahere.org': 'https://www.mangatown.com/',
-  'mangahere.org': 'https://www.mangatown.com/',
-  'mangahere.cc': 'https://www.mangatown.com/',
-  'mangatown.com': 'https://www.mangatown.com/',
-  'rcdn.kyut.dev': 'https://rawkuma.net/',
-  'kyut.dev': 'https://rawkuma.net/',
-  'bp.blogspot.com': 'https://readallcomics.com/',
-  'blogger.googleusercontent.com': 'https://readallcomics.com/',
-  'uploads.mangadex.org': 'https://mangadex.org/',
-};
-
-// Per-source homepage — used as a fallback Referer when a cover/page URL hits
-// a CDN we haven't mapped yet. Most hotlink-blockers accept the source's home
-// URL as Referer, so this catches the long tail of CDN moves without needing
-// to chase each one individually.
-const SOURCE_HOME: Record<string, string> = {
-  mangadex: 'https://mangadex.org/',
-  mangafox: 'https://fanfox.net/',
-  mangatown: 'https://www.mangatown.com/',
-  rawkuma: 'https://rawkuma.net/',
-  readallcomics: 'https://readallcomics.com/',
-  readcomicsonline: 'https://readcomicsonline.ru/',
-  archiveorg: 'https://archive.org/',
-};
-
 function refererFor(url: string, sourceId?: string): string {
   try {
     const hostname = new URL(url).hostname;
-    for (const [cdn, ref] of Object.entries(CDN_REFERERS)) {
-      if (hostname.includes(cdn)) return ref;
-    }
+    const cdnRef = getCdnReferer(hostname);
+    if (cdnRef) return cdnRef;
   } catch {}
-  // Fall back to source homepage. Beats sending an empty Referer when the CDN
-  // requires one — most blockers are happy with the source's home URL.
-  return sourceId ? SOURCE_HOME[sourceId] || '' : '';
+  return sourceId ? getSourceHome(sourceId) : '';
 }
 
 /**
@@ -410,12 +375,7 @@ async function processQueue() {
           synopsis: job.metadata?.description || null,
           tags: [
             ...(job.metadata?.tags || []),
-            // Add source-specific tags if not already present
-            ...({
-              mangadex: ['manga'],
-              mangafox: ['manga'],
-              readallcomics: ['western', 'comics'],
-            }[job.metadata?.sourceId || ''] || []),
+            ...getSourceTags(job.metadata?.sourceId || ''),
           ].filter((t, i, a) => a.indexOf(t) === i), // dedupe
           status: job.metadata?.status || null,
           year: job.metadata?.year || null,

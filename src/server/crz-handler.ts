@@ -38,23 +38,10 @@ import {
   type CrzManifestV1,
   type CrzManifestV2,
 } from './crz-format.js';
+import { getSourceTags } from './sources/index.js';
 
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
 const DATA_DIR = process.env.DATA_DIR || './data';
-
-// Source → auto-tags (shared with chapter-upload.ts; v1 only — v2 carries explicit tags)
-const SOURCE_TAGS: Record<string, string[]> = {
-  mangadex: ['manga'],
-  mangafox: ['manga'],
-
-  mangadna: ['manga'],
-  manga18fx: ['manga', 'adult'],
-  omegascans: ['manhwa', 'adult'],
-  hentainexus: ['hentai', 'adult'],
-  weebcentral: ['manga'],
-  readallcomics: ['western', 'comics'],
-  novelcool: ['manga'],
-};
 
 // ============================================================
 // Public types
@@ -157,7 +144,7 @@ async function importCrzV1(
   if (!fs.existsSync(seriesDir)) fs.mkdirSync(seriesDir, { recursive: true });
 
   if (!series) {
-    const autoTags = SOURCE_TAGS[manifest.sourceId] || [];
+    const autoTags = getSourceTags(manifest.sourceId);
     const tags = [...new Set([...(manifest.tags || []), ...autoTags])];
     series = {
       id: seriesId,

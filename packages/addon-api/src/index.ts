@@ -34,6 +34,10 @@ export interface AddonManifest {
   /** Where the add-on talks to — shown to admins, not enforced. */
   hosts?: string[];
   homepage?: string;
+  /** Auto-tags for series created from this source (e.g. ["manga"], ["manhwa", "adult"]). */
+  tags?: string[];
+  /** True for sources that can search but not download (metadata-only fallback). */
+  metadataOnly?: boolean;
   /** Presentation in the Discover source picker (sources only). */
   color?: string;
   description?: string;

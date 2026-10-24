@@ -1,36 +1,20 @@
 /**
- * Source registry. MangaDex and MyAnimeList are built in; every other source
- * is an add-on (see src/server/addons/loader.ts). The functions exported here
- * are the only way the rest of the server talks to sources.
+ * Source registry. Every source is an add-on (see src/server/addons/loader.ts).
+ * The functions exported here are the only way the rest of the server talks to
+ * sources — no file outside this module imports a specific source adapter.
  */
 import type { AddonManifest, MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
-import { mangadexSource } from './mangadex-source.js';
-import { malSource } from './mal-source.js';
-import { loadAddons } from '../addons/loader.js';
+import { loadAddons, getLoadedAddons } from '../addons/loader.js';
 
-type SourceMeta = Pick<AddonManifest, 'color' | 'description' | 'url' | 'favicon' | 'nsfw'>;
+// Pill display order in the Discover picker. Anything not listed sorts after.
+const SOURCE_ORDER = ['mangadex', 'mangafox', 'mangatown', 'rawkuma', 'readallcomics', 'readcomicsonline', 'archiveorg', 'elftoon', 'omegascans', 'mal'];
 
-const builtinMeta: Record<string, SourceMeta> = {
-  mangadex: {
-    color: '#ea580c',
-    description: 'Community-driven scanlations. Largest free manga library.',
-    url: 'https://mangadex.org',
-    favicon: 'https://mangadex.org/favicon.ico',
-  },
-  mal: {
-    color: '#2e51a2',
-    description: 'MyAnimeList metadata only (no downloads).',
-    url: 'https://myanimelist.net',
-    favicon: 'https://myanimelist.net/favicon.ico',
-  },
-};
+const primarySources: MangaSource[] = [];
+const metadataOnlySources: MangaSource[] = [];
+const meta = new Map<string, AddonManifest>();
 
-// Sources with downloadable chapters, in the order the Discover picker shows
-// them. The loader finds add-ons alphabetically; this keeps the established
-// order, with anything new (installed add-ons) appended after it.
-const SOURCE_ORDER = ['mangadex', 'mangafox', 'mangatown', 'rawkuma', 'readallcomics', 'readcomicsonline', 'archiveorg', 'elftoon', 'omegascans'];
-const primarySources: MangaSource[] = [mangadexSource];
-const meta = new Map<string, SourceMeta>(Object.entries(builtinMeta));
+// CDN hostname → Referer URL, built from every addon's hosts[] + url.
+const cdnRefererMap = new Map<string, string>();
 
 /**
  * Register add-on sources. Called at startup before the server listens, and
@@ -38,24 +22,36 @@ const meta = new Map<string, SourceMeta>(Object.entries(builtinMeta));
  */
 export async function initSources(): Promise<void> {
   primarySources.length = 0;
-  primarySources.push(mangadexSource);
-  for (const id of [...meta.keys()]) if (!(id in builtinMeta)) meta.delete(id);
+  metadataOnlySources.length = 0;
+  meta.clear();
+  cdnRefererMap.clear();
+
   for (const addon of await loadAddons()) {
     if (!addon.source) continue;
-    if (primarySources.some((s) => s.id === addon.source!.id)) {
-      console.warn(`  add-on ${addon.manifest.id} shadows a built-in source — skipped`);
+    if (primarySources.some((s) => s.id === addon.source!.id) || metadataOnlySources.some((s) => s.id === addon.source!.id)) {
+      console.warn(`  add-on ${addon.manifest.id} shadows an existing source — skipped`);
       continue;
     }
-    primarySources.push(addon.source);
     meta.set(addon.source.id, addon.manifest);
+    if (addon.manifest.metadataOnly) {
+      metadataOnlySources.push(addon.source);
+    } else {
+      primarySources.push(addon.source);
+    }
+    // Build CDN referer map from hosts[] → url
+    const referer = addon.manifest.url ? addon.manifest.url.replace(/\/?$/, '/') : '';
+    for (const host of addon.manifest.hosts || []) {
+      if (referer) cdnRefererMap.set(host, referer);
+    }
   }
+
   const rank = (id: string) => { const i = SOURCE_ORDER.indexOf(id); return i < 0 ? SOURCE_ORDER.length : i; };
   primarySources.sort((x, y) => rank(x.id) - rank(y.id));
+  metadataOnlySources.sort((x, y) => rank(x.id) - rank(y.id));
 }
 
-// All sources including metadata-only (MAL)
 function allSources(): MangaSource[] {
-  return [...primarySources, malSource];
+  return [...primarySources, ...metadataOnlySources];
 }
 
 export function getSource(id: string): MangaSource | undefined {
@@ -81,10 +77,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
 }
 
 /**
- * Search primary sources first. If zero results, fallback to MAL.
+ * Search primary sources first. If zero results, fallback to metadata-only sources.
  */
 export async function searchAllSources(query: string, limit = 20): Promise<SearchResult[]> {
-  // Search primary sources in parallel
   const results = await Promise.allSettled(
     primarySources.map((s) =>
       withTimeout(
@@ -105,17 +100,19 @@ export async function searchAllSources(query: string, limit = 20): Promise<Searc
     }
   }
 
-  // If no results from primary sources, try MAL as fallback
-  if (allResults.length === 0) {
-    console.log(`  No results from primary sources, trying MAL...`);
-    try {
-      const malResults = await withTimeout(
-        malSource.search(query, limit),
-        10000,
-        [] as SearchResult[],
-      );
-      allResults.push(...malResults);
-    } catch {}
+  // If no results from primary sources, try metadata-only sources as fallback
+  if (allResults.length === 0 && metadataOnlySources.length > 0) {
+    console.log(`  No results from primary sources, trying metadata-only sources...`);
+    for (const s of metadataOnlySources) {
+      try {
+        const fallbackResults = await withTimeout(
+          s.search(query, limit),
+          10000,
+          [] as SearchResult[],
+        );
+        allResults.push(...fallbackResults);
+      } catch {}
+    }
   }
 
   return allResults;
@@ -131,6 +128,40 @@ export async function getPageUrlsFromSource(sourceId: string, chapterId: string)
   const source = getSource(sourceId);
   if (!source) throw new Error(`Unknown source: ${sourceId}`);
   return source.getPageUrls(chapterId);
+}
+
+// ---------------------------------------------------------------------------
+// Cross-cutting helpers — derived from loaded addon manifests
+// ---------------------------------------------------------------------------
+
+/**
+ * Look up a CDN Referer for a hostname. Matches partial hostnames (e.g.
+ * "mfcdn.net" matches "fmcdn.mfcdn.net"). Returns empty string if no match.
+ */
+export function getCdnReferer(hostname: string): string {
+  // Direct match first
+  const direct = cdnRefererMap.get(hostname);
+  if (direct) return direct;
+  // Partial match (e.g. hostname "fmcdn.mfcdn.net" contains "mfcdn.net")
+  for (const [cdn, ref] of cdnRefererMap) {
+    if (hostname.includes(cdn)) return ref;
+  }
+  return '';
+}
+
+/**
+ * Get the source's homepage URL (used as a fallback Referer).
+ */
+export function getSourceHome(sourceId: string): string {
+  const manifest = meta.get(sourceId);
+  return manifest?.url ? manifest.url.replace(/\/?$/, '/') : '';
+}
+
+/**
+ * Auto-tags for a source, from its addon manifest.
+ */
+export function getSourceTags(sourceId: string): string[] {
+  return meta.get(sourceId)?.tags || [];
 }
 
 export type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';

@@ -5,6 +5,7 @@ import fs from 'fs';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { slugify, loadAllSeries, saveSeries, loadComics, writeComics, addToCollection, NSFW_TAGS, type SeriesRecord, type ComicRecord } from '../data.js';
+import { getSourceTags } from '../sources/index.js';
 import { shortHash } from '../hash.js';
 import { importCrz } from '../crz-handler.js';
 
@@ -91,23 +92,10 @@ router.post('/import/chapter-images', upload.array('images', 500), async (req, r
     // Get page count from the raw PDF bytes
     const pageCount = pdf.getPageCount();
 
-    // Auto-tag based on source
-    const SOURCE_TAGS: Record<string, string[]> = {
-      mangadex: ['manga'],
-      mangafox: ['manga'],
-
-      mangadna: ['manga'],
-      manga18fx: ['manga', 'adult'],
-      omegascans: ['manhwa', 'adult'],
-      hentainexus: ['hentai', 'adult'],
-      weebcentral: ['manga'],
-      readallcomics: ['western', 'comics'],
-    };
-
     // Create/update series record
     let series = loadAllSeries().find((s) => s.id === seriesId);
     if (!series) {
-      const autoTags = SOURCE_TAGS[sourceId] || [];
+      const autoTags = getSourceTags(sourceId);
       series = {
         id: seriesId,
         type: 'comic',

@@ -63,3 +63,5 @@ export const malSource: MangaSource = {
     return [];
   },
 };
+
+export default malSource;

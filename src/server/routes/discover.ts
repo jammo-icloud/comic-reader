@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { searchAllSources, getChaptersFromSource, getPageUrlsFromSource, getAllSources, getSource } from '../sources/index.js';
+import { searchAllSources, getChaptersFromSource, getPageUrlsFromSource, getAllSources, getSource, getCdnReferer } from '../sources/index.js';
 import { queueDownload, getQueue, removeFromQueue, cancelDownload, onProgress } from '../downloader.js';
 import { loadAllSeries, isInCollection, NSFW_TAGS } from '../data.js';
 
@@ -74,23 +74,10 @@ router.get('/discover/chapters/:sourceId/:mangaId', async (req, res) => {
   }
 });
 
-// Known CDN → referer mappings
-const cdnReferers: Record<string, string> = {
-  'uploads.mangadex.org': 'https://mangadex.org/',
-  'fmcdn.mfcdn.net': 'https://fanfox.net/',
-  'zjcdn.mangafox.me': 'https://fanfox.net/',
-  'mfcdn.net': 'https://fanfox.net/',
-  'elftoon.net': 'https://elftoon.net/',
-  'media.omegascans.org': 'https://omegascans.org/',
-};
-
 function getReferer(url: string): string {
   try {
     const hostname = new URL(url).hostname;
-    for (const [cdn, referer] of Object.entries(cdnReferers)) {
-      if (hostname.includes(cdn)) return referer;
-    }
-    return new URL(url).origin + '/';
+    return getCdnReferer(hostname) || new URL(url).origin + '/';
   } catch {
     return '';
   }

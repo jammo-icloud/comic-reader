@@ -1,0 +1,18 @@
+{
+  "id": "mal",
+  "name": "MyAnimeList",
+  "version": "1.0.0",
+  "api": 1,
+  "kind": "source",
+  "main": "index.js",
+  "hosts": [
+    "api.jikan.moe",
+    "cdn.myanimelist.net"
+  ],
+  "tags": [],
+  "metadataOnly": true,
+  "color": "#2e51a2",
+  "description": "MyAnimeList metadata only (no downloads).",
+  "url": "https://myanimelist.net",
+  "favicon": "https://myanimelist.net/favicon.ico"
+}

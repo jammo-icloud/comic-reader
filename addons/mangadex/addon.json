@@ -1,0 +1,18 @@
+{
+  "id": "mangadex",
+  "name": "MangaDex",
+  "version": "1.0.0",
+  "api": 1,
+  "kind": "source",
+  "main": "index.js",
+  "hosts": [
+    "mangadex.org",
+    "uploads.mangadex.org",
+    "api.mangadex.org"
+  ],
+  "tags": ["manga"],
+  "color": "#ea580c",
+  "description": "Community-driven scanlations. Largest free manga library.",
+  "url": "https://mangadex.org",
+  "favicon": "https://mangadex.org/favicon.ico"
+}

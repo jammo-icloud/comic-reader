@@ -1,5 +1,5 @@
 import type { MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
-import { searchManga, getChapterList, getChapterPages, pageImageUrl } from '../mangadex.js';
+import { searchManga, getChapterList, getChapterPages, pageImageUrl } from './mangadex-api.js';
 
 export const mangadexSource: MangaSource = {
   id: 'mangadex',
@@ -37,3 +37,5 @@ export const mangadexSource: MangaSource = {
     return pages.map((filename) => pageImageUrl(baseUrl, hash, filename));
   },
 };
+
+export default mangadexSource;

@@ -10,6 +10,7 @@
     "api.omegascans.org",
     "media.omegascans.org"
   ],
+  "tags": ["manhwa", "adult"],
   "color": "#e11d48",
   "nsfw": true,
   "description": "Adult manhwa and webtoons.",

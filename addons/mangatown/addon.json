@@ -10,6 +10,7 @@
     "zjcdn.mangahere.org",
     "mangahere.cc"
   ],
+  "tags": ["manga"],
   "color": "#0284c7",
   "description": "Large manga library. Predictable image URLs for fast downloads.",
   "url": "https://www.mangatown.com",
