@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Loader, Check, ExternalLink, Eye, X, Compass, AlertCircle, BookOpen, Download, Puzzle, Heart, Library as LibraryIcon } from 'lucide-react';
+import { Search, Loader, Check, Eye, X, Compass, AlertCircle, BookOpen, Download, Puzzle, Heart, Library as LibraryIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { SearchResult, ChapterResult, RecommendedItem, Series } from '../lib/types';
 import { discoverSearch, discoverChapters, addToCollection, getComics, getCatalog, getRecommended, getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
-import { useSources, HAKUNEKO_SITES, HAKUNEKO_URL } from '../lib/browser-sources/registry';
+import { useSources } from '../lib/browser-sources/registry';
 import type { SourceConfig } from '../lib/browser-sources/types';
 import MangaSearchCard from '../components/MangaSearchCard';
 import ChapterPicker from '../components/ChapterPicker';
@@ -462,53 +462,6 @@ export default function DiscoverPage() {
                 </div>
               </section>
 
-              {/* === HakuNeko — alternative for sites the extension doesn't cover === */}
-              <section className="pt-5 border-t border-gray-200 dark:border-gray-800">
-                <div className="flex items-start gap-3">
-                  <span className="shrink-0 w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 flex items-center justify-center">
-                    <ExternalLink size={18} />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold">HakuNeko desktop app</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      Standalone app for sites we can't reach directly. Download chapters with HakuNeko, then use the
-                      Import page to bring them into your library.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 pl-12 space-y-2">
-                  <a
-                    href={HAKUNEKO_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
-                  >
-                    Download HakuNeko <ExternalLink size={14} />
-                  </a>
-                  <details className="pt-1">
-                    <summary className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer select-none">
-                      Sites HakuNeko covers
-                    </summary>
-                    <div className="space-y-1.5 mt-2">
-                      {HAKUNEKO_SITES.map((site) => (
-                        <a
-                          key={site.name}
-                          href={site.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-between p-2.5 rounded-md bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                        >
-                          <div>
-                            <span className="text-xs font-medium">{site.name}</span>
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400">{site.description}</p>
-                          </div>
-                          <ExternalLink size={12} className="text-gray-400 shrink-0" />
-                        </a>
-                      ))}
-                    </div>
-                  </details>
-                </div>
-              </section>
 
             </div>
           </div>
@@ -869,7 +822,7 @@ function PreSearchHint({
           onClick={onShowMoreSites}
           className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-accent transition-colors"
         >
-          <Eye size={14} /> More sources (extension &amp; HakuNeko)
+          <Eye size={14} /> More sources (browser extension)
         </button>
       </div>
     </div>

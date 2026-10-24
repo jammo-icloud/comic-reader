@@ -33,8 +33,6 @@ interface SearchResultItem {
   year: number | null;
 }
 
-// Sources that can't be subscribed to (one-shot galleries, no "new chapters")
-const UNSUPPORTED_SOURCES = new Set(['hentainexus']);
 
 export default function SyncSourcePicker({ seriesId, seriesName, currentSource, onClose, onSaved }: SyncSourcePickerProps) {
   const [sources, setSources] = useState<SourceInfo[]>([]);
@@ -47,7 +45,7 @@ export default function SyncSourcePicker({ seriesId, seriesName, currentSource, 
 
   useEffect(() => {
     getAvailableSources().then((list) => {
-      setSources(list.filter((s) => !UNSUPPORTED_SOURCES.has(s.id)));
+      setSources(list.filter((s) => !(s as any).metadataOnly));
     });
   }, []);
 

@@ -240,11 +240,10 @@ router.post('/import/crz', crzUpload.single('file'), async (req, res) => {
         if (manifest.formatVersion === 2) {
           isNsfw = manifest.nsfw === true;
         } else {
-          const tags: string[] = [...(manifest.tags || [])];
-          const sourceId = manifest.sourceId?.toLowerCase();
-          if (sourceId === 'hentainexus' || sourceId === 'manga18fx' || sourceId === 'omegascans') {
-            tags.push('adult');
-          }
+          const tags: string[] = [
+            ...(manifest.tags || []),
+            ...getSourceTags(manifest.sourceId || ''),
+          ];
           isNsfw = tags.some((t: string) => NSFW_TAGS.has(t.toLowerCase()));
         }
         if (isNsfw) {

@@ -80,16 +80,3 @@ export async function getSourceConfigAsync(id: string): Promise<SourceConfig | u
 // Preload at module import time so the first render has data ready
 fetchSources();
 
-// --- HakuNeko reference list (still hardcoded — these are external links, not sources we download from) ---
-
-export const HAKUNEKO_SITES = [
-  { name: 'MangaHub', url: 'https://mangahub.io', description: 'Large collection, GraphQL API' },
-  { name: 'MangaFire', url: 'https://mangafire.to', description: 'Modern reader, multiple formats' },
-  { name: 'MangaFreak', url: 'https://mangafreak.me', description: 'Popular manga downloader' },
-  { name: 'MangaDNA', url: 'https://mangadna.com', description: 'WordPress-based library' },
-  { name: 'KaliScan', url: 'https://kaliscan.io', description: 'Manhua and manga scans' },
-  { name: 'HentaiNexus', url: 'https://hentainexus.com', description: 'Curated adult manga (NSFW)' },
-  { name: 'OmegaScans', url: 'https://omegascans.org', description: 'Webtoons and manga (NSFW)' },
-];
-
-export const HAKUNEKO_URL = 'https://github.com/manga-download/hakuneko';

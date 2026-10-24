@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "api": 1,
   "kind": "source",
+  "order": 8,
   "main": "index.js",
   "hosts": [
     "elftoon.net",

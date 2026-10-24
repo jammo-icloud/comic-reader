@@ -6,8 +6,7 @@
 import type { AddonManifest, MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
 import { loadAddons, getLoadedAddons } from '../addons/loader.js';
 
-// Pill display order in the Discover picker. Anything not listed sorts after.
-const SOURCE_ORDER = ['mangadex', 'mangafox', 'mangatown', 'rawkuma', 'readallcomics', 'readcomicsonline', 'archiveorg', 'elftoon', 'omegascans', 'mal'];
+const MAX_ORDER = 9999;
 
 const primarySources: MangaSource[] = [];
 const metadataOnlySources: MangaSource[] = [];
@@ -45,9 +44,11 @@ export async function initSources(): Promise<void> {
     }
   }
 
-  const rank = (id: string) => { const i = SOURCE_ORDER.indexOf(id); return i < 0 ? SOURCE_ORDER.length : i; };
-  primarySources.sort((x, y) => rank(x.id) - rank(y.id));
-  metadataOnlySources.sort((x, y) => rank(x.id) - rank(y.id));
+  const rank = (id: string) => meta.get(id)?.order ?? MAX_ORDER;
+  const byRankThenName = (a: MangaSource, b: MangaSource) =>
+    rank(a.id) - rank(b.id) || a.name.localeCompare(b.name);
+  primarySources.sort(byRankThenName);
+  metadataOnlySources.sort(byRankThenName);
 }
 
 function allSources(): MangaSource[] {
@@ -58,15 +59,19 @@ export function getSource(id: string): MangaSource | undefined {
   return allSources().find((s) => s.id === id);
 }
 
-export function getAllSources(): { id: string; name: string; color: string; description: string; url: string; favicon: string }[] {
-  return allSources().map((s) => ({
-    id: s.id,
-    name: s.name,
-    color: meta.get(s.id)?.color || '#64748b',
-    description: meta.get(s.id)?.description || '',
-    url: meta.get(s.id)?.url || '',
-    favicon: meta.get(s.id)?.favicon || '',
-  }));
+export function getAllSources(): { id: string; name: string; color: string; description: string; url: string; favicon: string; metadataOnly: boolean }[] {
+  return allSources().map((s) => {
+    const m = meta.get(s.id);
+    return {
+      id: s.id,
+      name: s.name,
+      color: m?.color || '#64748b',
+      description: m?.description || '',
+      url: m?.url || '',
+      favicon: m?.favicon || '',
+      metadataOnly: !!m?.metadataOnly,
+    };
+  });
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {

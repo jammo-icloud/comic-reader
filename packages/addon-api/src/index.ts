@@ -38,6 +38,8 @@ export interface AddonManifest {
   tags?: string[];
   /** True for sources that can search but not download (metadata-only fallback). */
   metadataOnly?: boolean;
+  /** Display order in the Discover source picker. Lower = first. Unset sorts alphabetically after ordered addons. */
+  order?: number;
   /** Presentation in the Discover source picker (sources only). */
   color?: string;
   description?: string;

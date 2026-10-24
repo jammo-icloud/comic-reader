@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "api": 1,
   "kind": "source",
+  "order": 6,
   "main": "index.js",
   "hosts": [
     "readcomicsonline.ru"
