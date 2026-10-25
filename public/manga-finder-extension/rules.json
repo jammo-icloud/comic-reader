@@ -40,5 +40,19 @@
       "urlFilter": "*://imgx.mghcdn.com/*",
       "resourceTypes": ["image"]
     }
+  },
+  {
+    "id": 4,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://elftoon.net/" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "*://elftoon.net/uploads/*",
+      "resourceTypes": ["image"]
+    }
   }
 ]
