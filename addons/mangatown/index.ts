@@ -52,7 +52,7 @@ export const mangatownSource: MangaSource = {
           !normalizedCover ||
           /manga_cover\.jpg|grey\.gif|loading\.gif|placeholder/i.test(normalizedCover)
             ? null
-            : `/api/discover/proxy-image?url=${encodeURIComponent(normalizedCover)}`,
+            : normalizedCover,
         description: '',
         status: 'unknown',
         year: null,

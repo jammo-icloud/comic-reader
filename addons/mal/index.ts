@@ -37,8 +37,7 @@ export const malSource: MangaSource = {
       const title = titleObj?.title || r.title || 'Untitled';
 
       const imageUrl = r.images?.jpg?.large_image_url || r.images?.jpg?.image_url || null;
-      // Proxy through our server to avoid CORS
-      const coverUrl = imageUrl ? `/api/discover/proxy-image?url=${encodeURIComponent(imageUrl)}` : null;
+      const coverUrl = imageUrl || null;
 
       return {
         sourceId: 'mal',

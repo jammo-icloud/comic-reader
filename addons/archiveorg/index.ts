@@ -179,7 +179,7 @@ export const archiveorgSource: MangaSource = {
         sourceName: 'Internet Archive',
         mangaId: d.identifier,
         title: d.title || d.identifier,
-        coverUrl: `/api/discover/proxy-image?url=${encodeURIComponent(`${API}/services/img/${d.identifier}`)}`,
+        coverUrl: `${API}/services/img/${d.identifier}`,
         description: typeof desc === 'string' ? desc.replace(/<[^>]+>/g, '').slice(0, 400) : '',
         status: 'completed',
         year: year && year >= 1900 && year <= 2100 ? year : null,

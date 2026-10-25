@@ -20,7 +20,7 @@ async function fetchWithRateLimit(url: string, asJson = false): Promise<string> 
 }
 
 function coverUrlFor(slug: string): string {
-  return `/api/discover/proxy-image?url=${encodeURIComponent(`${SITE_URL}/uploads/manga/${slug}/cover/cover_250x350.jpg`)}`;
+  return `${SITE_URL}/uploads/manga/${slug}/cover/cover_250x350.jpg`;
 }
 
 export const readcomicsonlineSource: MangaSource = {

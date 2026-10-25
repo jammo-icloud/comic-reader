@@ -82,7 +82,7 @@ export const rawkumaSource: MangaSource = {
         sourceName: 'Rawkuma',
         mangaId: slug,
         title: title.replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim(),
-        coverUrl: coverUrl ? `/api/discover/proxy-image?url=${encodeURIComponent(coverUrl)}` : null,
+        coverUrl: coverUrl || null,
         description: desc.replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim().slice(0, 400),
         status: 'unknown',
         year: null,

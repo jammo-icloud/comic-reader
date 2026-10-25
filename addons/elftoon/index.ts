@@ -48,9 +48,7 @@ export const elftoonSource: MangaSource & { lastMetadata: any } = {
       sourceName: 'Elf Toon',
       mangaId: `comic/${s.urlSlug || s.slug}`,
       title: s.title,
-      coverUrl: s.coverImage
-        ? `/api/discover/proxy-image?url=${encodeURIComponent(`${SITE_URL}${s.coverImage}`)}`
-        : null,
+      coverUrl: s.coverImage ? `${SITE_URL}${s.coverImage}` : null,
       description: '',
       status: s.status?.toLowerCase() || 'unknown',
       year: null,

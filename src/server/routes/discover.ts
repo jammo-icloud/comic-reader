@@ -46,6 +46,9 @@ router.get('/discover/search', async (req, res) => {
         null;
       return {
         ...r,
+        coverUrl: r.coverUrl && r.coverUrl.startsWith('http')
+          ? `/api/discover/proxy-image?url=${encodeURIComponent(r.coverUrl)}`
+          : r.coverUrl,
         localSeriesId: localId,
         inCollection: localId ? isInCollection(username, localId) : false,
       };
@@ -67,6 +70,10 @@ router.get('/discover/chapters/:sourceId/:mangaId', async (req, res) => {
     // Include metadata if the source extracted it (e.g., ReadAllComics)
     const metadata = (source as any)?.lastMetadata || null;
     if (source) (source as any).lastMetadata = null; // Reset after reading
+
+    if (metadata?.coverUrl && metadata.coverUrl.startsWith('http')) {
+      metadata.coverUrl = `/api/discover/proxy-image?url=${encodeURIComponent(metadata.coverUrl)}`;
+    }
 
     res.json({ chapters, metadata });
   } catch (err) {

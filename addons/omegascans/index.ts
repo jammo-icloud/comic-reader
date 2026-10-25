@@ -44,9 +44,7 @@ export const omegascansSource: MangaSource & { lastMetadata: any } = {
       sourceName: 'Omega Scans',
       mangaId: String(s.id),
       title: s.title,
-      coverUrl: s.thumbnail
-        ? `/api/discover/proxy-image?url=${encodeURIComponent(s.thumbnail)}`
-        : null,
+      coverUrl: s.thumbnail || null,
       description: s.description?.replace(/\n/g, ' ').trim() || '',
       status: s.status?.toLowerCase() || 'unknown',
       year: null,

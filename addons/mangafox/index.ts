@@ -34,7 +34,7 @@ export const mangafoxSource: MangaSource & { lastMetadata: any } = {
       const coverRegex = new RegExp(`<img[^>]*class="manga-list-4-cover"[^>]*src="([^"]+)"[^>]*alt="${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'i');
       const coverMatch = coverRegex.exec(html);
       const coverUrl = coverMatch
-        ? `/api/discover/proxy-image?url=${encodeURIComponent(coverMatch[1].startsWith('//') ? 'https:' + coverMatch[1] : coverMatch[1])}`
+        ? (coverMatch[1].startsWith('//') ? 'https:' + coverMatch[1] : coverMatch[1])
         : null;
 
       items.push({
