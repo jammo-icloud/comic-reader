@@ -114,8 +114,9 @@ export const elftoonSource: MangaSource & { lastMetadata: any } = {
     let match;
     while ((match = regex.exec(html)) !== null) {
       const path = match[0];
-      // Only chapter page images (contain /c{digits}/p{digits}), not covers
-      if (/\/c\d+\/p\d+/.test(path) && !pages.includes(path)) {
+      // Page images live in a digit-based subfolder with a p-prefixed filename:
+      //   old: /c88178/p0001-hash.webp   new: /0056/p-uuid.webp
+      if (/\/c?\d+\/p/.test(path) && !pages.includes(path)) {
         pages.push(`${SITE_URL}${path}`);
       }
     }
