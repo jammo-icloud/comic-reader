@@ -1,0 +1,17 @@
+{
+  "id": "mangasushi",
+  "name": "Manga Sushi",
+  "version": "1.0.0",
+  "api": 1,
+  "kind": "source",
+  "order": 11,
+  "main": "index.js",
+  "hosts": [
+    "mangasushi.org"
+  ],
+  "tags": ["manga"],
+  "color": "#ef4444",
+  "description": "Scanlation site running WordPress Madara. Small curated library.",
+  "url": "https://mangasushi.org",
+  "favicon": "https://mangasushi.org/wp-content/uploads/2022/05/cropped-PNG-Transparent-Background-300x300-1-32x32.png"
+}
