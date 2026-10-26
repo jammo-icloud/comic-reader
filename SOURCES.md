@@ -454,6 +454,48 @@ class. Bindery addons implement the `MangaSource` interface directly.
 | `LineWebtoon` | LINE Webtoon | Official API. Needs authentication for premium content. |
 | Base `Connector` | Custom site | No template shortcut — port each method by inspecting the site's DOM and APIs. |
 
+### WordPress Madara gotchas
+
+Madara is the most common CMS in the Hakuneko catalog (~100 connectors extend
+`WordPressMadara`). The template makes porting look trivial — most Hakuneko
+connectors are <15 lines — but the Madara HTML has quirks that will trip up
+naive regex parsing. Lessons from the MangaSushi port:
+
+**1. `post-title` is a wrapper div, not the heading.**
+The search results use `<div class="post-title"><h3 class="h4"><a href="...">Title</a></h3></div>`.
+Match on `class="[^"]*post-title` to find the container, then extract the `<a>`
+inside it. Don't look for `h3.post-title` — that class is on the div.
+
+**2. Images use `data-src`, and it contains whitespace.**
+Page images are lazy-loaded: the real URL is in `data-src`, while `src` points
+to a 1×1 placeholder (`/themes/madara/images/dflazy.jpg`). Worse, some Madara
+installs pad `data-src` with newlines and tabs:
+```html
+<img data-src="			
+			https://example.com/.../01.jpg" class="wp-manga-chapter-img ...">
+```
+Always strip whitespace: `.replace(/\s+/g, '')` on the extracted URL.
+
+**3. Chapters need the AJAX endpoint, not the static page.**
+The series page may show only "Show more" with a few chapters. The full list
+comes from `POST /manga/{slug}/ajax/chapters/` — returns an HTML fragment of
+`li.wp-manga-chapter` items. Some older Madara installs use the legacy endpoint
+(`POST /wp-admin/admin-ajax.php` with `action=manga_get_chapters`); try the new
+endpoint first, fall back only if it 404s.
+
+**4. Sub-chapter numbering uses dashes, not dots.**
+Chapter 2.1 lives at `/chapter-2-1/`, not `/chapter-2.1/`. Parse the path as
+`chapter-(\d+(?:-\d+)?)` and convert dashes to dots for the chapter number.
+
+**5. Cover images in search results may be placeholders.**
+When a series has no uploaded cover, Madara returns its lazy-load placeholder
+image. Filter out URLs containing `/themes/madara/images/`.
+
+**6. Search is standard WordPress query-string.**
+`?s={query}&post_type=wp-manga` — no nonce, no AJAX. Results are in
+`.c-tabs-item .row.c-tabs-item__content` blocks. This is the same across all
+Madara sites.
+
 ### What won't port (extension-only)
 
 Some Hakuneko connectors rely on executing JavaScript in a browser window
