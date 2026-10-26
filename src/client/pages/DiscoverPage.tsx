@@ -7,7 +7,7 @@ import { discoverSearch, discoverChapters, addToCollection, getComics, getCatalo
 import { useSources } from '../lib/browser-sources/registry';
 import type { SourceConfig } from '../lib/browser-sources/types';
 import MangaSearchCard from '../components/MangaSearchCard';
-import ChapterPicker from '../components/ChapterPicker';
+import MangaDetailSheet from '../components/MangaDetailSheet';
 import StickyToolbar from '../components/StickyToolbar';
 
 // The global Bindery header is 48px tall — anchor the sticky source rail below it.
@@ -168,10 +168,16 @@ export default function DiscoverPage() {
       setChapters(ch);
       if (!Array.isArray(data) && data.metadata) {
         const m = data.metadata;
-        if (m.description && !manga.description) manga.description = m.description;
-        if (m.genres?.length && !manga.tags?.length) manga.tags = m.genres;
-        if (m.coverUrl && !manga.coverUrl) manga.coverUrl = m.coverUrl;
-        if (m.year && !manga.year) manga.year = m.year;
+        setSelectedManga((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            description: prev.description || m.description || prev.description,
+            tags: prev.tags?.length ? prev.tags : m.genres?.length ? m.genres : prev.tags,
+            coverUrl: prev.coverUrl || m.coverUrl || prev.coverUrl,
+            year: prev.year || m.year || prev.year,
+          };
+        });
       }
     } catch {
       setChapters([]);
@@ -469,9 +475,9 @@ export default function DiscoverPage() {
         document.body,
       )}
 
-      {/* Chapter Picker */}
+      {/* Manga detail sheet — shows cover, description, genres, chapters */}
       {selectedManga && (
-        <ChapterPicker
+        <MangaDetailSheet
           manga={selectedManga}
           chapters={chapters}
           loading={loadingChapters}
