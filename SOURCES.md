@@ -1,139 +1,189 @@
 # Sources
 
-Bindery pulls from two tiers of sources: **server-side HTTP** (the
-NAS does the fetching, listed below) and the **manga-finder Chrome
-extension** (browser-side, for sites that need a real session — Cloudflare,
-encrypted-page sources, sites with strict bot detection). Discovery in
-the app surfaces both transparently.
+Bindery uses an **addon system** for all content sources. Each source is a
+self-contained folder under `addons/<name>/` with an `addon.json` manifest and
+a TypeScript module implementing the `MangaSource` interface from
+`@bindery/addon-api`.
 
-When a server-side source breaks (CDN rotation, regex drift, anti-bot
-update), partial-chapter tracking now keeps any pages that did succeed
-and exposes a "Retry partial chapters" admin action — so a transient
-failure doesn't strand your library.
+The same addon code runs in two runtimes:
 
-## Server-side sources
+- **Server** — the Bindery server loads addons from `addons/` at startup.
+  Search, chapter listing, and page-image fetching happen server-side over HTTP.
+- **Chrome extension** (`manga-finder`) — Vite aliases (`@addons/*`) resolve
+  to the same `addons/` directory, so shared addons compile into the extension
+  bundle. The extension also has its own connectors for sites that need a real
+  browser session (Cloudflare, encrypted pages, strict bot detection).
 
-Adapters live in `src/server/sources/`. Search/chapters/pages are HTTP-
-only — no headless browser, no JS execution. Adapter contract: `search`,
-`getChapters`, `getPageUrls` returning lists; downloader handles the
-per-page image fetch + PDF assembly.
+## Addon catalog
 
-| Source | File | Type | Notes |
-|---|---|---|---|
-| **MangaDex** | `mangadex-source.ts` | REST API | Best of the lot. Community scanlations, official API, stable URLs. Cover proxy via `/api/discover/cover/`. |
-| **MangaFox** (fanfox.net) | `mangafox.ts` | HTML scrape | Long-running. Image CDNs gated on Referer (zjcdn.mangafox.me, fmcdn.mfcdn.net). |
-| **MangaTown** | `mangatown.ts` | HTML scrape | Same operator as MangaFox. CDN occasionally 403s individual pages — partial-chapter tracking catches these and offers retry. Multi-pattern image-URL fallback survives CDN rotation. |
-| **Rawkuma** | `rawkuma.ts` | HTML scrape | Raw Japanese manga, often before translations. Pairs naturally with the Translate feature (Ollama vision model). |
-| **ReadAllComics** | `readallcomics.ts` | HTML scrape | Western comics — DC, Marvel, Image. Images on Blogger CDN (`bp.blogspot.com`, `blogger.googleusercontent.com`). |
-| **ReadComicsOnline** | `readcomicsonline.ts` | HTML scrape | Western comics, alternate library. |
-| **Archive.org** | `archiveorg.ts` | REST API | Internet Archive — public-domain comics, magazines, manga collections. Single-file downloads (PDF/CBR/CBZ/EPUB) instead of per-page assembly. |
-| **MyAnimeList** (Jikan) | `mal-source.ts` | REST API | **Metadata only** — covers, scores, synopsis, English titles, tags. No content. Used for enrichment and as fallback search when no other source matches. |
+Every addon lives in `addons/<id>/`. The manifest declares the source's CDN
+hosts, auto-tags, display order, and presentation metadata — the server and
+extension derive CDN referer mappings and tag assignments from the manifest
+rather than maintaining separate hardcoded tables.
 
-### Disabled
+| Source | Addon | Tags | Type | Shared | Notes |
+|---|---|---|---|---|---|
+| **MangaDex** | `mangadex` | manga | REST API | server | Community scanlations. Official API, stable URLs. Cover proxy via `/api/discover/cover/`. Extension has its own browser-optimized connector. |
+| **MangaFox** (fanfox.net) | `mangafox` | manga | HTML scrape | both | Long-running. Image CDNs gated on Referer (`zjcdn.mangafox.me`, `fmcdn.mfcdn.net`). |
+| **MangaTown** | `mangatown` | manga | HTML scrape | both | Same operator as MangaFox. CDN occasionally 403s individual pages — partial-chapter tracking catches these. Multi-pattern image-URL fallback survives CDN rotation. |
+| **Rawkuma** | `rawkuma` | manga | HTML scrape | both | Raw Japanese manga, often before translations. Pairs with the Translate feature (Ollama vision model). |
+| **ReadAllComics** | `readallcomics` | western, comics | HTML scrape | both | DC, Marvel, Image. Images on Blogger CDN (`bp.blogspot.com`). |
+| **ReadComicsOnline** | `readcomicsonline` | western, comics | HTML scrape | both | Western comics, alternate library. |
+| **Archive.org** | `archiveorg` | — | REST API | both | Public-domain comics, magazines, manga. Single-file downloads (PDF/CBR/CBZ/EPUB) instead of per-page assembly. |
+| **Elf Toon** | `elftoon` | manhwa | HTML scrape | both | Manhwa, manhua & comics. Next.js site with JSON search API. |
+| **Omega Scans** | `omegascans` | manhwa, adult | HTML scrape | both | Adult manhwa and webtoons. NSFW; admin-only. |
+| **MyAnimeList** (Jikan) | `mal` | — | REST API | server | **Metadata only** — covers, scores, synopsis, tags. No downloads. Fallback search when no other source matches. |
 
-| Source | File | Reason |
-|---|---|---|
-| **MangaHub** | `mangahub.ts` | Cloudflare-protected since 2024. Code retained for reference. Reachable via the manga-finder extension. |
+**Shared = both** means the addon code compiles into the Chrome extension via
+Vite aliases. **Shared = server** means the addon runs server-side only; the
+extension has a separate implementation (or doesn't use it).
 
-## manga-finder Chrome extension
+## Extension-only connectors
 
-Browser-side connector for sites the server can't reach. Runs in the
-user's Chrome session, downloads chapters, packages them as v2 CRZ, posts
-them to your Bindery instance. Bundled with every install at
-`/manga-finder-extension.zip` and prompted from the Discover page.
-
-Connectors (`manga-finder/src/connectors/`):
+These live in `manga-finder/src/connectors/` and are not part of the addon
+system. They run only in the Chrome extension, where a real browser session
+handles Cloudflare challenges, encrypted pages, and strict bot detection.
 
 | Source | Notes |
 |---|---|
-| **MangaDex** | Browser-side fallback when the server-side source is rate-limited. |
-| **MangaFox** | Mirror of the server-side connector, useful when CDN Referer policies block server-side access. |
-| **MangaHub** | Cloudflare; works with a real browser session. |
-| **MangaDNA** | WordPressMadara template, server-side returns empty — works browser-side. |
+| **MangaDex** | Browser-side implementation for when the server source is rate-limited. |
+| **MangaHub** | Cloudflare-protected; needs a real browser session. |
+| **HentaiNexus** | XOR-encrypted page images require JS decryption (NSFW; admin-only). |
+| **MangaDNA** | WordPress Madara template; server-side returns empty. |
 | **WeebCentral** | Cloudflare-protected. |
-| **HentaiNexus** | Encrypted page images need JS decryption — only works browser-side (NSFW; admin-only). |
-| **OmegaScans** | Browser-side search/download (NSFW; admin-only). |
 | **Manga18FX** | NSFW; admin-only. |
-| **NovelCool** | Mainstream library, anti-bot detection. |
-| **ReadAllComics** | Mirror of the server-side connector. |
+| **NovelCool** | Anti-bot detection. |
 
-## CDN Referer mappings
+## CDN referer mappings
 
-Many image hosts gate on `Referer` to block hotlinking. The downloader's
-shared `CDN_REFERERS` table (in `src/server/downloader.ts`) maps each
-known CDN host to its source's home page; the same table is used for
-both chapter-image fetches and cover-art downloads. When the host isn't
-in the table, the per-source homepage fallback fires
-(`SOURCE_HOME[sourceId]`).
+Many image hosts gate on `Referer` to block hotlinking. Rather than maintaining
+a hardcoded lookup table, referer mappings are **derived from addon manifests**:
+
+- Each addon's `hosts[]` lists the CDN hostnames it talks to.
+- The addon's `url` field is the source's homepage.
+- At build/load time, every hostname in `hosts` maps to `url + '/'` as the
+  Referer header.
+
+The server's downloader and the extension's `cdn-referers.ts` both use this
+approach — add a CDN host to the addon manifest and the referer mapping follows
+automatically.
 
 Some CDNs (notably MangaTown's `zjcdn.mangahere.org`) gate on the *exact
-chapter reader URL*, not just the source homepage. For those, the
-downloader builds a per-chapter Referer via `chapterReaderUrl()`. Add a
-new source to that switch when its CDN rejects the homepage Referer.
+chapter reader URL*, not just the homepage. For those, the downloader builds a
+per-chapter Referer via `chapterReaderUrl()`.
 
-Current CDN map:
+In the Chrome extension, `fetch()` silently drops forbidden headers like
+`Referer` and `User-Agent`. The extension uses `declarativeNetRequest` rules
+(`rules.json`) to inject these headers at the network layer instead.
 
-```
-zjcdn.mangafox.me              → https://fanfox.net/
-fmcdn.mfcdn.net                → https://fanfox.net/
-mfcdn.net                      → https://fanfox.net/
-zjcdn.mangahere.org            → https://www.mangatown.com/
-mangahere.org                  → https://www.mangatown.com/
-mangahere.cc                   → https://www.mangatown.com/
-mangatown.com                  → https://www.mangatown.com/
-rcdn.kyut.dev                  → https://rawkuma.net/
-kyut.dev                       → https://rawkuma.net/
-bp.blogspot.com                → https://readallcomics.com/
-blogger.googleusercontent.com  → https://readallcomics.com/
-uploads.mangadex.org           → https://mangadex.org/
-```
+## Adding a new source
 
-## Adding a new server-side source
+### As a shared addon (server + extension)
 
-1. Create `src/server/sources/<name>.ts` exporting an object that satisfies
-   `MangaSource` from `src/server/sources/types.ts` (search / getChapters
-   / getPageUrls).
-2. Register it in `src/server/sources/index.ts` — add to `primarySources`
-   and add a `sourceMeta` entry (color, description, url, favicon).
-3. If the source's images sit behind a CDN that gates on Referer, add the
-   CDN host(s) to `CDN_REFERERS` and the source's home URL to
-   `SOURCE_HOME` in `src/server/downloader.ts`.
-4. If the CDN gates on the per-chapter reader URL (rare), extend
-   `chapterReaderUrl()` in the same file.
-5. Auto-tags for the source (e.g. `manga`, `manhwa`, `adult`) live in
-   `SOURCE_TAGS` in `src/server/crz-handler.ts` and
-   `src/server/routes/chapter-upload.ts` — sources that always download
-   adult content tag accordingly so NSFW visibility rules apply.
-6. Search — `searchAllSources` runs primary sources in parallel with a
-   10s timeout each. New source plugs in for free.
+1. **Create the addon directory** — `addons/<id>/` with two files:
+
+   `addon.json`:
+   ```json
+   {
+     "id": "my-source",
+     "name": "My Source",
+     "version": "1.0.0",
+     "api": 1,
+     "kind": "source",
+     "order": 10,
+     "main": "index.js",
+     "hosts": ["cdn.example.com", "api.example.com"],
+     "tags": ["manga"],
+     "color": "#0284c7",
+     "description": "What this source is good for.",
+     "url": "https://example.com",
+     "favicon": "https://example.com/favicon.ico"
+   }
+   ```
+
+   `index.ts`:
+   ```ts
+   import { createFetch, type MangaSource, type SearchResult, type ChapterResult } from '@bindery/addon-api';
+
+   const get = createFetch({ rateLimitMs: 300, referer: 'https://example.com/' });
+
+   export const mySourceSource: MangaSource = {
+     id: 'my-source',
+     name: 'My Source',
+     async search(query, limit = 20): Promise<SearchResult[]> { /* ... */ },
+     async getChapters(mangaId): Promise<ChapterResult[]> { /* ... */ },
+     async getPageUrls(chapterId): Promise<string[]> { /* ... */ },
+     getMangaUrl(mangaId) { return `https://example.com/manga/${mangaId}`; },
+   };
+
+   export default mySourceSource;
+   ```
+
+2. **The server picks it up automatically** — the addon loader scans `addons/`
+   at startup. CDN referer mappings, auto-tags, and source-picker metadata all
+   come from `addon.json`. No registration code to edit.
+
+3. **To share with the extension** — import it in
+   `manga-finder/src/connectors/index.ts` using the `@addons/` alias and add
+   it to the `sources` map and `ALL_SOURCES` config array.
+
+4. **Rebuild the extension** — `cd manga-finder && npm run build`, then copy
+   `dist/` to `comic-reader/public/manga-finder-extension/` and reload in
+   Chrome.
+
+### Manifest fields reference
+
+| Field | Required | Description |
+|---|---|---|
+| `id` | yes | Stable identifier, lowercase. Must match the source's `MangaSource.id`. |
+| `name` | yes | Display name in the source picker. |
+| `version` | yes | Addon's own version (semver). |
+| `api` | yes | `ADDON_API_VERSION` this addon was written against. Currently `1`. |
+| `kind` | yes | `"source"` for content sources. |
+| `main` | yes | Module to import, relative to the addon directory. |
+| `hosts` | — | CDN hostnames the source talks to. Drives referer mappings. |
+| `tags` | — | Auto-tags for series from this source (e.g. `["manga"]`, `["manhwa", "adult"]`). |
+| `order` | — | Display order in the source picker. Lower = first. |
+| `color` | — | Hex color for the source pill in Discover. |
+| `description` | — | One-line description shown in the source picker. |
+| `url` | — | Source homepage. Used as the default Referer for CDN requests. |
+| `favicon` | — | Favicon URL for the source pill. |
+| `nsfw` | — | `true` hides the source from safe-mode users and non-admin downloads. |
+| `metadataOnly` | — | `true` for sources that search but can't download (e.g. MAL). |
+| `enabled` | — | Set `false` to ship an addon without loading it. Default `true`. |
+
+### The `@bindery/addon-api` package
+
+The shared contract lives in `packages/addon-api/src/index.ts`. It exports:
+
+- **`MangaSource`** — the interface every source addon implements (`search`,
+  `getChapters`, `getPageUrls`, optional `getMangaUrl`).
+- **`SearchResult`**, **`ChapterResult`** — return types for search and chapter
+  listing.
+- **`createFetch(opts)`** — a rate-limited `fetch` wrapper that sets `Referer`
+  and `User-Agent` headers. Each source gets its own instance so rate limits
+  are per-site.
+- **`defineSource(source)`** — identity helper that gives TypeScript authors
+  type checking and completion.
 
 ## Diagnostic logging
 
-When a source breaks silently, the downloader's logs are designed to
-make it visible without re-deriving anything:
+When a source breaks silently, the downloader's logs make it visible:
 
-- **`Cover fetch: <url> [referer=<x>, source=<y>]`** before every
-  cover request. Success: `Set cover for "<title>" (<bytes> from
-  <url>)`. Failure: explicit HTTP status + URL.
-- **`Failed page N/M: HTTP 403 ... URL: <url>`** on first + last
-  failed page of every chapter (sample only — N×N log lines becomes
-  noise on big chapters).
-- **`MangaTown: could not find image URL template for ...`** falls
-  back to dumping up to 3 sample `<img>` tags from the chapter page,
-  so a CDN rotation can be patched in one regex addition.
-- **`Partial chapter: ... got 13/14 pages (sidecar written, retry #N)`**
-  when a chapter completes with missing pages. The sidecar file
-  alongside the PDF tracks what's missing for later retry via the
-  SeriesPage admin menu.
+- **`Cover fetch: <url> [referer=<x>, source=<y>]`** before every cover
+  request. Success: `Set cover for "<title>" (<bytes> from <url>)`.
+  Failure: explicit HTTP status + URL.
+- **`Failed page N/M: HTTP 403 ... URL: <url>`** on first + last failed page
+  of every chapter.
+- **`Partial chapter: ... got 13/14 pages (sidecar written, retry #N)`** when
+  a chapter completes with missing pages. The sidecar tracks what's missing for
+  retry via the SeriesPage admin menu.
 
 ## Historical decisions
 
-- **MangaFreak** — 404'd on every search endpoint when the server-side
-  connector was first written. Removed; reachable via manga-finder.
-- **MangaFire** (mangafire.to) — HeanCms-style page tile obfuscation
-  required JS execution. Server-side approach abandoned. Could be added
-  to manga-finder if there's demand.
-- **Headless browser on the server** — once considered as a way to reach
-  Cloudflare-protected sites server-side. Replaced by manga-finder
-  (browser-side, uses the user's existing session) — better UX, no
-  ~400 MB Docker image bloat, no cat-and-mouse with anti-bot detection.
+- **MangaFreak** — 404'd on every search endpoint. Removed.
+- **MangaFire** (mangafire.to) — HeanCms-style page tile obfuscation required
+  JS execution. Server-side approach abandoned. Could be added to manga-finder.
+- **Headless browser on the server** — once considered for Cloudflare-protected
+  sites. Replaced by manga-finder (browser-side, uses the user's existing
+  session) — better UX, no Docker image bloat, no bot-detection arms race.
