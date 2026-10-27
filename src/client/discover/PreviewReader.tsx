@@ -78,8 +78,9 @@ export default function PreviewReader({ pages, chapterLabel, mangaTitle, loading
       {/* Scroll container */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">
         {loading && pages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex flex-col items-center justify-center h-full gap-3">
             <Loader size={24} className="animate-spin text-gray-500" />
+            <span className="text-sm text-gray-500">Fetching pages...</span>
           </div>
         ) : pages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-500 text-sm">
@@ -104,6 +105,7 @@ export default function PreviewReader({ pages, chapterLabel, mangaTitle, loading
                   className="w-full block"
                   loading={i < 3 ? 'eager' : 'lazy'}
                   onLoad={() => onImageLoad(i)}
+                  onError={() => onImageLoad(i)}
                   style={loadedSet.has(i) ? undefined : { position: 'absolute', top: 0, left: 0, opacity: 0 }}
                 />
               </div>
