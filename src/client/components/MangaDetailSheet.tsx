@@ -7,6 +7,34 @@ import { useEscapeKey } from '../lib/useEscapeKey';
 import { StatusPill } from './ds/Badge';
 import type { SeriesStatus } from './ds/Badge';
 
+function cleanDescription(raw: string): string {
+  let s = raw;
+  // Block-level tags → newlines
+  s = s.replace(/<\s*\/?\s*(p|br|div|li|h[1-6])\b[^>]*\/?>/gi, '\n');
+  // Strip remaining tags
+  s = s.replace(/<[^>]+>/g, '');
+  // Decode named entities
+  s = s.replace(/&nbsp;/gi, ' ');
+  s = s.replace(/&amp;/gi, '&');
+  s = s.replace(/&lt;/gi, '<');
+  s = s.replace(/&gt;/gi, '>');
+  s = s.replace(/&quot;/gi, '"');
+  s = s.replace(/&apos;/gi, "'");
+  s = s.replace(/&mdash;/gi, '—');
+  s = s.replace(/&ndash;/gi, '–');
+  s = s.replace(/&hellip;/gi, '…');
+  s = s.replace(/&lsquo;|&rsquo;/gi, "'");
+  s = s.replace(/&ldquo;|&rdquo;/gi, '"');
+  // Numeric + hex entities
+  s = s.replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)));
+  s = s.replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)));
+  // Collapse whitespace
+  s = s.replace(/[ \t]+/g, ' ');
+  s = s.replace(/\n[ \t]+/g, '\n');
+  s = s.replace(/\n{3,}/g, '\n\n');
+  return s.trim();
+}
+
 interface MangaDetailSheetProps {
   manga: SearchResult;
   chapters: ChapterResult[];
@@ -80,6 +108,7 @@ export default function MangaDetailSheet({
   const hasCover = !!manga.coverUrl;
   const coverSrc = manga.coverUrl || '';
   const validStatus = ['ongoing', 'completed', 'hiatus', 'cancelled'].includes(manga.status);
+  const description = manga.description ? cleanDescription(manga.description) : '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -137,8 +166,8 @@ export default function MangaDetailSheet({
             onClick={onClose}
             aria-label="Close"
             className="absolute top-3 right-3 p-2 rounded-full"
-            style={{ zIndex: 2 }}
             style={{
+              zIndex: 2,
               background: 'rgb(0 0 0 / 0.5)',
               backdropFilter: 'blur(12px)',
               color: '#fff',
@@ -246,15 +275,15 @@ export default function MangaDetailSheet({
                 <div className="h-3 rounded bg-white/10 w-2/3" />
               </div>
             )}
-            {manga.description && (
+            {description && (
               <div className="mt-4">
                 <p
                   className={`text-sm leading-relaxed whitespace-pre-line ${expandSynopsis ? '' : 'line-clamp-3'}`}
                   style={{ color: hasCover ? 'rgb(255 255 255 / 0.85)' : 'var(--text-secondary)' }}
                 >
-                  {manga.description}
+                  {description}
                 </p>
-                {manga.description.length > 150 && (
+                {description.length > 150 && (
                   <button
                     onClick={() => setExpandSynopsis((v) => !v)}
                     className="text-xs font-medium mt-1 hover:underline"
