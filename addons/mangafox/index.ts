@@ -6,6 +6,36 @@ async function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Pure JS P.A.C.K.E.R. unpacker — replaces eval() so the addon works in
+ * Chrome MV3 (extension popup + service worker) where eval is blocked by CSP.
+ */
+function unpackPacker(packed: string): string {
+  const m = packed.match(
+    /\}\s*\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*'((?:[^'\\]|\\.)*)'\.split\s*\(\s*'\|'\s*\)/,
+  );
+  if (!m) return packed;
+
+  const payload = m[1].replace(/\\'/g, "'");
+  const base = parseInt(m[2], 10);
+  let count = parseInt(m[3], 10);
+  const dict = m[4].split('|');
+
+  function encode(n: number): string {
+    const r = n % base;
+    const ch = r > 35 ? String.fromCharCode(r + 29) : r.toString(36);
+    return (n >= base ? encode(Math.floor(n / base)) : '') + ch;
+  }
+
+  const lookup: Record<string, string> = {};
+  while (count--) {
+    const key = encode(count);
+    lookup[key] = dict[count] || key;
+  }
+
+  return payload.replace(/\b\w+\b/g, (w) => lookup[w] ?? w);
+}
+
 const get = createFetch({ rateLimitMs: 300, referer: `${SITE_URL}/`, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' });
 
 async function fetchPage(url: string): Promise<string> {
@@ -148,11 +178,8 @@ export const mangafoxSource: MangaSource & { lastMetadata: any } = {
         const jsCode = await fetchPage(funUrl);
 
         // The response is: eval(function(p,a,c,k,e,d){...packer...}('...packed...',base,count,'...dict...'.split('|'),0,{}))
-        // When eval'd, it defines dm5imagefun() which returns an array of URLs, calls it, assigns to d.
-        // We need to extract the URL array from the unpacked code.
-
-        // Step 1: Unpack by replacing outer eval with a function call
-        const unpacked = eval(jsCode.replace(/^eval/, '')) as string;
+        // Unpack the P.A.C.K.E.R. payload without eval (CSP-safe).
+        const unpacked = unpackPacker(jsCode);
 
         // Step 2: Extract URLs from the unpacked JS string
         // The unpacked code looks like: function dm5imagefun(){var pix="//cdn.../store/manga/...";var pvalue=["/m000.jpg?...","/m001.jpg?..."];...return pvalue}var d;d=dm5imagefun();
