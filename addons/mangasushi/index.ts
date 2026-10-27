@@ -24,7 +24,7 @@ function decodeEntities(s: string): string {
     .replace(/&gt;/g, '>');
 }
 
-export const mangasushiSource: MangaSource = {
+export const mangasushiSource: MangaSource & { lastMetadata: any } = {
   id: 'mangasushi',
   name: 'Manga Sushi',
 
@@ -75,7 +75,33 @@ export const mangasushiSource: MangaSource = {
     return items;
   },
 
+  lastMetadata: null as any,
+
   async getChapters(mangaId: string): Promise<ChapterResult[]> {
+    // Fetch the detail page for metadata (description, genres, status)
+    const detailHtml = await fetchText(`${SITE_URL}/manga/${mangaId}/`);
+
+    const descMatch = detailHtml.match(/class="[^"]*summary__content[^"]*"[\s\S]*?<p>([\s\S]*?)<\/p>/);
+    const description = descMatch ? descMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+
+    const genres: string[] = [];
+    const genreBlock = detailHtml.match(/class="[^"]*genres-content[^"]*"([\s\S]*?)<\/div>/);
+    if (genreBlock) {
+      const tagRegex = /<a[^>]*>([^<]+)<\/a>/g;
+      let gm;
+      while ((gm = tagRegex.exec(genreBlock[1])) !== null) {
+        genres.push(gm[1].trim().toLowerCase());
+      }
+    }
+
+    const statusBlock = detailHtml.match(/Status[\s\S]*?class="[^"]*summary-content[^"]*"[^>]*>\s*([^<]+)/i);
+    const status = statusBlock ? statusBlock[1].trim().toLowerCase() : null;
+
+    const yearMatch = detailHtml.match(/class="[^"]*summary-content[^"]*"[^>]*>\s*(\d{4})\s*</);
+    const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
+
+    this.lastMetadata = { description, genres, status, year, coverUrl: null };
+
     // Madara AJAX chapters endpoint
     const html = await fetchText(
       `${SITE_URL}/manga/${mangaId}/ajax/chapters/`,

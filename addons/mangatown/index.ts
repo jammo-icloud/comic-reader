@@ -17,7 +17,7 @@ async function fetchPage(url: string): Promise<string> {
   return res.text();
 }
 
-export const mangatownSource: MangaSource = {
+export const mangatownSource: MangaSource & { lastMetadata: any } = {
   id: 'mangatown',
   name: 'MangaTown',
 
@@ -63,8 +63,37 @@ export const mangatownSource: MangaSource = {
     return items;
   },
 
+  lastMetadata: null as any,
+
   async getChapters(mangaSlug: string): Promise<ChapterResult[]> {
     const html = await fetchPage(`${SITE_URL}/manga/${mangaSlug}/`);
+
+    // Scrape metadata from the detail page
+    const descMatch = html.match(/id="show"[^>]*>([\s\S]*?)<\/li>/);
+    const description = descMatch
+      ? descMatch[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+      : '';
+
+    const genres: string[] = [];
+    const genreBlock = html.match(/Genre\(s\):<\/b>([\s\S]*?)<\/li>/);
+    if (genreBlock) {
+      const tagRegex = /title="([^"]+)"/g;
+      let gm;
+      while ((gm = tagRegex.exec(genreBlock[1])) !== null) {
+        genres.push(gm[1].trim().toLowerCase());
+      }
+    }
+
+    const statusMatch = html.match(/Status\(s\):<\/b>\s*([^<\s]+)/i);
+    const status = statusMatch ? statusMatch[1].trim().toLowerCase() : null;
+
+    const yearMatch = html.match(/Year\s*(?:of Release)?[\s\S]*?<a[^>]*>(\d{4})<\/a>/i);
+    const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
+
+    const coverMatch = html.match(/class="detail_info[\s\S]*?<img\s+src="([^"]+)"/);
+    const coverUrl = coverMatch?.[1] || null;
+
+    this.lastMetadata = { description, genres, status, year, coverUrl };
 
     const chapters: ChapterResult[] = [];
     // Chapter list: <ul class="chapter_list">...<li><a href="/manga/{slug}/vXX/cYY.Y/"...>
