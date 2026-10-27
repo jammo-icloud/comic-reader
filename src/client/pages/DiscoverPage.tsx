@@ -3,11 +3,12 @@ import { createPortal } from 'react-dom';
 import { Search, Loader, Check, Eye, X, Compass, AlertCircle, BookOpen, Download, Puzzle, Heart, Library as LibraryIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { SearchResult, ChapterResult, RecommendedItem, Series } from '../lib/types';
-import { discoverSearch, discoverChapters, addToCollection, getComics, getCatalog, getRecommended, getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
-import { useSources } from '../lib/browser-sources/registry';
+import { discoverSearch, discoverChapters, addToCollection, getComics, getCatalog, getRecommended, getSeriesCoverUrl, getPlaceholderUrl, startDownload, getMangaSourceUrl } from '../lib/api';
+import { useSources, getSourceConfig } from '../lib/browser-sources/registry';
 import type { SourceConfig } from '../lib/browser-sources/types';
-import MangaSearchCard from '../components/MangaSearchCard';
-import MangaDetailSheet from '../components/MangaDetailSheet';
+import MangaSearchCard from '../discover/MangaSearchCard';
+import MangaDetailSheet from '../discover/MangaDetailSheet';
+import type { ChapterDownloadItem } from '../discover/types';
 import StickyToolbar from '../components/StickyToolbar';
 
 // The global Bindery header is 48px tall — anchor the sticky source rail below it.
@@ -28,6 +29,7 @@ export default function DiscoverPage() {
   const [chapters, setChapters] = useState<ChapterResult[]>([]);
   const [loadingChapters, setLoadingChapters] = useState(false);
   const [localChapterNums, setLocalChapterNums] = useState<Set<string>>(new Set());
+  const [selectedSourceUrl, setSelectedSourceUrl] = useState<string | null>(null);
 
   // Discover has three modes:
   //   'sources'     — existing UX, search external sources for new manga
@@ -148,6 +150,10 @@ export default function DiscoverPage() {
     setSelectedManga(manga);
     setLoadingChapters(true);
     setLocalChapterNums(new Set());
+    setSelectedSourceUrl(null);
+    getMangaSourceUrl(manga.sourceId, manga.mangaId)
+      .then(({ url }) => setSelectedSourceUrl(url))
+      .catch(() => {});
 
     if (manga.localSeriesId) {
       try {
@@ -390,6 +396,7 @@ export default function DiscoverPage() {
                   <MangaSearchCard
                     key={`${manga.sourceId}-${manga.mangaId}-${i}`}
                     manga={manga}
+                    sourceConfig={getSourceConfig(manga.sourceId) ?? null}
                     onClick={() => handleSelectManga(manga)}
                   />
                 ))}
@@ -482,7 +489,20 @@ export default function DiscoverPage() {
           chapters={chapters}
           loading={loadingChapters}
           localChapterNums={localChapterNums}
-          onClose={() => { setSelectedManga(null); setChapters([]); setLocalChapterNums(new Set()); }}
+          sourceConfig={getSourceConfig(selectedManga.sourceId) ?? null}
+          sourceUrl={selectedSourceUrl}
+          onClose={() => { setSelectedManga(null); setChapters([]); setLocalChapterNums(new Set()); setSelectedSourceUrl(null); }}
+          onDownload={async (chaptersToDownload: ChapterDownloadItem[]) => {
+            await startDownload(selectedManga.mangaId, selectedManga.title, 'default', chaptersToDownload, {
+              description: selectedManga.description,
+              status: selectedManga.status,
+              year: selectedManga.year,
+              tags: selectedManga.tags,
+              contentRating: selectedManga.status,
+              coverUrl: selectedManga.coverUrl,
+              sourceId: selectedManga.sourceId,
+            });
+          }}
         />
       )}
     </div>
