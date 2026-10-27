@@ -31,6 +31,7 @@ export interface MangaDetailSheetProps {
   sourceUrl: string | null;
   onClose: () => void;
   onDownload: (chapters: ChapterDownloadItem[]) => Promise<void>;
+  onPreview?: (chapter: ChapterDownloadItem) => void;
 }
 
 export interface MangaSearchCardProps {

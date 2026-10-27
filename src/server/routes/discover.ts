@@ -81,6 +81,22 @@ router.get('/discover/chapters/:sourceId/:mangaId', async (req, res) => {
   }
 });
 
+// Get page image URLs for a single chapter (used by preview reader)
+router.get('/discover/pages/:sourceId', async (req, res) => {
+  try {
+    const chapterId = req.query.chapterId as string;
+    if (!chapterId) { res.status(400).json({ error: 'chapterId query param required' }); return; }
+    const pages = await getPageUrlsFromSource(req.params.sourceId, chapterId);
+    const proxied = pages.map((url) =>
+      `/api/discover/proxy-image?url=${encodeURIComponent(url)}`
+    );
+    res.json({ pages: proxied });
+  } catch (err) {
+    console.error('Pages error:', err);
+    res.status(502).json({ error: 'Failed to fetch pages' });
+  }
+});
+
 // Resolve the URL to view a manga on its source website
 router.get('/discover/manga-url/:sourceId/:mangaId', async (req, res) => {
   const url = await getMangaUrl(req.params.sourceId, req.params.mangaId);

@@ -6,8 +6,20 @@ import { StatusPill } from './Badge';
 import type { SeriesStatus } from './Badge';
 import type { MangaDetailSheetProps } from './types';
 
+function CircleFadingPlay({ size = 18, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width={size} height={size} className={className}>
+      <path d="M12 2a10 10 0 0 1 10 10" opacity={0.9} />
+      <path d="M22 12a10 10 0 0 1-10 10" opacity={0.6} />
+      <path d="M12 22A10 10 0 0 1 2 12" opacity={0.3} />
+      <path d="M2 12A10 10 0 0 1 12 2" opacity={0.1} />
+      <polygon points="10 8 16 12 10 16 10 8" />
+    </svg>
+  );
+}
+
 export default function MangaDetailSheet({
-  manga, chapters, loading, localChapterNums, sourceConfig, sourceUrl, onClose, onDownload,
+  manga, chapters, loading, localChapterNums, sourceConfig, sourceUrl, onClose, onDownload, onPreview,
 }: MangaDetailSheetProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState(false);
@@ -293,15 +305,37 @@ export default function MangaDetailSheet({
               {chapters.map((ch) => {
                 const downloaded = isLocal(ch);
                 return (
-                  <button
+                  <div
                     key={ch.chapterId}
-                    onClick={() => !downloaded && toggleChapter(ch.chapterId)}
-                    className={`w-full flex items-center gap-3 px-5 sm:px-6 py-2.5 text-left transition-colors ${
+                    className={`w-full flex items-center gap-0 text-left transition-colors ${
                       downloaded
-                        ? 'opacity-40 cursor-default'
+                        ? 'opacity-40'
                         : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
                     }`}
                   >
+                    {onPreview && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPreview({ id: ch.chapterId, chapter: ch.chapter, pages: ch.pages });
+                        }}
+                        className={`flex items-center justify-center w-11 h-11 shrink-0 transition-colors ${
+                          downloaded
+                            ? 'text-success opacity-100'
+                            : 'text-gray-400 dark:text-gray-500 hover:text-accent'
+                        }`}
+                        title={downloaded ? 'Read chapter' : 'Preview chapter'}
+                        style={downloaded ? { opacity: 1 } : undefined}
+                      >
+                        <CircleFadingPlay size={18} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => !downloaded && toggleChapter(ch.chapterId)}
+                      className={`flex-1 flex items-center gap-3 ${onPreview ? 'pl-0 pr-5 sm:pr-6' : 'px-5 sm:px-6'} py-2.5 text-left ${
+                        downloaded ? 'cursor-default' : ''
+                      }`}
+                    >
                     <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
                       downloaded
                         ? 'bg-success border-success text-white'
@@ -325,7 +359,8 @@ export default function MangaDetailSheet({
                     ) : (
                       ch.pages > 0 && <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0 tabular-nums">{ch.pages} pg</span>
                     )}
-                  </button>
+                    </button>
+                  </div>
                 );
               })}
             </div>

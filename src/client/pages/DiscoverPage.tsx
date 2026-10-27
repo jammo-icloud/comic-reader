@@ -3,11 +3,12 @@ import { createPortal } from 'react-dom';
 import { Search, Loader, Check, Eye, X, Compass, AlertCircle, BookOpen, Download, Puzzle, Heart, Library as LibraryIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { SearchResult, ChapterResult, RecommendedItem, Series } from '../lib/types';
-import { discoverSearch, discoverChapters, addToCollection, getComics, getCatalog, getRecommended, getSeriesCoverUrl, getPlaceholderUrl, startDownload, getMangaSourceUrl } from '../lib/api';
+import { discoverSearch, discoverChapters, discoverPages, addToCollection, getComics, getCatalog, getRecommended, getSeriesCoverUrl, getPlaceholderUrl, startDownload, getMangaSourceUrl } from '../lib/api';
 import { useSources, getSourceConfig } from '../lib/browser-sources/registry';
 import type { SourceConfig } from '../lib/browser-sources/types';
 import MangaSearchCard from '../discover/MangaSearchCard';
 import MangaDetailSheet from '../discover/MangaDetailSheet';
+import PreviewReader from '../discover/PreviewReader';
 import type { ChapterDownloadItem } from '../discover/types';
 import StickyToolbar from '../components/StickyToolbar';
 
@@ -30,6 +31,10 @@ export default function DiscoverPage() {
   const [loadingChapters, setLoadingChapters] = useState(false);
   const [localChapterNums, setLocalChapterNums] = useState<Set<string>>(new Set());
   const [selectedSourceUrl, setSelectedSourceUrl] = useState<string | null>(null);
+
+  const [previewPages, setPreviewPages] = useState<string[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewLabel, setPreviewLabel] = useState('');
 
   // Discover has three modes:
   //   'sources'     — existing UX, search external sources for new manga
@@ -189,6 +194,23 @@ export default function DiscoverPage() {
       setChapters([]);
     } finally {
       setLoadingChapters(false);
+    }
+  };
+
+  const handlePreview = async (chapter: ChapterDownloadItem) => {
+    if (!selectedManga) return;
+    const label = `Ch. ${chapter.chapter || '?'}`;
+    setPreviewLabel(label);
+    setPreviewPages([]);
+    setPreviewLoading(true);
+    try {
+      const data = await discoverPages(selectedManga.sourceId, chapter.id);
+      setPreviewPages(data.pages);
+    } catch (err) {
+      console.error('Preview failed:', err);
+      setPreviewPages(null);
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -503,6 +525,17 @@ export default function DiscoverPage() {
               sourceId: selectedManga.sourceId,
             });
           }}
+          onPreview={handlePreview}
+        />
+      )}
+
+      {previewPages !== null && selectedManga && (
+        <PreviewReader
+          pages={previewPages}
+          chapterLabel={previewLabel}
+          mangaTitle={selectedManga.title}
+          loading={previewLoading}
+          onClose={() => setPreviewPages(null)}
         />
       )}
     </div>
