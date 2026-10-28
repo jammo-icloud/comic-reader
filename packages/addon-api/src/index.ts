@@ -121,6 +121,6 @@ export function createFetch(opts: FetchOptions = {}): (url: string, init?: Reque
       ...(opts.referer ? { Referer: opts.referer } : {}),
       ...((init?.headers as Record<string, string>) || {}),
     };
-    return fetch(url, { ...init, headers });
+    return fetch(url, { ...init, headers, credentials: 'include' });
   };
 }
