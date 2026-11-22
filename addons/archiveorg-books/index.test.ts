@@ -19,7 +19,7 @@ test('groupToResult builds one search result from a series group', () => {
   assert.equal(r.status, 'completed');
 });
 
-test('pickChapters numbers only members with a file and keeps the best duplicate of a numbered book', () => {
+test('pickChapters keeps numbering stable when a member has no file and keeps the best duplicate of a numbered book', () => {
   const f = (name: string, size = '1000000') => ({ name, size, format: '', source: 'original' });
   const docs = groupBySeries([
     { identifier: 'b4b', title: 'Series. Book 4.', creator: null, date: null },
@@ -35,5 +35,5 @@ test('pickChapters numbers only members with a file and keeps the best duplicate
   ]);
   const picked = pickChapters(docs.map((doc) => ({ doc, file: file.get(doc.identifier) ?? null })));
   assert.deepEqual(picked.map((p) => [p.identifier, p.chapter, p.file.name]),
-    [['b1', 1, 'b1.pdf'], ['b4a', 4, 'b4a.pdf'], ['e1', 5, 'e1.pdf'], ['e3', 6, 'e3.pdf']]);
+    [['b1', 1, 'b1.pdf'], ['b4a', 4, 'b4a.pdf'], ['e1', 1000, 'e1.pdf'], ['e3', 1002, 'e3.pdf']]);
 });

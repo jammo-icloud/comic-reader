@@ -149,3 +149,23 @@ key, since a group has no single details page.
 - Live script: "Dungeon Crawler Carl" groups into one series with books
   1-7 (one chapter 4) plus the side story as chapter 8.
 - The comics pill still returns comic items for "Tintin".
+
+### After review (same day)
+
+A fresh review of the branch led to one fix pass, all pinned by tests:
+
+- Unnumbered uploads are numbered from 1000 in archive.org upload order
+  (`publicdate`), never from the highest book number, so a new Book 8 or a
+  new scan cannot shift existing chapter numbers under sync. Numbering runs
+  before the per-item file check, so an item with no downloadable file
+  leaves a gap rather than renumbering the rest. A failed metadata fetch
+  aborts the listing instead of reading as "no file".
+- The series key maps punctuation to spaces (so "Catch-22" re-searches as
+  "catch 22"), apostrophes are dropped, and a marker-only title such as
+  "Book 1: The Way of Kings" takes its name from the subtitle. The trailing
+  bare-number rule was removed: "Fahrenheit 451" and "Apollo 11" keep their
+  numbers in the name.
+- "Series - Book 3 - Subtitle" reads the book number from the subtitle.
+- Search matches titles only (`title:(words)`), still most-downloaded
+  first, excludes `collection:inlibrary`, and strips Lucene syntax from
+  user input. Live: "Emma" and "Dune" now lead with the novels.

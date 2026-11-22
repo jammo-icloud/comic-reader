@@ -16,7 +16,7 @@ import { bestFile, scoreFile, type ArchiveFile } from '../archiveorg/files.js';
 import {
   groupBySeries,
   orderMembers,
-  parseBookTitle,
+  seriesKeyOf,
   creatorString,
   type ArchiveDoc,
   type ParsedDoc,
@@ -50,10 +50,22 @@ const COMIC_SCOPE = [
   'subject:comic',
 ].join(' OR ');
 
+/** Lucene special characters; user input is a bag of words, not query syntax. */
+function luceneWords(phrase: string): string {
+  return phrase.replace(/[+\-&|!(){}\[\]^"~*?:\\\/]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Title-only matching, most-downloaded first. Full-text matching with the
+ * same sort surfaced magazines and unrelated books above the novel for
+ * one-word titles ("Emma", "Dune"). Lending-library items are excluded:
+ * they have no downloadable original.
+ */
 async function searchDocs(phrase: string, rows: number): Promise<ArchiveDoc[]> {
-  const clean = phrase.trim().replace(/"/g, '');
-  const q = `(title:"${clean}"^5 OR "${clean}"^3 OR (${clean})) AND mediatype:texts AND NOT (${COMIC_SCOPE})`;
-  const url = `${API}/advancedsearch.php?q=${encodeURIComponent(q)}&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=date&fl[]=description&fl[]=language&sort[]=downloads+desc&rows=${rows}&output=json`;
+  const words = luceneWords(phrase);
+  if (!words) return [];
+  const q = `title:(${words}) AND mediatype:texts AND NOT (${COMIC_SCOPE}) AND NOT collection:inlibrary`;
+  const url = `${API}/advancedsearch.php?q=${encodeURIComponent(q)}&fl[]=identifier&fl[]=title&fl[]=creator&fl[]=date&fl[]=publicdate&fl[]=description&fl[]=language&sort[]=downloads+desc&rows=${rows}&output=json`;
   try {
     const data = await fetchJson(url);
     return data?.response?.docs || [];
@@ -104,14 +116,15 @@ export function groupToResult(group: SeriesGroup): SearchResult {
   };
 }
 
+/**
+ * Best downloadable file of an item, or null when it has none. A failed
+ * metadata fetch throws rather than reading as "no file": chapter numbers of
+ * unnumbered uploads depend on which members exist, so a transient error must
+ * abort the listing, not silently drop a member.
+ */
 async function bestFileFor(identifier: string): Promise<ArchiveFile | null> {
-  try {
-    const meta = await fetchJson(`${API}/metadata/${identifier}`);
-    return bestFile(meta?.files || []);
-  } catch (err) {
-    console.error(`Archive.org metadata failed for ${identifier}: ${(err as Error).message}`);
-    return null;
-  }
+  const meta = await fetchJson(`${API}/metadata/${identifier}`);
+  return bestFile(meta?.files || []);
 }
 
 function toChapter(identifier: string, file: ArchiveFile, chapter: number, title: string, creator: ArchiveDoc['creator']): ChapterResult {
@@ -132,22 +145,23 @@ export interface MemberFile {
 }
 
 /**
- * Turn series members into chapters: drop members with nothing to download,
- * keep the higher-scoring upload when two share a book number (ties: first
- * seen), then number what is left so chapter numbers stay contiguous.
- * Exported for tests.
+ * Turn series members into chapters. Numbering happens first, over every
+ * member, so an item with nothing to download leaves a gap instead of
+ * shifting the numbers after it. Then members without a file are dropped and,
+ * when two uploads share a book number, the higher-scoring file wins (ties:
+ * first seen). Exported for tests.
  */
 export function pickChapters(entries: MemberFile[]): (ParsedDoc & { chapter: number; chapterTitle: string; file: ArchiveFile })[] {
-  const kept = new Map<string, { doc: ParsedDoc; file: ArchiveFile; score: number }>();
-  for (const { doc, file } of entries) {
+  const fileById = new Map(entries.map((e) => [e.doc.identifier, e.file]));
+  const kept = new Map<number, ParsedDoc & { chapter: number; chapterTitle: string; file: ArchiveFile; score: number }>();
+  for (const m of orderMembers(entries.map((e) => e.doc))) {
+    const file = fileById.get(m.identifier);
     if (!file) continue;
     const score = scoreFile(file);
-    const key = doc.bookNumber === null ? `id:${doc.identifier}` : `n:${doc.bookNumber}`;
-    const existing = kept.get(key);
-    if (!existing || existing.score < score) kept.set(key, { doc, file, score });
+    const existing = kept.get(m.chapter);
+    if (!existing || existing.score < score) kept.set(m.chapter, { ...m, file, score });
   }
-  const fileById = new Map([...kept.values()].map((e) => [e.doc.identifier, e.file]));
-  return orderMembers([...kept.values()].map((e) => e.doc)).map((m) => ({ ...m, file: fileById.get(m.identifier)! }));
+  return [...kept.values()].sort((a, b) => a.chapter - b.chapter).map(({ score: _score, ...m }) => m);
 }
 
 export const archiveorgBooksSource: MangaSource = {
@@ -167,7 +181,7 @@ export const archiveorgBooksSource: MangaSource = {
     }
 
     const key = mangaId.slice(SERIES_PREFIX.length);
-    const docs = (await searchDocs(key, 100)).filter((d) => parseBookTitle(d.title || d.identifier, d.creator).seriesKey === key);
+    const docs = (await searchDocs(key, 100)).filter((d) => seriesKeyOf(d) === key);
     const members = groupBySeries(docs)[0]?.members ?? [];
 
     const entries: MemberFile[] = [];
