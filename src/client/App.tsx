@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import LibraryPage from './pages/LibraryPage';
 import SeriesPage from './pages/SeriesPage';
 import ReaderPage from './pages/ReaderPage';
@@ -98,6 +98,8 @@ export default function App() {
 function Shell({ authenticated }: { authenticated: boolean }) {
   const location = useLocation();
   const [profileOpen, setProfileOpen] = useState(false);
+  // The header's avatar button — the ProfileSheet anchors beneath it.
+  const profileAnchorRef = useRef<HTMLButtonElement>(null);
 
   const isLogin = location.pathname === '/login';
   const isReader = location.pathname.startsWith('/read/');
@@ -105,7 +107,9 @@ function Shell({ authenticated }: { authenticated: boolean }) {
 
   return (
     <>
-      {showChrome && <Header onOpenProfile={() => setProfileOpen(true)} />}
+      {showChrome && (
+        <Header onOpenProfile={() => setProfileOpen(true)} profileAnchorRef={profileAnchorRef} />
+      )}
       <Routes>
         <Route path="/login" element={
           authenticated ? <Navigate to="/" replace /> : <LoginPage />
@@ -121,7 +125,11 @@ function Shell({ authenticated }: { authenticated: boolean }) {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {showChrome && (
-        <ProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
+        <ProfileSheet
+          open={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          anchorRef={profileAnchorRef}
+        />
       )}
       <OfflineIndicator />
     </>

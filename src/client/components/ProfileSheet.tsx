@@ -1,25 +1,60 @@
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Compass, FolderPlus, Shield, Settings, LogOut, Sun, Moon } from 'lucide-react';
+import { Home, Compass, FolderPlus, Shield, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../App';
-import { useTheme } from '../lib/theme';
-import { ALL_THEMES } from '../lib/themes';
-import { Avatar, SegmentedControl } from './ds';
+import { Avatar } from './ds';
+
+/** Preferred panel width; shrinks on viewports narrower than this + margins. */
+const SHEET_WIDTH = 288;
+/** Minimum gap between the panel and the viewport edges. */
+const EDGE_GAP = 8;
+/** Gap between the anchor's bottom edge and the panel. */
+const ANCHOR_GAP = 6;
 
 /**
- * Right-anchored profile menu sheet — avatar + nav rows + mode toggle +
- * 12-theme picker + settings + sign out. Rendered globally by App; the
- * Header's avatar button toggles `open`.
+ * Profile menu sheet — avatar + nav rows + settings + sign out. Theme and
+ * light/dark mode live on the Settings page, not here. Rendered globally by
+ * App; the Header's avatar button toggles `open` and is passed as
+ * `anchorRef` so the panel can sit directly beneath it.
  */
 interface ProfileSheetProps {
   open: boolean;
   onClose: () => void;
+  /** The avatar button the panel hangs from. Falls back to the top-right corner. */
+  anchorRef?: RefObject<HTMLButtonElement | null>;
 }
 
-export default function ProfileSheet({ open, onClose }: ProfileSheetProps) {
+/**
+ * Where to put the panel: right-aligned with the anchor's right edge, just
+ * below it, then clamped so it never leaves the viewport on any width.
+ */
+function computePlacement(anchor: HTMLElement | null): CSSProperties {
+  // Layout viewport width (excludes a classic scrollbar), which is what
+  // `position: fixed; right` is measured against — `innerWidth` is not.
+  const vw = document.documentElement.clientWidth;
+  const width = Math.min(SHEET_WIDTH, vw - EDGE_GAP * 2);
+  const rect = anchor?.getBoundingClientRect();
+  // Distance from the viewport's right edge to the panel's right edge.
+  let right = rect ? vw - rect.right : 12;
+  right = Math.max(EDGE_GAP, Math.min(right, vw - EDGE_GAP - width));
+  const top = rect ? rect.bottom + ANCHOR_GAP : 56;
+  return { right, top, width, maxHeight: `calc(100dvh - ${top + EDGE_GAP}px)` };
+}
+
+export default function ProfileSheet({ open, onClose, anchorRef }: ProfileSheetProps) {
   const navigate = useNavigate();
   const { username, isAdmin, logout } = useAuth();
-  const { theme, isDark, setTheme, toggleDarkLight } = useTheme();
+  const [placement, setPlacement] = useState<CSSProperties>({});
+
+  // Measure the anchor when the sheet opens and whenever the viewport
+  // changes, so the panel tracks the avatar at every width.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => setPlacement(computePlacement(anchorRef?.current ?? null));
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [open, anchorRef]);
 
   if (!open) return null;
 
@@ -52,15 +87,12 @@ export default function ProfileSheet({ open, onClose }: ProfileSheetProps) {
         aria-modal="true"
         style={{
           position: 'fixed',
-          right: 12,
-          top: 56,
-          width: 288,
+          ...placement,
           background: 'var(--surface-raised)',
           borderRadius: 12,
           boxShadow: 'var(--shadow-2xl)',
           border: '1px solid var(--border-default)',
           overflow: 'hidden',
-          maxHeight: '85vh',
           overflowY: 'auto',
         }}
       >
@@ -106,71 +138,6 @@ export default function ProfileSheet({ open, onClose }: ProfileSheetProps) {
           <Row icon={<Compass size={16} />} label="Discover" onClick={() => go('/discover')} />
           <Row icon={<FolderPlus size={16} />} label="Import" onClick={() => go('/import')} />
           {isAdmin && <Row icon={<Shield size={16} />} label="Admin" onClick={() => go('/admin')} />}
-        </div>
-
-        {/* Mode (light/dark) toggle within the active pair */}
-        <div
-          style={{
-            borderTop: '1px solid var(--border-subtle)',
-            padding: '10px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span style={{ fontSize: 14, color: 'var(--text-heading)' }}>Mode</span>
-          <SegmentedControl
-            options={[
-              { value: 'light', label: '', icon: <Sun size={14} /> },
-              { value: 'dark', label: '', icon: <Moon size={14} /> },
-            ]}
-            value={isDark ? 'dark' : 'light'}
-            onChange={(v) => {
-              if ((v === 'dark') !== isDark) toggleDarkLight();
-            }}
-          />
-        </div>
-
-        {/* Theme picker — all 12 in a 4-col grid */}
-        <div style={{ borderTop: '1px solid var(--border-subtle)', padding: '10px 16px' }}>
-          <div className="by-kicker" style={{ marginBottom: 8 }}>Theme</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-            {ALL_THEMES.map((t) => {
-              const selected = theme === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setTheme(t.id)}
-                  title={`${t.name} — ${t.description}`}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '7px 4px',
-                    borderRadius: 8,
-                    cursor: 'pointer',
-                    border: selected
-                      ? '2px solid var(--color-accent)'
-                      : '1px solid var(--border-default)',
-                    background: t.bg,
-                    color: t.text,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: '50%',
-                      background: t.accent,
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span style={{ fontSize: 9, opacity: 0.85 }}>{t.name}</span>
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {/* Settings */}

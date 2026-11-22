@@ -1,3 +1,4 @@
+import type { RefObject } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Compass } from 'lucide-react';
 import { useAuth } from '../App';
@@ -10,13 +11,16 @@ import NotificationDropdown from './NotificationDropdown';
  * the active theme bleeds through.
  *
  * `onOpenProfile` is the click handler the avatar fires when tapped; the
- * ProfileSheet is rendered globally and toggled by App.
+ * ProfileSheet is rendered globally and toggled by App. `profileAnchorRef`
+ * is attached to the avatar button so the sheet can position itself
+ * directly beneath it.
  */
 interface HeaderProps {
   onOpenProfile: () => void;
+  profileAnchorRef?: RefObject<HTMLButtonElement | null>;
 }
 
-export default function Header({ onOpenProfile }: HeaderProps) {
+export default function Header({ onOpenProfile, profileAnchorRef }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { username } = useAuth();
@@ -79,6 +83,7 @@ export default function Header({ onOpenProfile }: HeaderProps) {
         </IconButton>
         <NotificationDropdown />
         <button
+          ref={profileAnchorRef}
           onClick={onOpenProfile}
           aria-label="Profile menu"
           title="Profile menu"
