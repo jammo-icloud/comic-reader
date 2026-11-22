@@ -30,6 +30,7 @@ rather than maintaining separate hardcoded tables.
 | **ReadAllComics** | `readallcomics` | western, comics | HTML scrape | both | DC, Marvel, Image. Images on Blogger CDN (`bp.blogspot.com`). |
 | **ReadComicsOnline** | `readcomicsonline` | western, comics | HTML scrape | both | Western comics, alternate library. |
 | **Archive.org** | `archiveorg` | — | REST API | both | Public-domain comics, magazines, manga. Single-file downloads (PDF/CBR/CBZ/EPUB) instead of per-page assembly. |
+| **Archive.org Books** | `archiveorg-books` | books | REST API | both | Books, novels, non-fiction outside the comic collections. Uploads grouped into series by normalised title; one chapter per book. Shares the file picker with `archiveorg`. |
 | **Elf Toon** | `elftoon` | manhwa | HTML scrape | both | Manhwa, manhua & comics. Next.js site with JSON search API. |
 | **Omega Scans** | `omegascans` | manhwa, adult | HTML scrape | both | Adult manhwa and webtoons. NSFW; admin-only. |
 | **MyAnimeList** (Jikan) | `mal` | — | REST API | server | **Metadata only** — covers, scores, synopsis, tags. No downloads. Fallback search when no other source matches. |
