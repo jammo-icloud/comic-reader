@@ -132,3 +132,20 @@ key, since a group has no single details page.
   that must not be absorbed).
 - Where unit tests live for addons (none exist today; a small test file
   beside `files.ts` using Node's test runner is acceptable).
+
+## Verification
+
+2026-11-21, dev server on localhost:5880:
+
+- `npm run build` succeeds; `dist/addons/archiveorg-books/` holds the
+  manifest, `index.js` and `series.js`; no test output under `dist/addons`.
+- Discover shows the **Internet Archive Books** pill after **Internet
+  Archive**; `/api/discover/sources` lists `archiveorg-books`.
+- Searching "Pride and Prejudice" with only the Books pill returns the
+  grouped series first (14 chapters, author shown per chapter). Chapter 1
+  downloaded as an 11 MB PDF, created series `pride-and-prejudice` tagged
+  `english, books` with sync source `series:pride and prejudice`, and the
+  reader renders its text pages.
+- Live script: "Dungeon Crawler Carl" groups into one series with books
+  1-7 (one chapter 4) plus the side story as chapter 8.
+- The comics pill still returns comic items for "Tintin".
