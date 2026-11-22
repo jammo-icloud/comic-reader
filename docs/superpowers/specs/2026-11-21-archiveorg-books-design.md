@@ -27,7 +27,8 @@ read in the existing PDF reader.
 
 - Proper text EPUB to PDF conversion. Items with no PDF still go through
   the images-only EPUB converter. mupdf already renders EPUB natively, so
-  this is a clean follow-on, not part of this change.
+  this is a clean follow-on, not part of this change. (Done the same day;
+  see "Follow-on: text EPUBs" under Verification.)
 - A new reading mode for prose. Text PDFs render as pages in the current
   reader.
 - Changes to the Bindery server core, the downloader, or the addon API.
@@ -169,3 +170,21 @@ A fresh review of the branch led to one fix pass, all pinned by tests:
 - Search matches titles only (`title:(words)`), still most-downloaded
   first, excludes `collection:inlibrary`, and strips Lucene syntax from
   user input. Live: "Emma" and "Dune" now lead with the novels.
+
+### Follow-on: text EPUBs (same day)
+
+`src/server/epub-converter.ts` now picks a strategy per file. The spine
+walk counts distinct images and the visible text in the XHTML items; with
+more than 600 characters of text per image (or no images at all) the EPUB
+is prose and is rendered page by page with mupdf (480x720 pt layout, 12 pt
+body, 800x1200 px RGB pages, mozjpeg at quality 80, assembled with
+pdf-lib). Otherwise the existing image-extraction path runs unchanged, so
+manga EPUBs keep their native page images. Decision logic is pinned by
+`src/server/epub-converter.test.ts`; `npm test` now includes `src/server`.
+
+Verified with the archive.org item `austen-pride-and-prejudice`: its EPUB
+(1 image, 734k text characters) rendered to a 426-page, 43 MB PDF whose
+pages show the text; a synthetic three-image manga EPUB still took the
+image path at 1400x2000. Open question for later: 100 KB per text page is
+heavy for offline saves; greyscale pages or a text-aware encoder would
+roughly halve it.
