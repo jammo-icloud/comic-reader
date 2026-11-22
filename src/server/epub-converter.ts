@@ -7,14 +7,76 @@
  *   - XHTML files referencing images
  *   - Images in OEBPS/images/ or similar
  *
- * For image-heavy manga EPUBs this produces a good PDF. For text-heavy
- * EPUBs we extract every image found (small, doesn't include actual prose),
- * so text novels come through as a list of illustrations only.
+ * Two strategies, chosen per file by `chooseEpubStrategy`:
+ *
+ *   - `images`: walk the spine and copy every referenced image into the PDF
+ *     at its native resolution. Right for manga and comic EPUBs, where each
+ *     spine item is one page image and the prose is at most a credits page.
+ *   - `render`: hand the whole EPUB to mupdf, lay it out at paperback
+ *     proportions and rasterise each page. Right for novels and anything
+ *     else where the text is the content. Images in the book still render,
+ *     just at screen resolution.
+ *
+ * Why not always render? Rasterising a manga EPUB through mupdf would
+ * downscale every page to the layout size and re-encode it, which is a
+ * visible quality loss against copying the original JPEGs, and it loses the
+ * native page size. Why not always extract? That is what this module did
+ * before, and a prose novel came out as a handful of illustrations. The
+ * split keeps the better result for each kind of book.
  */
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
+import * as mupdf from 'mupdf';
+
+export type EpubStrategy = 'images' | 'render';
+
+export interface EpubContentStats {
+  /** Distinct images reachable from the spine (or, failing that, in the zip). */
+  imageCount: number;
+  /** Characters of visible text across all XHTML spine items. */
+  textChars: number;
+}
+
+/**
+ * Visible text budget per image before a book counts as prose. A manga
+ * chapter has tens to hundreds of images and a few hundred characters of
+ * chapter titles and credits; a novel has a cover and maybe a few plates
+ * against tens of thousands of characters. 600 sits well clear of both.
+ */
+export const TEXT_CHARS_PER_IMAGE = 600;
+
+/**
+ * Pick the conversion strategy from what the spine walk found.
+ *
+ * Prose dominates when there is more than `TEXT_CHARS_PER_IMAGE` characters
+ * of text for every image (at least one image is assumed so a text-only
+ * book with a short preface still renders). A book with no images at all
+ * can only be rendered, whatever its text length.
+ */
+export function chooseEpubStrategy(stats: EpubContentStats): EpubStrategy {
+  if (stats.imageCount === 0) return 'render';
+  const budget = TEXT_CHARS_PER_IMAGE * Math.max(stats.imageCount, 1);
+  return stats.textChars > budget ? 'render' : 'images';
+}
+
+/**
+ * Length of the text a reader would see in an XHTML document: head, style
+ * and script blocks dropped, tags removed, entities counted as one
+ * character, whitespace collapsed.
+ */
+export function visibleTextLength(html: string): number {
+  const text = html
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<head\b[\s\S]*?<\/head>/gi, ' ')
+    .replace(/<(style|script|title)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z#0-9]+;/gi, 'x')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length;
+}
 
 /**
  * Minimal regex-based XML extraction — avoids adding a full XML parser dependency.
@@ -32,15 +94,6 @@ function findAllTags(xml: string, tagName: string): string[] {
 }
 
 /**
- * Get the path to the OPF file from the EPUB's container.xml.
- */
-function findOpfPath(zip: any): string {
-  const containerFile = zip.files.find((f: any) => f.path === 'META-INF/container.xml');
-  if (!containerFile) throw new Error('EPUB missing META-INF/container.xml');
-  return ''; // placeholder — actual logic in extract()
-}
-
-/**
  * Resolve a relative path (like "images/001.jpg") against a base path
  * (like "OEBPS/text/page1.xhtml") to produce "OEBPS/images/001.jpg".
  */
@@ -49,14 +102,21 @@ function resolveRelative(basePath: string, relPath: string): string {
   return path.posix.normalize(path.posix.join(baseDir, relPath));
 }
 
+interface EpubScan {
+  files: Map<string, any>;
+  imagePaths: string[];
+  stats: EpubContentStats;
+}
+
 /**
- * Convert an EPUB file to PDF by extracting images in spine order.
+ * Walk the spine: collect image paths in reading order and measure how much
+ * visible text the XHTML items carry.
  */
-export async function epubToPdf(epubPath: string, outputPath: string): Promise<void> {
+async function scanEpub(epubPath: string): Promise<EpubScan> {
   const unzipper = await import('unzipper');
   const directory = await unzipper.Open.file(epubPath);
 
-  // Build a map of path → buffer (lazy — only read what we need)
+  // Build a map of path → entry (lazy — only read what we need)
   const files = new Map<string, any>();
   for (const f of directory.files) {
     if (f.type === 'File') files.set(f.path, f);
@@ -94,9 +154,10 @@ export async function epubToPdf(epubPath: string, outputPath: string): Promise<v
     if (idref) spineIds.push(idref);
   }
 
-  // Step 3: collect images in reading order
+  // Step 3: collect images in reading order and measure the prose
   const imagePaths: string[] = [];
   const seenImages = new Set<string>();
+  let textChars = 0;
 
   for (const spineId of spineIds) {
     const item = manifest.get(spineId);
@@ -116,6 +177,7 @@ export async function epubToPdf(epubPath: string, outputPath: string): Promise<v
 
     // XHTML/HTML spine items: extract <img src="..."> or <svg><image xlink:href="...">
     const html = (await itemFile.buffer()).toString('utf-8');
+    textChars += visibleTextLength(html);
     const imgTags = findAllTags(html, 'img');
     const svgImageTags = findAllTags(html, 'image');
 
@@ -130,28 +192,31 @@ export async function epubToPdf(epubPath: string, outputPath: string): Promise<v
     }
   }
 
-  // Fallback: if spine didn't yield any images, walk all image files in the zip
+  // Fallback: if the spine referenced no images, consider every image file
+  // in the zip (some manga EPUBs load pages from CSS or scripts).
   if (imagePaths.length === 0) {
-    console.log('  EPUB: spine had no images, falling back to all image files');
     const imageExts = /\.(jpg|jpeg|png|gif|webp)$/i;
     const allImages = [...files.keys()]
       .filter((p) => imageExts.test(p))
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    if (allImages.length > 0) console.log(`  EPUB: spine had no images, found ${allImages.length} image files in the zip`);
     imagePaths.push(...allImages);
   }
 
-  if (imagePaths.length === 0) {
-    throw new Error('EPUB: no images found (text-only EPUB not supported)');
-  }
+  return { files, imagePaths, stats: { imageCount: imagePaths.length, textChars } };
+}
 
-  console.log(`  EPUB: assembling ${imagePaths.length} images into PDF`);
+/**
+ * Assemble the spine's images into a PDF, one page per image at native size.
+ */
+async function imagesToPdf(scan: EpubScan, outputPath: string): Promise<void> {
+  console.log(`  EPUB: assembling ${scan.imagePaths.length} images into PDF`);
 
-  // Step 4: assemble images into PDF
   const pdf = await PDFDocument.create();
   let embedded = 0;
 
-  for (const imgPath of imagePaths) {
-    const imgFile = files.get(imgPath);
+  for (const imgPath of scan.imagePaths) {
+    const imgFile = scan.files.get(imgPath);
     if (!imgFile) continue;
 
     try {
@@ -178,4 +243,84 @@ export async function epubToPdf(epubPath: string, outputPath: string): Promise<v
   const pdfBytes = await pdf.save();
   fs.writeFileSync(outputPath, pdfBytes);
   console.log(`  EPUB → PDF: ${embedded} pages → ${path.basename(outputPath)}`);
+}
+
+/** Layout box for reflowable EPUBs, in points: a trade paperback page. */
+const RENDER_LAYOUT_WIDTH = 480;
+const RENDER_LAYOUT_HEIGHT = 720;
+/** Body font size for the layout, in points. */
+const RENDER_EM = 12;
+/** Rendered page height in pixels; width follows the layout's 2:3 ratio (800 px). */
+const RENDER_PAGE_HEIGHT = 1200;
+const RENDER_JPEG_QUALITY = 80;
+
+/**
+ * Render an EPUB page by page with mupdf and assemble the rasters into a
+ * PDF. The reader draws PDF pages as images anyway, so a rasterised PDF
+ * reads the same as a vector one; it is just larger on disk.
+ */
+export async function renderEpubToPdf(epubPath: string, outputPath: string): Promise<void> {
+  const data = fs.readFileSync(epubPath);
+  const doc = mupdf.Document.openDocument(data, 'application/epub+zip');
+  try {
+    doc.layout(RENDER_LAYOUT_WIDTH, RENDER_LAYOUT_HEIGHT, RENDER_EM);
+    const pageCount = doc.countPages();
+    if (pageCount === 0) throw new Error('EPUB: mupdf laid out zero pages');
+    console.log(`  EPUB: rendering ${pageCount} pages with mupdf`);
+
+    const pdf = await PDFDocument.create();
+    for (let i = 0; i < pageCount; i++) {
+      const page = doc.loadPage(i);
+      try {
+        const bounds = page.getBounds();
+        const pageHeight = bounds[3] - bounds[1];
+        const scale = RENDER_PAGE_HEIGHT / (pageHeight || RENDER_LAYOUT_HEIGHT);
+        const pixmap = page.toPixmap(mupdf.Matrix.scale(scale, scale), mupdf.ColorSpace.DeviceRGB, false, true);
+        try {
+          const width = pixmap.getWidth();
+          const height = pixmap.getHeight();
+          // PNG out of mupdf, JPEG via sharp's mozjpeg: about a fifth smaller
+          // than mupdf's own encoder at the same quality on text pages.
+          const jpegBuffer = await sharp(Buffer.from(pixmap.asPNG()))
+            .jpeg({ quality: RENDER_JPEG_QUALITY, mozjpeg: true })
+            .toBuffer();
+          const jpeg = await pdf.embedJpg(jpegBuffer);
+          const outPage = pdf.addPage([width, height]);
+          outPage.drawImage(jpeg, { x: 0, y: 0, width, height });
+        } finally {
+          pixmap.destroy();
+        }
+      } finally {
+        page.destroy();
+      }
+      if ((i + 1) % 100 === 0) console.log(`  EPUB: rendered ${i + 1}/${pageCount}`);
+    }
+
+    const pdfBytes = await pdf.save();
+    fs.writeFileSync(outputPath, pdfBytes);
+    console.log(`  EPUB → PDF: ${pageCount} rendered pages → ${path.basename(outputPath)}`);
+  } finally {
+    doc.destroy();
+  }
+}
+
+/**
+ * Convert an EPUB file to PDF, extracting images for picture books and
+ * rendering with mupdf for prose. See the module comment for the split.
+ */
+export async function epubToPdf(epubPath: string, outputPath: string): Promise<void> {
+  const scan = await scanEpub(epubPath);
+  const { imageCount, textChars } = scan.stats;
+  if (imageCount === 0 && textChars === 0) {
+    throw new Error('EPUB: no images or text found in spine');
+  }
+
+  const strategy = chooseEpubStrategy(scan.stats);
+  console.log(`  EPUB: ${imageCount} images, ${textChars} text chars → ${strategy}`);
+
+  if (strategy === 'images') {
+    await imagesToPdf(scan, outputPath);
+  } else {
+    await renderEpubToPdf(epubPath, outputPath);
+  }
 }
