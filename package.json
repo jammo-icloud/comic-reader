@@ -12,7 +12,8 @@
     "start": "node dist/server/index.js",
     "start:local": "node --env-file=.env dist/server/index.js",
     "scan": "tsx src/server/scan-cli.ts",
-    "splash": "tsx scripts/generate-splash.ts"
+    "splash": "tsx scripts/generate-splash.ts",
+    "test": "tsx --test \"addons/**/*.test.ts\""
   },
   "dependencies": {
     "archiver": "^7.0.1",

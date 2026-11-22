@@ -1,0 +1,19 @@
+{
+  "id": "archiveorg-books",
+  "name": "Internet Archive Books",
+  "version": "1.0.0",
+  "api": 1,
+  "kind": "source",
+  "order": 8,
+  "main": "index.js",
+  "hosts": [
+    "archive.org"
+  ],
+  "tags": [
+    "books"
+  ],
+  "color": "#7c3aed",
+  "description": "Internet Archive — books, novels and non-fiction (PDF/EPUB), grouped by series.",
+  "url": "https://archive.org",
+  "favicon": "https://archive.org/favicon.ico"
+}
