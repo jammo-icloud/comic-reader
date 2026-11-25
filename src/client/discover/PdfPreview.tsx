@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { openPdf, type PdfDoc } from '../lib/pdf';
+import { openPdf, type PdfDoc, type PdfLoadingTask } from '../lib/pdf';
 import { useEscapeKey } from './useEscapeKey';
 import PreviewReader from './PreviewReader';
 import PreviewTopBar from './PreviewTopBar';
@@ -42,6 +42,7 @@ export default function PdfPreview({ fileUrl, chapterLabel, mangaTitle, onClose,
   const [pages, setPages] = useState<string[]>([]);
   const [target, setTarget] = useState<number | null>(null); // null until the document opens
   const [error, setError] = useState(false);
+  const taskRef = useRef<PdfLoadingTask | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,10 +51,12 @@ export default function PdfPreview({ fileUrl, chapterLabel, mangaTitle, onClose,
     setPages([]);
     setTarget(null);
     setError(false);
+    const task = openPdf(fileUrl);
+    taskRef.current = task;
 
     (async () => {
       try {
-        const loaded = await openPdf(fileUrl);
+        const loaded = await task.promise;
         if (cancelled) { loaded.destroy(); return; }
         doc = loaded;
         const count = Math.min(loaded.numPages, maxPages);
@@ -78,6 +81,9 @@ export default function PdfPreview({ fileUrl, chapterLabel, mangaTitle, onClose,
       cancelled = true;
       urls.forEach((url) => URL.revokeObjectURL(url));
       doc?.destroy();
+      // Aborts the network stream too — also when the document hasn't opened yet.
+      task.destroy();
+      if (taskRef.current === task) taskRef.current = null;
     };
   }, [fileUrl, maxPages]);
 
