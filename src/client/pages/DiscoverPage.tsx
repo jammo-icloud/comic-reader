@@ -8,7 +8,10 @@ import { useSources, getSourceConfig } from '../lib/browser-sources/registry';
 import type { SourceConfig } from '../lib/browser-sources/types';
 import MangaSearchCard from '../discover/MangaSearchCard';
 import MangaDetailSheet from '../discover/MangaDetailSheet';
+import { fileKind } from '@bindery/addon-api';
 import PreviewReader from '../discover/PreviewReader';
+import PdfPreview from '../discover/PdfPreview';
+import FilePreviewNotice from '../discover/FilePreviewNotice';
 import type { ChapterDownloadItem } from '../discover/types';
 import StickyToolbar from '../components/StickyToolbar';
 
@@ -35,6 +38,8 @@ export default function DiscoverPage() {
   const [previewPages, setPreviewPages] = useState<string[] | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewLabel, setPreviewLabel] = useState('');
+  // File sources (PDF/EPUB/CBZ) preview the chapter's single file instead of page images.
+  const [filePreview, setFilePreview] = useState<{ url: string; kind: 'pdf' | 'archive' | 'epub'; chapter: ChapterDownloadItem } | null>(null);
 
   // Discover has three modes:
   //   'sources'     — existing UX, search external sources for new manga
@@ -197,14 +202,35 @@ export default function DiscoverPage() {
     }
   };
 
+  const downloadChapters = async (chaptersToDownload: ChapterDownloadItem[]) => {
+    if (!selectedManga) return;
+    await startDownload(selectedManga.mangaId, selectedManga.title, 'default', chaptersToDownload, {
+      description: selectedManga.description,
+      status: selectedManga.status,
+      year: selectedManga.year,
+      tags: selectedManga.tags,
+      contentRating: selectedManga.status,
+      coverUrl: selectedManga.coverUrl,
+      sourceId: selectedManga.sourceId,
+    });
+  };
+
   const handlePreview = async (chapter: ChapterDownloadItem) => {
     if (!selectedManga) return;
     const label = `Ch. ${chapter.chapter || '?'}`;
     setPreviewLabel(label);
+    setFilePreview(null);
     setPreviewPages([]);
     setPreviewLoading(true);
     try {
       const data = await discoverPages(selectedManga.sourceId, chapter.id);
+      if (data.fileUrl) {
+        // fileUrl is the proxied form; classify by the original URL it wraps.
+        const original = new URL(data.fileUrl, location.origin).searchParams.get('url') || '';
+        setFilePreview({ url: data.fileUrl, kind: fileKind(original) ?? 'pdf', chapter });
+        setPreviewPages(null);
+        return;
+      }
       setPreviewPages(data.pages);
     } catch (err) {
       console.error('Preview failed:', err);
@@ -514,17 +540,7 @@ export default function DiscoverPage() {
           sourceConfig={getSourceConfig(selectedManga.sourceId) ?? null}
           sourceUrl={selectedSourceUrl}
           onClose={() => { setSelectedManga(null); setChapters([]); setLocalChapterNums(new Set()); setSelectedSourceUrl(null); }}
-          onDownload={async (chaptersToDownload: ChapterDownloadItem[]) => {
-            await startDownload(selectedManga.mangaId, selectedManga.title, 'default', chaptersToDownload, {
-              description: selectedManga.description,
-              status: selectedManga.status,
-              year: selectedManga.year,
-              tags: selectedManga.tags,
-              contentRating: selectedManga.status,
-              coverUrl: selectedManga.coverUrl,
-              sourceId: selectedManga.sourceId,
-            });
-          }}
+          onDownload={downloadChapters}
           onPreview={handlePreview}
         />
       )}
@@ -538,6 +554,26 @@ export default function DiscoverPage() {
           onClose={() => setPreviewPages(null)}
         />
       )}
+
+      {filePreview && selectedManga && (filePreview.kind === 'pdf' ? (
+        <PdfPreview
+          fileUrl={filePreview.url}
+          chapterLabel={previewLabel}
+          mangaTitle={selectedManga.title}
+          onClose={() => setFilePreview(null)}
+        />
+      ) : (
+        <FilePreviewNotice
+          kind={filePreview.kind}
+          chapterLabel={previewLabel}
+          mangaTitle={selectedManga.title}
+          onClose={() => setFilePreview(null)}
+          onDownload={async () => {
+            await downloadChapters([filePreview.chapter]);
+            setFilePreview(null);
+          }}
+        />
+      ))}
     </div>
   );
 }

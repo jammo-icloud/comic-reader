@@ -30,6 +30,14 @@ async function loadPdf(url: string): Promise<PdfDoc> {
 }
 
 /**
+ * Open a remote PDF for a one-off preview: no cache lookup, and range requests
+ * in 256 KB chunks so the first pages render before the whole file arrives.
+ */
+export function openPdf(url: string): Promise<PdfDoc> {
+  return pdfjsLib.getDocument({ url, rangeChunkSize: 262144 }).promise;
+}
+
+/**
  * Load the PDF at `url`; returns null until it's ready. The result is tagged
  * with its url so that on a chapter change consumers see null in the very same
  * render — they unmount before the old document is destroyed.

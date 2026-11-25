@@ -719,7 +719,7 @@ export function discoverChapters(sourceId: string, mangaId: string): Promise<{ c
   return fetchJson(`/discover/chapters/${sourceId}/${encodeURIComponent(mangaId)}`);
 }
 
-export function discoverPages(sourceId: string, chapterId: string): Promise<{ pages: string[] }> {
+export function discoverPages(sourceId: string, chapterId: string): Promise<{ pages: string[]; fileUrl?: string }> {
   return fetchJson(`/discover/pages/${sourceId}?chapterId=${encodeURIComponent(chapterId)}`);
 }
 
