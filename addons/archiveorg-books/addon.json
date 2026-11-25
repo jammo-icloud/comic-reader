@@ -5,6 +5,7 @@
   "api": 1,
   "kind": "source",
   "order": 8,
+  "seriesType": "book",
   "main": "index.js",
   "hosts": [
     "archive.org"

@@ -14,6 +14,32 @@ export const ADDON_API_VERSION = 1;
 
 export type AddonKind = 'source' | 'art' | 'converter';
 
+/** Library category a series is filed under. */
+export type SeriesType = 'comic' | 'magazine' | 'book';
+
+const FILE_EXT = /\.(pdf|cbz|cbr|epub|zip)$/i;
+
+function fileExt(url: string): string | null {
+  try {
+    const m = FILE_EXT.exec(new URL(url).pathname);
+    return m ? m[1].toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** True when `url` is a single downloadable file (.pdf/.cbz/.cbr/.epub/.zip by path, ignoring query/hash). */
+export function isFileUrl(url: string): boolean {
+  return fileExt(url) !== null;
+}
+
+/** Kind of file `url` points at (`archive` covers cbz/cbr/zip), or null when it isn't a file URL. */
+export function fileKind(url: string): 'pdf' | 'archive' | 'epub' | null {
+  const ext = fileExt(url);
+  if (!ext) return null;
+  return ext === 'pdf' ? 'pdf' : ext === 'epub' ? 'epub' : 'archive';
+}
+
 /** `addon.json`. */
 export interface AddonManifest {
   /** Stable identifier, lowercase; a source's `id` must match. */
@@ -36,6 +62,8 @@ export interface AddonManifest {
   homepage?: string;
   /** Auto-tags for series created from this source (e.g. ["manga"], ["manhwa", "adult"]). */
   tags?: string[];
+  /** Library category series from this source are filed under. Default comic. */
+  seriesType?: SeriesType;
   /** True for sources that can search but not download (metadata-only fallback). */
   metadataOnly?: boolean;
   /** Display order in the Discover source picker. Lower = first. Unset sorts alphabetically after ordered addons. */

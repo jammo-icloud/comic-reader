@@ -12,6 +12,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+import type { SeriesType } from '@bindery/addon-api';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const SERIES_FILE = path.join(DATA_DIR, 'series.jsonl');
@@ -28,7 +29,7 @@ const clone = <T>(v: T): T => structuredClone(v);
 
 // --- Series types ---
 
-export type SeriesType = 'comic' | 'magazine' | 'book';
+export type { SeriesType };
 
 /** Library folder (under LIBRARY_DIR) that holds series of the given type. */
 export function typeDir(type: SeriesType): 'comics' | 'magazines' | 'books' {
