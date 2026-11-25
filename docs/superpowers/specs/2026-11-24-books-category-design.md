@@ -190,6 +190,16 @@ Three defects surfaced while adding the Books source and are fixed here:
   Neither needs a change. No migration of existing records: a Books-source
   series created before this change stays where it is until the user moves it
   from the editor (consistent with the "no automatic re-filing" non-goal).
+- **Addendum (2026-11-25): explicit target series.** `DownloadJob` carries an
+  optional `targetSeriesId`, passed through `queueDownload(..., { targetSeriesId })`
+  by callers that already know the series: sync (`series.id`), the admin
+  retry-partials route (`series.id`), and `POST /discover/download` when the
+  client sends the search result's `localSeriesId`. `processQueue` uses
+  `resolveJobTarget`: the named series wins outright (its id and its type's
+  dir), and only when that id no longer exists does the title resolution above
+  run, with a warning. This closes the retry-partials gap where a series moved
+  to Books with no matching `syncSource` minted `<slug>-comic`. Enqueue dedupe
+  keys on the target id when both jobs name one, else on the source manga id.
 
 ### 4. Moving a series between categories
 
@@ -213,6 +223,12 @@ Three defects surfaced while adding the Books source and are fixed here:
 - `PATCH /api/admin/catalog/:id` calls `moveSeriesType` when `req.body.type`
   differs from the current type, before applying the other editable fields.
   Failure to move leaves the record untouched and returns the error.
+  Addendum (2026-11-25): the route first refuses with 409 when a queued or
+  downloading job targets the series (`findActiveDownloadForSeries`: by
+  `targetSeriesId`, and for legacy jobs by `syncSource` or title). A job fixes
+  its series dir once when it starts, so a move mid-job would strand the
+  remaining chapters in the old type dir; a guard was chosen over recomputing
+  the dir per chapter because it is simpler and the user sees why.
 - Thumbnails are keyed by a hash of series id + file and live under
   `DATA_DIR/thumbnails`, so they survive. Reading progress, collections,
   favorites, pins, reader prefs and offline caches are keyed by series id and

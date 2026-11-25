@@ -2,7 +2,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { loadAllSeries, loadComics, writeComics, removeSeries, saveSeries, getSeries, loadCollection, loadUserProgress, userDir, typeDir, moveSeriesType, isSeriesType, type SeriesRecord, type SeriesType } from '../data.js';
-import { getQueue, removeFromQueue, cancelDownload, cleanupDownloads, queueDownload } from '../downloader.js';
+import { getQueue, removeFromQueue, cancelDownload, cleanupDownloads, queueDownload, findActiveDownloadForSeries } from '../downloader.js';
 import { listPartialsForSeries, clearPartial } from '../partial.js';
 import { cleanupConversions } from '../converter.js';
 import { enrichSeries } from '../enrich.js';
@@ -204,6 +204,12 @@ router.patch('/admin/catalog/:id', (req, res) => {
       res.status(400).json({ error: `type must be one of: ${SERIES_TYPES.join(', ')}` });
       return;
     }
+    // A running job fixed its series dir when it started; moving the folder
+    // under it would strand the rest of the chapters in the old type dir.
+    if (findActiveDownloadForSeries(series)) {
+      res.status(409).json({ error: 'A download for this series is in progress; try again when it finishes' });
+      return;
+    }
     try {
       moveSeriesType(series.id, req.body.type);
     } catch (e) {
@@ -331,6 +337,9 @@ router.post('/admin/series/:id/retry-partials', (req, res) => {
       year: series.year,
     },
     req.username,
+    // The admin pressed retry on this series; land there even if it has been
+    // moved to another type since the partials were written.
+    { targetSeriesId: series.id },
   );
 
   console.log(

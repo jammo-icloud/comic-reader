@@ -733,11 +733,12 @@ export function startDownload(
   shelfId: string,
   chapters: { id: string; chapter: string | null; pages: number }[],
   metadata?: Record<string, any>,
+  localSeriesId?: string | null,
 ): Promise<any> {
   return fetchJson('/discover/download', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mangaDexId, mangaTitle, shelfId, chapters, metadata }),
+    body: JSON.stringify({ mangaDexId, mangaTitle, shelfId, chapters, metadata, localSeriesId: localSeriesId || undefined }),
   });
 }
 

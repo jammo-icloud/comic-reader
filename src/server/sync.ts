@@ -98,6 +98,8 @@ export async function syncSeries(seriesId: string, username: string = 'system'):
           coverUrl: undefined,
         },
         username,
+        // This series, whatever type it has been moved to — never re-derived from the title.
+        { targetSeriesId: series.id },
       );
       console.log(`  Sync "${series.name}": ${missing.length} new chapters queued`);
     }

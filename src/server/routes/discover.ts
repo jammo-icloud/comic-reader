@@ -155,7 +155,7 @@ router.get('/discover/proxy-image', async (req, res) => {
 
 // Start download
 router.post('/discover/download', (req, res) => {
-  const { mangaDexId, mangaTitle, shelfId, chapters, metadata } = req.body;
+  const { mangaDexId, mangaTitle, shelfId, chapters, metadata, localSeriesId } = req.body;
   if (!mangaDexId || !mangaTitle || !shelfId || !chapters?.length) {
     res.status(400).json({ error: 'mangaDexId, mangaTitle, shelfId, and chapters required' });
     return;
@@ -170,7 +170,10 @@ router.post('/discover/download', (req, res) => {
     }
   }
 
-  const job = queueDownload(mangaDexId, mangaTitle, shelfId, chapters, metadata, req.username);
+  // A search result annotated with a local series id names the series to
+  // download into; without one the downloader resolves by subscription/title.
+  const target = typeof localSeriesId === 'string' && localSeriesId ? localSeriesId : undefined;
+  const job = queueDownload(mangaDexId, mangaTitle, shelfId, chapters, metadata, req.username, { targetSeriesId: target });
   res.json(job);
 });
 

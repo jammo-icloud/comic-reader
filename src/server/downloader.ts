@@ -5,7 +5,7 @@ import { PDFDocument } from 'pdf-lib';
 import { getPageUrlsFromSource, getCdnReferer, getSourceHome, getSourceTags, getSourceType } from './sources/index.js';
 import { loadAllSeries, saveSeries, addToCollection, typeDir, placeholderFor, type SeriesRecord } from './data.js';
 import { isFileUrl } from '@bindery/addon-api';
-import { resolveTargetSeries } from './series-resolve.js';
+import { resolveJobTarget, findActiveJobForSeries, sameEnqueueTarget } from './series-resolve.js';
 import { rescanLibrary } from './scanner.js';
 import { readPartial, writePartial, clearPartial, hasPartial } from './partial.js';
 
@@ -25,6 +25,14 @@ export interface DownloadJob {
   progress: { current: number; total: number; currentChapter: string | null; pagesDownloaded: number; pagesTotal: number };
   error?: string;
   createdAt: string;
+  /**
+   * Library series this job writes into, set when the caller already knew it
+   * (sync, retry-partials, a download into a known local series). The
+   * processor uses it as-is instead of re-deriving the series from the title,
+   * which would miss a series moved to another type. Absent on jobs queued
+   * from a bare search result and on jobs saved before the field existed.
+   */
+  targetSeriesId?: string;
   // Series metadata captured from the source at enqueue time
   metadata?: {
     description?: string;
@@ -84,6 +92,14 @@ function loadAllTasks(): DownloadJob[] {
 
 export function getQueue(): DownloadJob[] {
   return loadAllTasks();
+}
+
+/**
+ * The queued or downloading job that will write into `series`, if any.
+ * Admin's type move refuses while one exists — see findActiveJobForSeries.
+ */
+export function findActiveDownloadForSeries(series: SeriesRecord): DownloadJob | undefined {
+  return findActiveJobForSeries(loadAllTasks(), series);
 }
 
 const cancelledJobs = new Set<string>();
@@ -363,17 +379,23 @@ async function processQueue() {
       emitProgress(job);
 
       const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
-      // Subscription first, then title within the source's series type; a
-      // same-titled series of another type gets a separate, suffixed id.
-      const type = getSourceType(job.metadata?.sourceId || '');
-      const { existing, id: actualSlug } = resolveTargetSeries(loadAllSeries(), {
+      // The series the caller named wins. Otherwise: subscription first, then
+      // title within the source's series type; a same-titled series of another
+      // type gets a separate, suffixed id.
+      const { existing, id: actualSlug, type, fellBack } = resolveJobTarget(loadAllSeries(), {
+        targetSeriesId: job.targetSeriesId,
         title: job.mangaTitle,
         sourceId: job.metadata?.sourceId || '',
         mangaId: job.mangaDexId,
-        type,
+        type: getSourceType(job.metadata?.sourceId || ''),
       });
+      if (fellBack) {
+        console.warn(
+          `  Target series "${job.targetSeriesId}" no longer exists — resolving "${job.mangaTitle}" by title → ${actualSlug}`,
+        );
+      }
 
-      const seriesDir = path.join(LIBRARY_DIR, typeDir(existing ? existing.type : type), actualSlug);
+      const seriesDir = path.join(LIBRARY_DIR, typeDir(type), actualSlug);
       if (!fs.existsSync(seriesDir)) fs.mkdirSync(seriesDir, { recursive: true });
       if (!existing) {
         const newSeries: SeriesRecord = {
@@ -625,9 +647,11 @@ export function queueDownload(
   chapters: { id: string; chapter: string | null; pages: number }[],
   metadata?: DownloadJob['metadata'],
   username?: string,
+  options: { targetSeriesId?: string | null } = {},
 ): DownloadJob {
   const user = username || process.env.DEFAULT_USER || 'local';
   const sourceId = metadata?.sourceId || '';
+  const targetSeriesId = options.targetSeriesId || undefined;
 
   // Dedupe on enqueue. If a queued or actively-downloading job already exists
   // for the same (series + source + user) tuple, merge new chapters into it
@@ -636,16 +660,19 @@ export function queueDownload(
   // after the first finishes (mostly fast-skipping via the existence check,
   // but still pointless work and clutter in the queue).
   //
-  // Match key: mangaDexId is the source's manga ID (legacy field name —
-  // not necessarily MangaDex). Combined with sourceId it uniquely identifies
-  // the same series across sources. Username scopes per-user so two users
-  // can independently queue the same series.
+  // Match key: the target series id when both jobs name one, else mangaDexId
+  // (the source's manga ID — legacy field name, not necessarily MangaDex).
+  // Combined with sourceId it identifies the same series across sources.
+  // Username scopes per-user so two users can independently queue the same
+  // series.
+  const key = { targetSeriesId, mangaDexId, username: user, sourceId };
   const existing = loadAllTasks().find(
     (t) =>
       (t.status === 'queued' || t.status === 'downloading') &&
-      t.mangaDexId === mangaDexId &&
-      t.username === user &&
-      (t.metadata?.sourceId || '') === sourceId,
+      sameEnqueueTarget(
+        { targetSeriesId: t.targetSeriesId, mangaDexId: t.mangaDexId, username: t.username, sourceId: t.metadata?.sourceId || '' },
+        key,
+      ),
   );
 
   if (existing) {
@@ -683,6 +710,7 @@ export function queueDownload(
     progress: { current: 0, total: chapters.length, currentChapter: null, pagesDownloaded: 0, pagesTotal: 0 },
     createdAt: new Date().toISOString(),
     metadata,
+    ...(targetSeriesId ? { targetSeriesId } : {}),
   };
 
   saveTask(job);

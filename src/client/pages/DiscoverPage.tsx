@@ -212,7 +212,7 @@ export default function DiscoverPage() {
       contentRating: selectedManga.status,
       coverUrl: selectedManga.coverUrl,
       sourceId: selectedManga.sourceId,
-    });
+    }, selectedManga.localSeriesId);
   };
 
   const handlePreview = async (chapter: ChapterDownloadItem) => {
