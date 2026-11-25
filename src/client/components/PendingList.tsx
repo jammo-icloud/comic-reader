@@ -82,8 +82,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
     try {
       await confirmImport(
         current.sourceFolder,
-        // TODO(Task 5): confirmImport's type param widens to SeriesType; the server already accepts 'book'.
-        editType as 'comic' | 'magazine',
+        editType,
         editName,
         editType === 'comic' && editMalId ? parseInt(editMalId, 10) : null,
       );

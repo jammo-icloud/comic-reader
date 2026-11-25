@@ -111,7 +111,7 @@ export interface MalMatch {
 export interface PendingImport {
   sourceFolder: string;
   folderName: string;
-  suggestedType: 'comic' | 'magazine';
+  suggestedType: SeriesType;
   fileCount: number;
   files: string[];
   malMatch: MalMatch | null;
