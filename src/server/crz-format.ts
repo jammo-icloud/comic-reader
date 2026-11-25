@@ -53,6 +53,8 @@
  *     destination series the same way for every part.
  */
 
+import type { SeriesType } from './data.js';
+
 // ============================================================
 // v1 — legacy, import-only
 // ============================================================
@@ -69,6 +71,7 @@ export interface CrzManifestV1 {
   chapters: Array<{ file: string; chapter: string }>;
   partIndex: number;
   totalParts: number;
+  type?: SeriesType;
 }
 
 // ============================================================
@@ -95,7 +98,7 @@ export interface CrzManifestV2 {
   totalParts: number;
 
   // --- Series metadata (mirrors SeriesRecord, minus instance-local fields) ---
-  type: 'comic' | 'magazine';
+  type: SeriesType;
   /** Maps to SeriesRecord.name on import. */
   title: string;
   englishTitle: string | null;
@@ -183,8 +186,8 @@ export function validateManifest(input: unknown): ValidationResult {
     for (const [k, t] of required) {
       if (typeof m[k] !== t) errors.push(`${k} must be a ${t}`);
     }
-    if (m.type !== 'comic' && m.type !== 'magazine') {
-      errors.push(`type must be 'comic' or 'magazine'`);
+    if (m.type !== 'comic' && m.type !== 'magazine' && m.type !== 'book') {
+      errors.push(`type must be 'comic', 'magazine' or 'book'`);
     }
     if (typeof m.nsfw !== 'boolean') errors.push('nsfw must be a boolean');
     if (typeof m.hasTranslations !== 'boolean') errors.push('hasTranslations must be a boolean');
@@ -272,7 +275,7 @@ export const CRZ_V2_JSON_SCHEMA = {
     originSeriesId: { type: 'string' },
     partIndex: { type: 'integer', minimum: 0 },
     totalParts: { type: 'integer', minimum: 1 },
-    type: { enum: ['comic', 'magazine'] },
+    type: { enum: ['comic', 'magazine', 'book'] },
     title: { type: 'string', minLength: 1 },
     englishTitle: { type: ['string', 'null'] },
     synopsis: { type: ['string', 'null'] },

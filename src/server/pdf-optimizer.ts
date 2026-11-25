@@ -8,7 +8,7 @@ import path from 'path';
 import * as mupdf from 'mupdf';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
-import { loadAllSeries, loadComics, writeComics, getSeries, type SeriesRecord } from './data.js';
+import { loadAllSeries, loadComics, writeComics, getSeries, typeDir, type SeriesRecord } from './data.js';
 
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
 
@@ -202,8 +202,8 @@ export async function optimizeSeries(seriesId: string): Promise<{
   const series = getSeries(seriesId);
   if (!series) throw new Error(`Series not found: ${seriesId}`);
 
-  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-  const seriesDir = path.join(LIBRARY_DIR, typeDir, seriesId);
+  const typeFolder = typeDir(series.type);
+  const seriesDir = path.join(LIBRARY_DIR, typeFolder, seriesId);
   if (!fs.existsSync(seriesDir)) throw new Error(`Series directory not found: ${seriesDir}`);
 
   const comics = loadComics(seriesId);

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { loadAllSeries, loadComics, writeComics, slugify, resolveComicPath, type ComicRecord } from './data.js';
+import { loadAllSeries, loadComics, writeComics, slugify, typeDir, resolveComicPath, type ComicRecord } from './data.js';
 import { runMaintenance } from './maintenance.js';
 
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
@@ -16,8 +16,8 @@ export async function rescanLibrary(): Promise<{ updated: number }> {
   let updated = 0;
 
   for (const series of allSeries) {
-    const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-    const seriesDir = path.join(LIBRARY_DIR, typeDir, series.id);
+    const typeFolder = typeDir(series.type);
+    const seriesDir = path.join(LIBRARY_DIR, typeFolder, series.id);
 
     if (!fs.existsSync(seriesDir)) continue;
 

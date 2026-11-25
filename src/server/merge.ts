@@ -8,6 +8,7 @@ import {
   getSeries, loadComics, writeComics, saveSeries,
   removeSeries as deleteSeriesRecord,
   type SeriesRecord, type ComicRecord, type CollectionEntry, type UserProgressRecord,
+  typeDir,
 } from './data.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -99,9 +100,9 @@ export function executeMerge(req: MergeRequest): { ok: true; chaptersMoved: numb
     throw new Error(`Cannot merge different types: ${keepSeries.type} vs ${removeSeries.type}`);
   }
 
-  const typeDir = keepSeries.type === 'comic' ? 'comics' : 'magazines';
-  const keepDir = path.join(LIBRARY_DIR, typeDir, req.keepId);
-  const removeDir = path.join(LIBRARY_DIR, typeDir, req.removeId);
+  const typeFolder = typeDir(keepSeries.type);
+  const keepDir = path.join(LIBRARY_DIR, typeFolder, req.keepId);
+  const removeDir = path.join(LIBRARY_DIR, typeFolder, req.removeId);
 
   const keepComics = loadComics(req.keepId);
   const removeComics = loadComics(req.removeId);

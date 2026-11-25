@@ -29,6 +29,8 @@ import {
   resolveComicPath,
   type SeriesRecord,
   type ComicRecord,
+  typeDir,
+  placeholderFor,
 } from './data.js';
 import { shortHash } from './hash.js';
 import {
@@ -140,7 +142,8 @@ async function importCrzV1(
   const seriesId = series ? series.id : defaultSlug;
   const merged = !!series;
 
-  const seriesDir = path.join(LIBRARY_DIR, 'comics', seriesId);
+  const seriesType = series ? series.type : (manifest.type ?? 'comic');
+  const seriesDir = path.join(LIBRARY_DIR, typeDir(seriesType), seriesId);
   if (!fs.existsSync(seriesDir)) fs.mkdirSync(seriesDir, { recursive: true });
 
   if (!series) {
@@ -148,7 +151,7 @@ async function importCrzV1(
     const tags = [...new Set([...(manifest.tags || []), ...autoTags])];
     series = {
       id: seriesId,
-      type: 'comic',
+      type: seriesType,
       name: manifest.title,
       coverFile: null,
       score: null,
@@ -159,7 +162,7 @@ async function importCrzV1(
       malId: null,
       mangaDexId: null,
       englishTitle: null,
-      placeholder: 'manga.png',
+      placeholder: placeholderFor(seriesType),
     };
     saveSeries(series);
     console.log(`  CRZ v1: Created series "${manifest.title}" (${seriesId})`);
@@ -242,8 +245,8 @@ async function importCrzV2(
   const { series, isNew, forked } = resolveDestinationSeriesV2(manifest, strategy);
   const seriesId = series.id;
 
-  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-  const seriesDir = path.join(LIBRARY_DIR, typeDir, seriesId);
+  const typeFolder = typeDir(series.type);
+  const seriesDir = path.join(LIBRARY_DIR, typeFolder, seriesId);
   if (!fs.existsSync(seriesDir)) fs.mkdirSync(seriesDir, { recursive: true });
 
   // --- Cover (only if series doesn't have one yet, or strategy=replace cleared it) ---

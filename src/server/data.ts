@@ -26,6 +26,28 @@ function ensureDir(dir: string) {
 // Deep-clone helper — structuredClone is native in Node 17+
 const clone = <T>(v: T): T => structuredClone(v);
 
+// --- Series types ---
+
+export type SeriesType = 'comic' | 'magazine' | 'book';
+
+/** Library folder (under LIBRARY_DIR) that holds series of the given type. */
+export function typeDir(type: SeriesType): 'comics' | 'magazines' | 'books' {
+  switch (type) {
+    case 'comic': return 'comics';
+    case 'magazine': return 'magazines';
+    case 'book': return 'books';
+  }
+}
+
+/** Default placeholder image (in public/placeholders) for series of the given type. */
+export function placeholderFor(type: SeriesType): 'manga.png' | 'magazine.png' | 'book.png' {
+  switch (type) {
+    case 'comic': return 'manga.png';
+    case 'magazine': return 'magazine.png';
+    case 'book': return 'book.png';
+  }
+}
+
 // --- Slugify ---
 
 export function slugify(name: string): string {
@@ -59,7 +81,7 @@ export interface SeriesCharacter {
 
 export interface SeriesRecord {
   id: string;
-  type: 'comic' | 'magazine';
+  type: SeriesType;
   name: string;
   coverFile: string | null;
   score: number | null;
@@ -299,8 +321,8 @@ export function resolveComicPath(seriesId: string, file: string): string | null 
   ensureSeriesLoaded();
   const series = seriesCache.get(seriesId);
   if (!series) return null;
-  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-  return path.join(LIBRARY_DIR, typeDir, series.id, file);
+  const typeFolder = typeDir(series.type);
+  return path.join(LIBRARY_DIR, typeFolder, series.id, file);
 }
 
 export function pruneEmptySeries(): void {

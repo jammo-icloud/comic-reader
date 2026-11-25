@@ -3,7 +3,7 @@ import path from 'path';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { getPageUrlsFromSource, getCdnReferer, getSourceHome, getSourceTags } from './sources/index.js';
-import { loadAllSeries, saveSeries, addToCollection, type SeriesRecord } from './data.js';
+import { loadAllSeries, saveSeries, addToCollection, typeDir, type SeriesRecord } from './data.js';
 import { rescanLibrary } from './scanner.js';
 import { readPartial, writePartial, clearPartial, hasPartial } from './partial.js';
 
@@ -372,7 +372,7 @@ async function processQueue() {
       const existing = existingBySlug || existingByEnglish;
       const actualSlug = existing ? existing.id : slugName;
 
-      const seriesDir = path.join(LIBRARY_DIR, 'comics', actualSlug);
+      const seriesDir = path.join(LIBRARY_DIR, typeDir('comic'), actualSlug);
       if (!fs.existsSync(seriesDir)) fs.mkdirSync(seriesDir, { recursive: true });
       if (!existing) {
         const newSeries: SeriesRecord = {

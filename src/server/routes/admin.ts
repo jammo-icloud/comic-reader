@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { loadAllSeries, loadComics, writeComics, removeSeries, saveSeries, getSeries, loadCollection, loadUserProgress, userDir, type SeriesRecord } from '../data.js';
+import { loadAllSeries, loadComics, writeComics, removeSeries, saveSeries, getSeries, loadCollection, loadUserProgress, userDir, typeDir, type SeriesRecord } from '../data.js';
 import { getQueue, removeFromQueue, cancelDownload, cleanupDownloads, queueDownload } from '../downloader.js';
 import { listPartialsForSeries, clearPartial } from '../partial.js';
 import { cleanupConversions } from '../converter.js';
@@ -67,7 +67,7 @@ router.get('/admin/stats', (_req, res) => {
   const tasks = getQueue();
   const activeTasks = tasks.filter((t) => t.status === 'queued' || t.status === 'downloading').length;
 
-  const librarySize = getDirSize(path.join(LIBRARY_DIR, 'comics')) + getDirSize(path.join(LIBRARY_DIR, 'magazines'));
+  const librarySize = (['comic', 'magazine', 'book'] as const).reduce((sum, t) => sum + getDirSize(path.join(LIBRARY_DIR, typeDir(t))), 0);
   const dataSize = getDirSize(DATA_DIR);
 
   res.json({
@@ -144,12 +144,12 @@ router.delete('/admin/catalog/:id', (req, res) => {
   if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
 
   // Move files to trash instead of hard delete
-  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-  const seriesDir = path.join(LIBRARY_DIR, typeDir, seriesId);
+  const typeFolder = typeDir(series.type);
+  const seriesDir = path.join(LIBRARY_DIR, typeFolder, seriesId);
   if (fs.existsSync(seriesDir)) {
     const trashDir = path.join(LIBRARY_DIR, '.trash');
     if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir, { recursive: true });
-    const trashDest = path.join(trashDir, `${typeDir}-${seriesId}`);
+    const trashDest = path.join(trashDir, `${typeFolder}-${seriesId}`);
     try {
       fs.renameSync(seriesDir, trashDest);
       console.log(`  Moved to trash: ${seriesDir} → ${trashDest}`);
@@ -226,8 +226,8 @@ router.delete('/admin/catalog/:id/comics/:file', (req, res) => {
   if (!comic) { res.status(404).json({ error: 'Comic not found' }); return; }
 
   // Delete file from disk
-  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-  const filePath = path.join(LIBRARY_DIR, typeDir, seriesId, file);
+  const typeFolder = typeDir(series.type);
+  const filePath = path.join(LIBRARY_DIR, typeFolder, seriesId, file);
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
   // Delete partial-chapter sidecar if it exists (otherwise it'd be orphaned)
@@ -274,8 +274,8 @@ router.post('/admin/series/:id/retry-partials', (req, res) => {
   }
 
   const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
-  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-  const seriesDir = path.join(LIBRARY_DIR, typeDir, series.id);
+  const typeFolder = typeDir(series.type);
+  const seriesDir = path.join(LIBRARY_DIR, typeFolder, series.id);
   const partials = listPartialsForSeries(seriesDir);
 
   if (partials.length === 0) {
