@@ -1,4 +1,4 @@
-import type { SearchResult as BaseSearchResult, ChapterResult } from '@bindery/addon-api';
+import type { SearchResult as BaseSearchResult, ChapterResult, SeriesType } from '@bindery/addon-api';
 
 export type { ChapterResult } from '@bindery/addon-api';
 
@@ -9,6 +9,7 @@ export interface DiscoverSourceConfig {
   url: string;
   favicon: string;
   description: string;
+  seriesType?: SeriesType;
 }
 
 export type DiscoverSearchResult = BaseSearchResult & {

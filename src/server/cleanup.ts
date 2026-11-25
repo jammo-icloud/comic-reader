@@ -8,6 +8,8 @@ import {
   loadAllSeries, writeAllSeries, loadComics, writeComics,
   loadCollection, loadUserProgress, userDir, saveSeries,
   type SeriesRecord, type ComicRecord, type CollectionEntry, type UserProgressRecord,
+  typeDir,
+  type SeriesType,
 } from './data.js';
 import { cleanupDownloads, getQueue } from './downloader.js';
 import { cleanupConversions } from './converter.js';
@@ -57,20 +59,21 @@ function compactSeries(): number {
   // Remove series whose folder doesn't exist on disk
   // BUT only if the parent type directory exists — if it doesn't,
   // the volume may not be mounted and we must NOT delete metadata
-  const comicsDir = path.join(LIBRARY_DIR, 'comics');
-  const magazinesDir = path.join(LIBRARY_DIR, 'magazines');
-  const comicsDirExists = fs.existsSync(comicsDir);
-  const magazinesDirExists = fs.existsSync(magazinesDir);
+  const parentExistsByType: Record<SeriesType, boolean> = {
+    comic: fs.existsSync(path.join(LIBRARY_DIR, typeDir('comic'))),
+    magazine: fs.existsSync(path.join(LIBRARY_DIR, typeDir('magazine'))),
+    book: fs.existsSync(path.join(LIBRARY_DIR, typeDir('book'))),
+  };
 
   const toRemove: string[] = [];
   for (const [id, series] of byId) {
-    const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-    const parentExists = typeDir === 'comics' ? comicsDirExists : magazinesDirExists;
+    const typeFolder = typeDir(series.type);
+    const parentExists = parentExistsByType[series.type];
 
     // Only check if the parent directory is accessible
     if (!parentExists) continue;
 
-    const seriesDir = path.join(LIBRARY_DIR, typeDir, id);
+    const seriesDir = path.join(LIBRARY_DIR, typeFolder, id);
     if (!fs.existsSync(seriesDir)) {
       toRemove.push(id);
       fixed++;
@@ -99,8 +102,8 @@ function compactComics(): number {
     const comics = loadComics(series.id);
     if (comics.length === 0) continue;
 
-    const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-    const seriesDir = path.join(LIBRARY_DIR, typeDir, series.id);
+    const typeFolder = typeDir(series.type);
+    const seriesDir = path.join(LIBRARY_DIR, typeFolder, series.id);
 
     // If the series directory isn't reachable — volume unmounted, LIBRARY_DIR
     // misconfigured — every file would look "missing" and we'd delete the

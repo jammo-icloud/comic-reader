@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader } from 'lucide-react';
+import { Loader } from 'lucide-react';
 import { useEscapeKey } from './useEscapeKey';
+import PreviewTopBar from './PreviewTopBar';
 
 export interface PreviewReaderProps {
   pages: string[];
@@ -55,25 +56,13 @@ export default function PreviewReader({ pages, chapterLabel, mangaTitle, loading
 
   const content = (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
-      {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-900/90 backdrop-blur-sm shrink-0 z-10">
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
-          aria-label="Close reader"
-        >
-          <X size={20} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-white truncate">{mangaTitle}</div>
-          <div className="text-xs text-gray-400 truncate">{chapterLabel}</div>
-        </div>
+      <PreviewTopBar mangaTitle={mangaTitle} chapterLabel={chapterLabel} onClose={onClose}>
         {pages.length > 0 && (
           <span className="text-xs text-gray-500 tabular-nums shrink-0">
             {currentPage} / {pages.length}
           </span>
         )}
-      </div>
+      </PreviewTopBar>
 
       {/* Scroll container */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">

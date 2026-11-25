@@ -5,6 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm run build -w @bindery/addon-api",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "SERVER_PORT=5882 tsx watch src/server/index.ts",
     "dev:client": "vite",
@@ -13,7 +14,7 @@
     "start:local": "node --env-file=.env dist/server/index.js",
     "scan": "tsx src/server/scan-cli.ts",
     "splash": "tsx scripts/generate-splash.ts",
-    "test": "tsx --test \"addons/**/*.test.ts\" \"src/server/**/*.test.ts\""
+    "test": "tsx --test \"addons/**/*.test.ts\" \"src/server/**/*.test.ts\" \"packages/addon-api/src/**/*.test.ts\""
   },
   "dependencies": {
     "archiver": "^7.0.1",

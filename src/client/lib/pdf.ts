@@ -13,7 +13,8 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 export type PdfDoc = pdfjsLib.PDFDocumentProxy;
-export type PdfRenderTask = ReturnType<pdfjsLib.PDFPageProxy['render']>;
+export type PdfLoadingTask = pdfjsLib.PDFDocumentLoadingTask;
+export type PdfRenderTask =ReturnType<pdfjsLib.PDFPageProxy['render']>;
 
 /**
  * Cache-first load: if the PDF is in any cache (the sticky offline cache or the
@@ -27,6 +28,17 @@ async function loadPdf(url: string): Promise<PdfDoc> {
     if (hit) return pdfjsLib.getDocument({ data: await hit.arrayBuffer() }).promise;
   } catch { /* fall through to network */ }
   return pdfjsLib.getDocument(url).promise;
+}
+
+/**
+ * Open a remote PDF for a one-off preview (no cache lookup). pdf.js streams the
+ * file, so early pages render while the rest arrives; lazy range-only loading
+ * is avoided because it never renders non-linearized PDFs in practice. Returns
+ * the loading task: `await task.promise` for the document, and `task.destroy()`
+ * when the preview closes to abort the download.
+ */
+export function openPdf(url: string): PdfLoadingTask {
+  return pdfjsLib.getDocument({ url, rangeChunkSize: 262144 });
 }
 
 /**

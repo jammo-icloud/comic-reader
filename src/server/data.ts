@@ -12,6 +12,8 @@
  */
 import fs from 'fs';
 import path from 'path';
+import type { SeriesType } from '@bindery/addon-api';
+import { moveSeriesDir } from './series-move.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const SERIES_FILE = path.join(DATA_DIR, 'series.jsonl');
@@ -25,6 +27,45 @@ function ensureDir(dir: string) {
 
 // Deep-clone helper — structuredClone is native in Node 17+
 const clone = <T>(v: T): T => structuredClone(v);
+
+// --- Series types ---
+
+export type { SeriesType };
+
+export function isSeriesType(value: unknown): value is SeriesType {
+  return value === 'comic' || value === 'magazine' || value === 'book';
+}
+
+const warnedTypes = new Set<string>();
+
+/** Runtime guard: hand-edited or legacy records may carry a type outside SeriesType. Falls back to magazine (pre-books behaviour). */
+function normalizeType(type: unknown): SeriesType {
+  if (isSeriesType(type)) return type;
+  const key = String(type);
+  if (!warnedTypes.has(key)) {
+    warnedTypes.add(key);
+    console.warn(`Series type "${key}" is not comic/magazine/book; treating as magazine`);
+  }
+  return 'magazine';
+}
+
+/** Library folder (under LIBRARY_DIR) that holds series of the given type. */
+export function typeDir(type: SeriesType): 'comics' | 'magazines' | 'books' {
+  switch (normalizeType(type)) {
+    case 'comic': return 'comics';
+    case 'book': return 'books';
+    default: return 'magazines';
+  }
+}
+
+/** Default placeholder image (in public/placeholders) for series of the given type. */
+export function placeholderFor(type: SeriesType): 'manga.png' | 'magazine.png' | 'book.png' {
+  switch (normalizeType(type)) {
+    case 'comic': return 'manga.png';
+    case 'book': return 'book.png';
+    default: return 'magazine.png';
+  }
+}
 
 // --- Slugify ---
 
@@ -59,7 +100,7 @@ export interface SeriesCharacter {
 
 export interface SeriesRecord {
   id: string;
-  type: 'comic' | 'magazine';
+  type: SeriesType;
   name: string;
   coverFile: string | null;
   score: number | null;
@@ -228,6 +269,25 @@ export function removeSeries(id: string): void {
   purgeSeriesFromAllPins(id);
 }
 
+/**
+ * Change a series' type, moving its folder to the new type dir. The id is
+ * kept, so progress, collections, favorites, pins and thumbnails follow.
+ * Throws (before touching the record) if the folder move fails — EEXIST
+ * when the target folder is already taken.
+ */
+export function moveSeriesType(id: string, newType: SeriesType): SeriesRecord {
+  const series = getSeries(id);
+  if (!series) throw new Error(`Series not found: ${id}`);
+  if (series.type === newType) return series;
+
+  moveSeriesDir(LIBRARY_DIR, id, series.type, newType);
+  series.type = newType;
+  series.placeholder = placeholderFor(newType);
+  saveSeries(series);
+  invalidateComics(id);
+  return series;
+}
+
 // --- Comics cache ops ---
 
 function comicsFilePath(seriesId: string): string {
@@ -259,6 +319,11 @@ function getComicsCached(seriesId: string): ComicRecord[] {
     comicsCache.set(seriesId, cached);
   }
   return cached;
+}
+
+/** Drop the cached comics index for a series so the next read reloads from disk. */
+export function invalidateComics(seriesId: string): void {
+  comicsCache.delete(seriesId);
 }
 
 export function loadComics(seriesId: string): ComicRecord[] {
@@ -299,8 +364,8 @@ export function resolveComicPath(seriesId: string, file: string): string | null 
   ensureSeriesLoaded();
   const series = seriesCache.get(seriesId);
   if (!series) return null;
-  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-  return path.join(LIBRARY_DIR, typeDir, series.id, file);
+  const typeFolder = typeDir(series.type);
+  return path.join(LIBRARY_DIR, typeFolder, series.id, file);
 }
 
 export function pruneEmptySeries(): void {

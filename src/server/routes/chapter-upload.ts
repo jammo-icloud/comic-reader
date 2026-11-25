@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
-import { slugify, loadAllSeries, saveSeries, loadComics, writeComics, addToCollection, NSFW_TAGS, type SeriesRecord, type ComicRecord } from '../data.js';
+import { slugify, typeDir, placeholderFor, type SeriesType, loadAllSeries, saveSeries, loadComics, writeComics, addToCollection, NSFW_TAGS, type SeriesRecord, type ComicRecord } from '../data.js';
 import { getSourceTags } from '../sources/index.js';
 import { shortHash } from '../hash.js';
 import { importCrz } from '../crz-handler.js';
@@ -39,6 +39,11 @@ const router = Router();
  */
 router.post('/import/chapter-images', upload.array('images', 500), async (req, res) => {
   const { seriesName, chapterNumber, sourceId } = req.body;
+  const requestedType = req.body.type;
+  if (requestedType !== undefined && requestedType !== 'comic' && requestedType !== 'magazine' && requestedType !== 'book') {
+    res.status(400).json({ error: "type must be 'comic', 'magazine' or 'book'" });
+    return;
+  }
   const files = req.files as Express.Multer.File[];
 
   if (!seriesName || !chapterNumber || !files?.length) {
@@ -47,7 +52,10 @@ router.post('/import/chapter-images', upload.array('images', 500), async (req, r
   }
 
   const seriesId = slugify(seriesName);
-  const destDir = path.join(LIBRARY_DIR, 'comics', seriesId);
+  // An existing series keeps its type so chapters land in its folder.
+  const existingSeries = loadAllSeries().find((s) => s.id === seriesId);
+  const type: SeriesType = existingSeries?.type ?? requestedType ?? 'comic';
+  const destDir = path.join(LIBRARY_DIR, typeDir(type), seriesId);
 
   try {
     // Ensure series directory
@@ -93,12 +101,12 @@ router.post('/import/chapter-images', upload.array('images', 500), async (req, r
     const pageCount = pdf.getPageCount();
 
     // Create/update series record
-    let series = loadAllSeries().find((s) => s.id === seriesId);
+    let series = existingSeries;
     if (!series) {
       const autoTags = getSourceTags(sourceId);
       series = {
         id: seriesId,
-        type: 'comic',
+        type,
         name: seriesName,
         coverFile: null,
         score: null,
@@ -109,7 +117,7 @@ router.post('/import/chapter-images', upload.array('images', 500), async (req, r
         malId: null,
         mangaDexId: null,
         englishTitle: null,
-        placeholder: 'manga.png',
+        placeholder: placeholderFor(type),
       };
       saveSeries(series);
     }

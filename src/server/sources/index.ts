@@ -3,7 +3,7 @@
  * The functions exported here are the only way the rest of the server talks to
  * sources — no file outside this module imports a specific source adapter.
  */
-import type { AddonManifest, MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
+import type { AddonManifest, SeriesType, MangaSource, SearchResult, ChapterResult } from '@bindery/addon-api';
 import { loadAddons, getLoadedAddons } from '../addons/loader.js';
 
 const MAX_ORDER = 9999;
@@ -59,7 +59,7 @@ export function getSource(id: string): MangaSource | undefined {
   return allSources().find((s) => s.id === id);
 }
 
-export function getAllSources(): { id: string; name: string; color: string; description: string; url: string; favicon: string; metadataOnly: boolean }[] {
+export function getAllSources(): { id: string; name: string; color: string; description: string; url: string; favicon: string; metadataOnly: boolean; seriesType: SeriesType }[] {
   return allSources().map((s) => {
     const m = meta.get(s.id);
     return {
@@ -70,6 +70,7 @@ export function getAllSources(): { id: string; name: string; color: string; desc
       url: m?.url || '',
       favicon: m?.favicon || '',
       metadataOnly: !!m?.metadataOnly,
+      seriesType: m?.seriesType ?? 'comic',
     };
   });
 }
@@ -167,6 +168,13 @@ export function getSourceHome(sourceId: string): string {
  */
 export function getSourceTags(sourceId: string): string[] {
   return meta.get(sourceId)?.tags || [];
+}
+
+/**
+ * Library category a source's series are filed under, from its addon manifest.
+ */
+export function getSourceType(sourceId: string): SeriesType {
+  return meta.get(sourceId)?.seriesType ?? 'comic';
 }
 
 /**

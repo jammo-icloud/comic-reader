@@ -13,6 +13,7 @@ import {
   resolveComicPath,
   isNsfwSeries, VALID_THEMES,
   type SeriesRecord,
+  typeDir,
 } from '../data.js';
 import { readPartial } from '../partial.js';
 import { shortHash } from '../hash.js';
@@ -480,12 +481,12 @@ router.delete('/series/:id', (req, res) => {
     const DATA_DIR = process.env.DATA_DIR || './data';
 
     // Move to trash instead of hard delete
-    const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-    const seriesDir = pathMod.join(LIBRARY_DIR, typeDir, seriesId);
+    const typeFolder = typeDir(series.type);
+    const seriesDir = pathMod.join(LIBRARY_DIR, typeFolder, seriesId);
     if (fs.existsSync(seriesDir)) {
       const trashDir = pathMod.join(LIBRARY_DIR, '.trash');
       if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir, { recursive: true });
-      const trashDest = pathMod.join(trashDir, `${typeDir}-${seriesId}`);
+      const trashDest = pathMod.join(trashDir, `${typeFolder}-${seriesId}`);
       try {
         fs.renameSync(seriesDir, trashDest);
         console.log(`  Moved to trash: ${seriesDir} → ${trashDest}`);

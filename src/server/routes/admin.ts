@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { loadAllSeries, loadComics, writeComics, removeSeries, saveSeries, getSeries, loadCollection, loadUserProgress, userDir, type SeriesRecord } from '../data.js';
+import { loadAllSeries, loadComics, writeComics, removeSeries, saveSeries, getSeries, loadCollection, loadUserProgress, userDir, typeDir, moveSeriesType, isSeriesType, type SeriesRecord, type SeriesType } from '../data.js';
 import { getQueue, removeFromQueue, cancelDownload, cleanupDownloads, queueDownload } from '../downloader.js';
 import { listPartialsForSeries, clearPartial } from '../partial.js';
 import { cleanupConversions } from '../converter.js';
@@ -67,7 +67,7 @@ router.get('/admin/stats', (_req, res) => {
   const tasks = getQueue();
   const activeTasks = tasks.filter((t) => t.status === 'queued' || t.status === 'downloading').length;
 
-  const librarySize = getDirSize(path.join(LIBRARY_DIR, 'comics')) + getDirSize(path.join(LIBRARY_DIR, 'magazines'));
+  const librarySize = (['comic', 'magazine', 'book'] as const).reduce((sum, t) => sum + getDirSize(path.join(LIBRARY_DIR, typeDir(t))), 0);
   const dataSize = getDirSize(DATA_DIR);
 
   res.json({
@@ -144,12 +144,12 @@ router.delete('/admin/catalog/:id', (req, res) => {
   if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
 
   // Move files to trash instead of hard delete
-  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-  const seriesDir = path.join(LIBRARY_DIR, typeDir, seriesId);
+  const typeFolder = typeDir(series.type);
+  const seriesDir = path.join(LIBRARY_DIR, typeFolder, seriesId);
   if (fs.existsSync(seriesDir)) {
     const trashDir = path.join(LIBRARY_DIR, '.trash');
     if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir, { recursive: true });
-    const trashDest = path.join(trashDir, `${typeDir}-${seriesId}`);
+    const trashDest = path.join(trashDir, `${typeFolder}-${seriesId}`);
     try {
       fs.renameSync(seriesDir, trashDest);
       console.log(`  Moved to trash: ${seriesDir} → ${trashDest}`);
@@ -191,12 +191,32 @@ router.delete('/admin/catalog/:id', (req, res) => {
 
 // --- Edit Series ---
 
+const SERIES_TYPES: SeriesType[] = ['comic', 'magazine', 'book'];
+
 router.patch('/admin/catalog/:id', (req, res) => {
-  const series = getSeries(req.params.id);
+  let series = getSeries(req.params.id);
   if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
 
+  // A type change moves the series folder, so it goes through moveSeriesType
+  // rather than the plain field loop below.
+  if (req.body.type !== undefined && req.body.type !== series.type) {
+    if (!isSeriesType(req.body.type)) {
+      res.status(400).json({ error: `type must be one of: ${SERIES_TYPES.join(', ')}` });
+      return;
+    }
+    try {
+      moveSeriesType(series.id, req.body.type);
+    } catch (e) {
+      const err = e as NodeJS.ErrnoException;
+      if (err.code === 'EEXIST') res.status(409).json({ error: err.message });
+      else res.status(500).json({ error: err.message });
+      return;
+    }
+    series = getSeries(req.params.id)!;
+  }
+
   const editable: (keyof SeriesRecord)[] = [
-    'name', 'englishTitle', 'synopsis', 'status', 'year', 'malId', 'mangaDexId', 'type',
+    'name', 'englishTitle', 'synopsis', 'status', 'year', 'malId', 'mangaDexId',
   ];
 
   for (const field of editable) {
@@ -226,8 +246,8 @@ router.delete('/admin/catalog/:id/comics/:file', (req, res) => {
   if (!comic) { res.status(404).json({ error: 'Comic not found' }); return; }
 
   // Delete file from disk
-  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-  const filePath = path.join(LIBRARY_DIR, typeDir, seriesId, file);
+  const typeFolder = typeDir(series.type);
+  const filePath = path.join(LIBRARY_DIR, typeFolder, seriesId, file);
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
   // Delete partial-chapter sidecar if it exists (otherwise it'd be orphaned)
@@ -274,8 +294,8 @@ router.post('/admin/series/:id/retry-partials', (req, res) => {
   }
 
   const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
-  const typeDir = series.type === 'comic' ? 'comics' : 'magazines';
-  const seriesDir = path.join(LIBRARY_DIR, typeDir, series.id);
+  const typeFolder = typeDir(series.type);
+  const seriesDir = path.join(LIBRARY_DIR, typeFolder, series.id);
   const partials = listPartialsForSeries(seriesDir);
 
   if (partials.length === 0) {

@@ -50,6 +50,9 @@ function readManifest(dir: string): AddonManifest {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(raw.id)) throw new Error(`addon.json: id "${raw.id}" must be lowercase letters, digits, dashes`);
   if (raw.api !== ADDON_API_VERSION) throw new Error(`needs add-on API ${raw.api}, this Bindery provides ${ADDON_API_VERSION}`);
   if (!['source', 'art', 'converter'].includes(raw.kind)) throw new Error(`addon.json: unknown kind "${raw.kind}"`);
+  if (raw.seriesType !== undefined && !['comic', 'magazine', 'book'].includes(raw.seriesType)) {
+    throw new Error(`addon.json: seriesType "${raw.seriesType}" must be comic, magazine or book`);
+  }
   return raw as AddonManifest;
 }
 

@@ -1,7 +1,10 @@
 import { Router } from 'express';
-import { searchAllSources, getChaptersFromSource, getPageUrlsFromSource, getAllSources, getSource, getCdnReferer, getMangaUrl } from '../sources/index.js';
+import { Readable } from 'node:stream';
+import { isFileUrl } from '@bindery/addon-api';
+import { searchAllSources, getChaptersFromSource, getPageUrlsFromSource, getAllSources, getSource, getCdnReferer, getMangaUrl, getSourceType } from '../sources/index.js';
 import { queueDownload, getQueue, removeFromQueue, cancelDownload, onProgress } from '../downloader.js';
 import { loadAllSeries, isInCollection, NSFW_TAGS } from '../data.js';
+import { resolveTargetSeries } from '../series-resolve.js';
 
 const router = Router();
 
@@ -29,21 +32,18 @@ router.get('/discover/search', async (req, res) => {
 
     // Annotate results with local library matches
     const allSeries = loadAllSeries();
-    // Search dedup — match by title, English title, and MAL ID
-    const byTitle = new Map(allSeries.map((s) => [s.name.toLowerCase(), s.id]));
-    const byEnglish = new Map(allSeries.filter((s) => s.englishTitle).map((s) => [s.englishTitle!.toLowerCase(), s.id]));
-    const byMalId = new Map(allSeries.filter((s) => s.malId).map((s) => [s.malId!, s.id]));
     const username = req.username;
 
     const annotated = results.map((r: any) => {
-      const localId =
-        byTitle.get(r.title?.toLowerCase()) ||
-        byEnglish.get(r.title?.toLowerCase()) ||
-        // Also check if the search result title matches any local series' English title
-        allSeries.find((s) => s.englishTitle?.toLowerCase() === r.title?.toLowerCase())?.id ||
-        // Check local names against this result's title
-        allSeries.find((s) => s.name.toLowerCase() === r.title?.toLowerCase())?.id ||
-        null;
+      // Same resolution the downloader uses: subscription first, then title
+      // within the source's series type — never a same-titled series of another type.
+      const { existing } = resolveTargetSeries(allSeries, {
+        title: r.title || '',
+        sourceId: r.sourceId,
+        mangaId: r.mangaId,
+        type: getSourceType(r.sourceId),
+      });
+      const localId = existing?.id ?? null;
       return {
         ...r,
         coverUrl: r.coverUrl && r.coverUrl.startsWith('http')
@@ -87,10 +87,13 @@ router.get('/discover/pages/:sourceId', async (req, res) => {
     const chapterId = req.query.chapterId as string;
     if (!chapterId) { res.status(400).json({ error: 'chapterId query param required' }); return; }
     const pages = await getPageUrlsFromSource(req.params.sourceId, chapterId);
-    const proxied = pages.map((url) =>
-      `/api/discover/proxy-image?url=${encodeURIComponent(url)}`
-    );
-    res.json({ pages: proxied });
+    const proxied = (url: string) => `/api/discover/proxy-image?url=${encodeURIComponent(url)}`;
+    // File sources (PDF/EPUB/CBZ) return the whole chapter as one file URL.
+    if (pages.length === 1 && isFileUrl(pages[0])) {
+      res.json({ pages: [], fileUrl: proxied(pages[0]) });
+      return;
+    }
+    res.json({ pages: pages.map(proxied) });
   } catch (err) {
     console.error('Pages error:', err);
     res.status(502).json({ error: 'Failed to fetch pages' });
@@ -113,24 +116,40 @@ function getReferer(url: string): string {
   }
 }
 
-// Generic image proxy (for any source's cover/page images)
+// Generic proxy for any source's cover/page images, and for file sources'
+// PDFs: forwards Range so pdf.js can read a large file progressively.
 router.get('/discover/proxy-image', async (req, res) => {
   const url = req.query.url as string;
   if (!url) { res.status(400).end(); return; }
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': getReferer(url),
-      },
-    });
-    if (!response.ok) { res.status(response.status).end(); return; }
+    const headers: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Referer': getReferer(url),
+    };
+    if (req.headers.range) headers['Range'] = req.headers.range;
+    const response = await fetch(url, { headers });
+    if (!response.ok || !response.body) {
+      // Release the upstream socket; 416 and other error statuses are expected from Range requests.
+      response.body?.cancel().catch(() => {});
+      res.status(response.status).end();
+      return;
+    }
+    res.status(response.status);
     res.setHeader('Content-Type', response.headers.get('content-type') || 'image/jpeg');
+    // fetch() decodes gzip/br bodies, so an encoded upstream length would be wrong.
+    const lengthHeaders = response.headers.get('content-encoding') ? [] : ['Content-Length'];
+    for (const name of [...lengthHeaders, 'Content-Range', 'Accept-Ranges']) {
+      const value = response.headers.get(name);
+      if (value) res.setHeader(name, value);
+    }
     res.setHeader('Cache-Control', 'public, max-age=604800');
-    res.send(Buffer.from(await response.arrayBuffer()));
+    const body = Readable.fromWeb(response.body as any);
+    body.on('error', () => res.destroy());
+    res.on('close', () => body.destroy());
+    body.pipe(res);
   } catch {
-    res.status(502).end();
+    if (!res.headersSent) res.status(502).end();
   }
 });
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Download, Pin } from 'lucide-react';
-import type { Series, ContinueReadingItem } from '../lib/types';
+import type { Series, SeriesType, ContinueReadingItem } from '../lib/types';
 import { getSeries, getContinueReading, getSeriesCoverUrl, getPlaceholderUrl } from '../lib/api';
 import { getOfflineSeriesIds, getOfflineLibrary } from '../lib/offline';
 import ContinueShelf from '../components/ContinueShelf';
@@ -26,9 +26,9 @@ export default function LibraryPage() {
   const [continueReading, setContinueReading] = useState<ContinueReadingItem[]>([]);
 
   // Persisted prefs — survive cross-page navigation
-  const [typeFilter, setTypeFilter] = useState<'comic' | 'magazine'>(() => {
+  const [typeFilter, setTypeFilter] = useState<SeriesType>(() => {
     const saved = localStorage.getItem('bindery-type-filter');
-    return saved === 'magazine' ? 'magazine' : 'comic';
+    return saved === 'magazine' || saved === 'book' ? saved : 'comic';
   });
   const [sortBy, setSortBy] = useState<SortMode>(() => {
     const saved = localStorage.getItem('bindery-library-sort');

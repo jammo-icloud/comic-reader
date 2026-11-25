@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { slugify, loadAllSeries, loadComics, saveSeries, writeComics, type SeriesRecord, type ComicRecord } from './data.js';
+import { slugify, typeDir, placeholderFor, type SeriesType, loadAllSeries, loadComics, saveSeries, writeComics, type SeriesRecord, type ComicRecord } from './data.js';
 import { shortHash } from './hash.js';
 import { convertToPdf, isImageFolder } from './converter.js';
 import { runMaintenance } from './maintenance.js';
@@ -50,7 +50,7 @@ export interface PendingImport {
   sourceFolder: string;     // absolute path to source folder
   folderName: string;       // original folder name
   suggestedName: string;    // cleaned-up name suggestion
-  suggestedType: 'comic' | 'magazine';
+  suggestedType: SeriesType;
   files: string[];          // filenames found
   fileCount: number;
   malMatch: MalMatch | null;
@@ -59,7 +59,7 @@ export interface PendingImport {
 
 export interface ImportConfig {
   sourceFolder: string;
-  type: 'comic' | 'magazine';
+  type: SeriesType;
   name: string;
   malId?: number | null;
 }
@@ -230,9 +230,9 @@ function extractChapterNumber(filename: string): string {
   return basename; // fallback: use original name
 }
 
-function canonicalFilename(sourceFile: string, type: 'comic' | 'magazine'): string {
+function canonicalFilename(sourceFile: string, type: SeriesType): string {
   const ext = path.extname(sourceFile);
-  if (type === 'comic') {
+  if (type === 'comic' || type === 'book') {
     const num = extractChapterNumber(sourceFile);
     return `chapter-${num}${ext}`;
   }
@@ -255,8 +255,8 @@ function canonicalFilename(sourceFile: string, type: 'comic' | 'magazine'): stri
 export async function importSeries(config: ImportConfig): Promise<SeriesRecord> {
   const { sourceFolder, type, name, malId } = config;
   const seriesId = slugify(name);
-  const typeDir = type === 'comic' ? 'comics' : 'magazines';
-  const destDir = path.join(LIBRARY_DIR, typeDir, seriesId);
+  const typeFolder = typeDir(type);
+  const destDir = path.join(LIBRARY_DIR, typeFolder, seriesId);
 
   // Create destination
   if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
@@ -334,7 +334,7 @@ export async function importSeries(config: ImportConfig): Promise<SeriesRecord> 
     malId: malId || null,
     mangaDexId: null,
     englishTitle: null,
-    placeholder: type === 'comic' ? 'manga.png' : 'magazine.png',
+    placeholder: placeholderFor(type),
   };
 
   // Save

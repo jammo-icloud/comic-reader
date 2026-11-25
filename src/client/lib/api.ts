@@ -1,4 +1,4 @@
-import type { ReaderPrefs, Series, Comic, ContinueReadingItem, PendingImport, MangaDexManga, MangaDexChapter, RecommendedItem } from './types';
+import type { ReaderPrefs, Series, SeriesType, Comic, ContinueReadingItem, PendingImport, MangaDexManga, MangaDexChapter, RecommendedItem } from './types';
 import { enqueueProgress } from './offline';
 
 const BASE = '/api';
@@ -112,7 +112,7 @@ export function getRecommended(): Promise<RecommendedItem[]> {
   return fetchJson(`/favorites/recommended`);
 }
 
-export function getCatalog(type?: 'comic' | 'magazine'): Promise<Series[]> {
+export function getCatalog(type?: SeriesType): Promise<Series[]> {
   const qs = type ? `?scope=catalog&type=${type}` : '?scope=catalog';
   return fetchJson(`/series${qs}`);
 }
@@ -261,7 +261,7 @@ export function getAdminUsers(): Promise<{ username: string; collectionSize: num
 
 // ==================== Series ====================
 
-export function getSeries(type?: 'comic' | 'magazine'): Promise<Series[]> {
+export function getSeries(type?: SeriesType): Promise<Series[]> {
   const qs = type ? `?type=${type}` : '';
   return fetchJson(`/series${qs}`);
 }
@@ -645,7 +645,7 @@ export function getImportCount(): Promise<{ count: number }> {
 
 export function confirmImport(
   sourceFolder: string,
-  type: 'comic' | 'magazine',
+  type: SeriesType,
   name: string,
   malId?: number | null,
 ): Promise<any> {
@@ -719,7 +719,7 @@ export function discoverChapters(sourceId: string, mangaId: string): Promise<{ c
   return fetchJson(`/discover/chapters/${sourceId}/${encodeURIComponent(mangaId)}`);
 }
 
-export function discoverPages(sourceId: string, chapterId: string): Promise<{ pages: string[] }> {
+export function discoverPages(sourceId: string, chapterId: string): Promise<{ pages: string[]; fileUrl?: string }> {
   return fetchJson(`/discover/pages/${sourceId}?chapterId=${encodeURIComponent(chapterId)}`);
 }
 

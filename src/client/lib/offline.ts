@@ -41,7 +41,7 @@ const thumbUrl = (id: string, file: string, thumbHash: string) =>
 
 export interface OfflineEntry {
   id: string;
-  type: 'comic' | 'magazine';
+  type: Series['type'];
   name: string;
   coverFile: string | null;
   chapterCount: number;

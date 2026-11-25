@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Search, X, Tag as TagIcon, ArrowUpDown, BookOpen, Newspaper,
+  Search, X, Tag as TagIcon, ArrowUpDown, BookOpen, Newspaper, Library,
   Check, BookOpenCheck, Pin, Download,
 } from 'lucide-react';
 import { SegmentedControl, IconButton } from './ds';
+import type { SeriesType } from '../lib/types';
+
+const TYPE_NOUN: Record<SeriesType, string> = { comic: 'manga', magazine: 'magazines', book: 'books' };
 
 export type SortMode = 'name-asc' | 'name-desc' | 'score-desc' | 'year-desc' | 'count-desc' | 'new-desc' | 'recent-desc';
 
@@ -32,8 +35,8 @@ interface LibraryToolbarProps {
   topPx: number;
 
   // Type filter (segmented control)
-  typeFilter: 'comic' | 'magazine';
-  onTypeChange: (t: 'comic' | 'magazine') => void;
+  typeFilter: SeriesType;
+  onTypeChange: (t: SeriesType) => void;
 
   // Result count + descriptor
   resultCount: number;
@@ -156,6 +159,7 @@ export default function LibraryToolbar({
           options={[
             { value: 'comic', label: 'Manga', icon: <BookOpen size={13} /> },
             { value: 'magazine', label: 'Mags', icon: <Newspaper size={13} /> },
+            { value: 'book', label: 'Books', icon: <Library size={13} /> },
           ]}
           value={typeFilter}
           onChange={onTypeChange}
@@ -182,7 +186,7 @@ export default function LibraryToolbar({
             autoFocus
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={`Search ${typeFilter === 'comic' ? 'manga' : 'magazines'}…`}
+            placeholder={`Search ${TYPE_NOUN[typeFilter]}…`}
             className="by-input"
             style={{ flex: 1, minWidth: 100, maxWidth: 200, height: 36 }}
           />

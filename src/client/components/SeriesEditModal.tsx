@@ -277,6 +277,7 @@ export default function SeriesEditModal({ series, onClose, onSave }: SeriesEditM
               >
                 <option value="comic">Comic</option>
                 <option value="magazine">Magazine</option>
+                <option value="book">Book</option>
               </select>
             </div>
             <Field label="Status" value={status} onChange={setStatus} placeholder="ongoing, completed..." />
