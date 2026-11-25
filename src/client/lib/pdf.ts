@@ -30,11 +30,14 @@ async function loadPdf(url: string): Promise<PdfDoc> {
 }
 
 /**
- * Open a remote PDF for a one-off preview: no cache lookup, and range requests
- * in 256 KB chunks so the first pages render before the whole file arrives.
+ * Open a remote PDF for a one-off preview: no cache lookup. Only the 256 KB
+ * ranges the rendered pages need are fetched, on demand — streaming and
+ * background auto-fetch are off, so a short preview never pulls the whole file.
  */
 export function openPdf(url: string): Promise<PdfDoc> {
-  return pdfjsLib.getDocument({ url, rangeChunkSize: 262144 }).promise;
+  return pdfjsLib.getDocument({
+    url, rangeChunkSize: 262144, disableAutoFetch: true, disableStream: true,
+  }).promise;
 }
 
 /**
