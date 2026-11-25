@@ -22,11 +22,22 @@ import SyncSourcePicker from '../components/SyncSourcePicker';
 import SeriesEditModal from '../components/SeriesEditModal';
 import ComicCard from '../components/ComicCard';
 import ComicListItem from '../components/ComicListItem';
-import { type ProfileMenuItem } from '../components/ProfileMenu';
 import ConfirmSheet from '../components/ConfirmSheet';
 import ToolbarIconButton from '../components/ToolbarIconButton';
 import { Button, IconButton, Kicker, StatusPill, SegmentedControl, Badge } from '../components/ds';
 import type { SeriesStatus } from '../components/ds/Badge';
+
+/** One entry in the series-admin "More" dropdown. */
+interface SeriesAdminItem {
+  icon?: React.ReactNode;
+  label: string;
+  hint?: string;
+  onClick: () => void;
+  disabled?: boolean;
+  destructive?: boolean;
+  /** Don't auto-close the menu on click. Use for in-place progress (e.g. Save offline). */
+  keepOpen?: boolean;
+}
 
 type ViewMode = 'grid' | 'list';
 type SortMode = 'order-asc' | 'order-desc' | 'recent';
@@ -392,9 +403,9 @@ export default function SeriesPage() {
   // Series-admin items — admin-only. Built dynamically so partial-retry /
   // sync-source / offline-save items appear only when applicable. Surfaced via
   // the inline ⋯ More button below; the global Bindery header handles identity.
-  const seriesAdminItems: ProfileMenuItem[] = useMemo(() => {
+  const seriesAdminItems: SeriesAdminItem[] = useMemo(() => {
     if (!isAdmin) return [];
-    const items: ProfileMenuItem[] = [
+    const items: SeriesAdminItem[] = [
       { icon: <Pencil size={15} />, label: 'Edit metadata', onClick: () => setShowEditModal(true) },
       {
         icon: syncing ? <Loader size={15} className="animate-spin" /> : <Sparkles size={15} />,

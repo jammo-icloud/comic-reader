@@ -6,8 +6,6 @@ import {
 } from 'lucide-react';
 import { getWatchFolder, uploadFiles, scanLocalImport, importScan, uploadCrz } from '../lib/api';
 import PendingList from '../components/PendingList';
-import NotificationDropdown from '../components/NotificationDropdown';
-import ProfileMenu from '../components/ProfileMenu';
 
 function formatSize(bytes: number | null): string {
   if (bytes === null) return '';
@@ -150,19 +148,16 @@ export default function ImportPage() {
   return (
     <div className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
 
-      {/* ===== Library-shape header ===== */}
-      <header className="sticky top-0 z-30 bg-gray-50/85 dark:bg-gray-950/85 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-1.5">
-          <Link to="/" aria-label="Back to library" title="Library" className="shrink-0">
-            <img src="/logo.png" alt="Bindery" className="h-10 w-10 rounded-lg" />
-          </Link>
-          <div className="w-px h-6 bg-gray-200 dark:bg-gray-800 mx-1" />
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Import</span>
-          <div className="flex-1" />
-          <NotificationDropdown />
-          <ProfileMenu />
-        </div>
-      </header>
+      {/* ===== Title block — the global Bindery header supplies logo,
+          notifications and profile, so this page only names itself. ===== */}
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-5">
+        <h1 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 700, color: 'var(--text-body)' }}>
+          Import
+        </h1>
+        <p style={{ margin: 0, fontSize: 14, color: 'var(--text-tertiary)' }}>
+          Drop files, pull from the watch folder, or scan a folder on your NAS.
+        </p>
+      </div>
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
 
