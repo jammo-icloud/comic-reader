@@ -28,10 +28,12 @@ import {
   addToCollection,
   resolveComicPath,
   type SeriesRecord,
+  type SeriesType,
   type ComicRecord,
   typeDir,
   placeholderFor,
 } from './data.js';
+import { resolveTargetSeries } from './series-resolve.js';
 import { shortHash } from './hash.js';
 import {
   isV1,
@@ -40,7 +42,11 @@ import {
   type CrzManifestV1,
   type CrzManifestV2,
 } from './crz-format.js';
-import { getSourceTags } from './sources/index.js';
+import { getSourceTags, getSourceType } from './sources/index.js';
+
+function isSeriesType(value: unknown): value is SeriesType {
+  return value === 'comic' || value === 'magazine' || value === 'book';
+}
 
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -130,19 +136,22 @@ async function importCrzV1(
 ): Promise<ImportResult> {
   if (!manifest.title) throw new Error('Invalid .crz manifest: no title');
 
-  const defaultSlug = slugify(manifest.title);
-  const allExisting = loadAllSeries();
-  const existingBySlug = allExisting.find((s) => s.id === defaultSlug);
-  const existingByTitle = allExisting.find(
-    (s) =>
-      s.name.toLowerCase() === manifest.title.toLowerCase() ||
-      s.englishTitle?.toLowerCase() === manifest.title.toLowerCase(),
-  );
-  let series = existingBySlug || existingByTitle || null;
-  const seriesId = series ? series.id : defaultSlug;
+  // v1 manifests are not type-validated: an unknown `type` is treated as absent.
+  if (manifest.type !== undefined && !isSeriesType(manifest.type)) {
+    console.warn(`  CRZ v1: Ignoring unknown manifest type ${JSON.stringify(manifest.type)}`);
+  }
+  const type: SeriesType = isSeriesType(manifest.type) ? manifest.type : getSourceType(manifest.sourceId);
+  const resolved = resolveTargetSeries(loadAllSeries(), {
+    title: manifest.title,
+    sourceId: manifest.sourceId,
+    mangaId: null,
+    type,
+  });
+  let series = resolved.existing;
+  const seriesId = resolved.id;
   const merged = !!series;
 
-  const seriesType = series ? series.type : (manifest.type ?? 'comic');
+  const seriesType = series ? series.type : type;
   const seriesDir = path.join(LIBRARY_DIR, typeDir(seriesType), seriesId);
   if (!fs.existsSync(seriesDir)) fs.mkdirSync(seriesDir, { recursive: true });
 
@@ -341,18 +350,19 @@ function resolveDestinationSeriesV2(
 ): { series: SeriesRecord; isNew: boolean; forked: boolean } {
   const defaultSlug = slugify(manifest.title);
   const allExisting = loadAllSeries();
-  const existingBySlug = allExisting.find((s) => s.id === defaultSlug);
-  const existingByTitle = allExisting.find(
-    (s) =>
-      s.name.toLowerCase() === manifest.title.toLowerCase() ||
-      s.englishTitle?.toLowerCase() === manifest.title.toLowerCase(),
-  );
-  const existing = existingBySlug || existingByTitle || null;
+  // Title match is restricted to the manifest's type; a same-titled series of
+  // another type gets a separate, suffixed id rather than being merged into.
+  const { existing, id: newId } = resolveTargetSeries(allExisting, {
+    title: manifest.title,
+    sourceId: '',
+    mangaId: null,
+    type: manifest.type,
+  });
 
   if (!existing) {
-    const series = createSeriesFromManifestV2(defaultSlug, manifest);
+    const series = createSeriesFromManifestV2(newId, manifest);
     saveSeries(series);
-    console.log(`  CRZ v2: Created series "${manifest.title}" (${defaultSlug})`);
+    console.log(`  CRZ v2: Created series "${manifest.title}" (${newId})`);
     return { series, isNew: true, forked: false };
   }
 

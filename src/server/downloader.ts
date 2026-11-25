@@ -2,8 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
-import { getPageUrlsFromSource, getCdnReferer, getSourceHome, getSourceTags } from './sources/index.js';
-import { loadAllSeries, saveSeries, addToCollection, typeDir, type SeriesRecord } from './data.js';
+import { getPageUrlsFromSource, getCdnReferer, getSourceHome, getSourceTags, getSourceType } from './sources/index.js';
+import { loadAllSeries, saveSeries, addToCollection, typeDir, placeholderFor, type SeriesRecord } from './data.js';
+import { resolveTargetSeries } from './series-resolve.js';
 import { rescanLibrary } from './scanner.js';
 import { readPartial, writePartial, clearPartial, hasPartial } from './partial.js';
 
@@ -359,25 +360,22 @@ async function processQueue() {
       emitProgress(job);
 
       const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
-      const slugName = job.mangaTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
+      // Subscription first, then title within the source's series type; a
+      // same-titled series of another type gets a separate, suffixed id.
+      const type = getSourceType(job.metadata?.sourceId || '');
+      const { existing, id: actualSlug } = resolveTargetSeries(loadAllSeries(), {
+        title: job.mangaTitle,
+        sourceId: job.metadata?.sourceId || '',
+        mangaId: job.mangaDexId,
+        type,
+      });
 
-      // Check for existing series by slug, English title, or name match
-      // This prevents duplicates when the same manga is imported under different titles
-      const allExisting = loadAllSeries();
-      const existingBySlug = allExisting.find((s) => s.id === slugName);
-      const existingByEnglish = allExisting.find((s) =>
-        s.englishTitle?.toLowerCase() === job.mangaTitle.toLowerCase() ||
-        s.name.toLowerCase() === job.mangaTitle.toLowerCase()
-      );
-      const existing = existingBySlug || existingByEnglish;
-      const actualSlug = existing ? existing.id : slugName;
-
-      const seriesDir = path.join(LIBRARY_DIR, typeDir('comic'), actualSlug);
+      const seriesDir = path.join(LIBRARY_DIR, typeDir(existing ? existing.type : type), actualSlug);
       if (!fs.existsSync(seriesDir)) fs.mkdirSync(seriesDir, { recursive: true });
       if (!existing) {
         const newSeries: SeriesRecord = {
           id: actualSlug,
-          type: 'comic',
+          type,
           name: job.mangaTitle,
           coverFile: null,
           score: null,
@@ -391,7 +389,7 @@ async function processQueue() {
           malId: null,
           mangaDexId: null,
           englishTitle: null,
-          placeholder: 'manga.png',
+          placeholder: placeholderFor(type),
           // Auto-subscribe to updates from the source we downloaded from
           syncSource: job.metadata?.sourceId ? { sourceId: job.metadata.sourceId, mangaId: job.mangaDexId } : null,
         };

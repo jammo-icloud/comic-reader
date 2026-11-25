@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { searchAllSources, getChaptersFromSource, getPageUrlsFromSource, getAllSources, getSource, getCdnReferer, getMangaUrl } from '../sources/index.js';
+import { searchAllSources, getChaptersFromSource, getPageUrlsFromSource, getAllSources, getSource, getCdnReferer, getMangaUrl, getSourceType } from '../sources/index.js';
 import { queueDownload, getQueue, removeFromQueue, cancelDownload, onProgress } from '../downloader.js';
 import { loadAllSeries, isInCollection, NSFW_TAGS } from '../data.js';
+import { resolveTargetSeries } from '../series-resolve.js';
 
 const router = Router();
 
@@ -29,21 +30,18 @@ router.get('/discover/search', async (req, res) => {
 
     // Annotate results with local library matches
     const allSeries = loadAllSeries();
-    // Search dedup — match by title, English title, and MAL ID
-    const byTitle = new Map(allSeries.map((s) => [s.name.toLowerCase(), s.id]));
-    const byEnglish = new Map(allSeries.filter((s) => s.englishTitle).map((s) => [s.englishTitle!.toLowerCase(), s.id]));
-    const byMalId = new Map(allSeries.filter((s) => s.malId).map((s) => [s.malId!, s.id]));
     const username = req.username;
 
     const annotated = results.map((r: any) => {
-      const localId =
-        byTitle.get(r.title?.toLowerCase()) ||
-        byEnglish.get(r.title?.toLowerCase()) ||
-        // Also check if the search result title matches any local series' English title
-        allSeries.find((s) => s.englishTitle?.toLowerCase() === r.title?.toLowerCase())?.id ||
-        // Check local names against this result's title
-        allSeries.find((s) => s.name.toLowerCase() === r.title?.toLowerCase())?.id ||
-        null;
+      // Same resolution the downloader uses: subscription first, then title
+      // within the source's series type — never a same-titled series of another type.
+      const { existing } = resolveTargetSeries(allSeries, {
+        title: r.title || '',
+        sourceId: r.sourceId,
+        mangaId: r.mangaId,
+        type: getSourceType(r.sourceId),
+      });
+      const localId = existing?.id ?? null;
       return {
         ...r,
         coverUrl: r.coverUrl && r.coverUrl.startsWith('http')
