@@ -126,11 +126,15 @@ In the Chrome extension, `fetch()` silently drops forbidden headers like
 
 3. **To share with the extension** — import it in
    `manga-finder/src/connectors/index.ts` using the `@addons/` alias and add
-   it to the `sources` map and `ALL_SOURCES` config array.
+   it to the `sources` map and `ALL_SOURCES` config array. Also import its
+   `addon.json` in `cdn-referers.ts` (CDN referers) and `source-types.ts`
+   (the `.crz` manifest `type`, from `seriesType`; default `comic`).
 
-4. **Rebuild the extension** — `cd manga-finder && npm run build`, then copy
-   `dist/` to `comic-reader/public/manga-finder-extension/` and reload in
-   Chrome.
+4. **Rebuild the extension** — `cd manga-finder && ./package-extension.sh`,
+   then copy `manga-finder-extension.zip` to
+   `comic-reader/public/manga-finder-extension.zip` and reload in Chrome. To
+   build against a Bindery worktree with unmerged changes, set
+   `COMIC_READER_DIR=/path/to/worktree` (defaults to `../comic-reader`).
 
 ### Manifest fields reference
 
