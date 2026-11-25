@@ -53,7 +53,13 @@ export function moveSeriesDir(
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'EXDEV') throw e;
     // Different filesystems (e.g. separate mounts per type dir): copy then remove.
-    fs.cpSync(source, target, { recursive: true });
+    try {
+      fs.cpSync(source, target, { recursive: true, preserveTimestamps: true });
+    } catch (copyErr) {
+      // Drop the partial copy so a retry isn't blocked by EEXIST; source is intact.
+      fs.rmSync(target, { recursive: true, force: true });
+      throw copyErr;
+    }
     fs.rmSync(source, { recursive: true, force: true });
   }
   return { moved: true, from: source, to: target };
