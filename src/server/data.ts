@@ -13,6 +13,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { SeriesType } from '@bindery/addon-api';
+import { moveSeriesDir } from './series-move.js';
 
 const DATA_DIR = process.env.DATA_DIR || './data';
 const SERIES_FILE = path.join(DATA_DIR, 'series.jsonl');
@@ -251,6 +252,25 @@ export function removeSeries(id: string): void {
   purgeSeriesFromAllPins(id);
 }
 
+/**
+ * Change a series' type, moving its folder to the new type dir. The id is
+ * kept, so progress, collections, favorites, pins and thumbnails follow.
+ * Throws (before touching the record) if the folder move fails — EEXIST
+ * when the target folder is already taken.
+ */
+export function moveSeriesType(id: string, newType: SeriesType): SeriesRecord {
+  const series = getSeries(id);
+  if (!series) throw new Error(`Series not found: ${id}`);
+  if (series.type === newType) return series;
+
+  moveSeriesDir(LIBRARY_DIR, id, series.type, newType);
+  series.type = newType;
+  series.placeholder = placeholderFor(newType);
+  saveSeries(series);
+  invalidateComics(id);
+  return series;
+}
+
 // --- Comics cache ops ---
 
 function comicsFilePath(seriesId: string): string {
@@ -282,6 +302,11 @@ function getComicsCached(seriesId: string): ComicRecord[] {
     comicsCache.set(seriesId, cached);
   }
   return cached;
+}
+
+/** Drop the cached comics index for a series so the next read reloads from disk. */
+export function invalidateComics(seriesId: string): void {
+  comicsCache.delete(seriesId);
 }
 
 export function loadComics(seriesId: string): ComicRecord[] {

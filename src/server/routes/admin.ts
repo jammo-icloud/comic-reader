@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { loadAllSeries, loadComics, writeComics, removeSeries, saveSeries, getSeries, loadCollection, loadUserProgress, userDir, typeDir, type SeriesRecord } from '../data.js';
+import { loadAllSeries, loadComics, writeComics, removeSeries, saveSeries, getSeries, loadCollection, loadUserProgress, userDir, typeDir, moveSeriesType, type SeriesRecord, type SeriesType } from '../data.js';
 import { getQueue, removeFromQueue, cancelDownload, cleanupDownloads, queueDownload } from '../downloader.js';
 import { listPartialsForSeries, clearPartial } from '../partial.js';
 import { cleanupConversions } from '../converter.js';
@@ -191,12 +191,32 @@ router.delete('/admin/catalog/:id', (req, res) => {
 
 // --- Edit Series ---
 
+const SERIES_TYPES: SeriesType[] = ['comic', 'magazine', 'book'];
+
 router.patch('/admin/catalog/:id', (req, res) => {
-  const series = getSeries(req.params.id);
+  let series = getSeries(req.params.id);
   if (!series) { res.status(404).json({ error: 'Series not found' }); return; }
 
+  // A type change moves the series folder, so it goes through moveSeriesType
+  // rather than the plain field loop below.
+  if (req.body.type !== undefined && req.body.type !== series.type) {
+    if (!SERIES_TYPES.includes(req.body.type)) {
+      res.status(400).json({ error: `type must be one of: ${SERIES_TYPES.join(', ')}` });
+      return;
+    }
+    try {
+      moveSeriesType(series.id, req.body.type);
+    } catch (e) {
+      const err = e as NodeJS.ErrnoException;
+      if (err.code === 'EEXIST') res.status(409).json({ error: err.message });
+      else res.status(500).json({ error: err.message });
+      return;
+    }
+    series = getSeries(req.params.id)!;
+  }
+
   const editable: (keyof SeriesRecord)[] = [
-    'name', 'englishTitle', 'synopsis', 'status', 'year', 'malId', 'mangaDexId', 'type',
+    'name', 'englishTitle', 'synopsis', 'status', 'year', 'malId', 'mangaDexId',
   ];
 
   for (const field of editable) {

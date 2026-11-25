@@ -1,7 +1,7 @@
 import { useState, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check, SkipForward, BookOpen, Newspaper, Star, Loader, Pencil, AlertTriangle, Merge } from 'lucide-react';
-import type { PendingImport, Series } from '../lib/types';
+import { X, Check, SkipForward, BookOpen, Newspaper, Library, Star, Loader, Pencil, AlertTriangle, Merge } from 'lucide-react';
+import type { PendingImport, Series, SeriesType } from '../lib/types';
 import { getImportReady, getLocalReady, confirmImport, skipImport, skipLocalImport, getSeries } from '../lib/api';
 import { useEscapeKey } from '../lib/useEscapeKey';
 
@@ -15,7 +15,7 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
 
   // Edit state for current item
   const [editName, setEditName] = useState('');
-  const [editType, setEditType] = useState<'comic' | 'magazine'>('comic');
+  const [editType, setEditType] = useState<SeriesType>('comic');
   const [editMalId, setEditMalId] = useState('');
   const [showMalEdit, setShowMalEdit] = useState(false);
   const [brandImageFile, setBrandImageFile] = useState<File | null>(null);
@@ -82,7 +82,8 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
     try {
       await confirmImport(
         current.sourceFolder,
-        editType,
+        // TODO(Task 5): confirmImport's type param widens to SeriesType; the server already accepts 'book'.
+        editType as 'comic' | 'magazine',
         editName,
         editType === 'comic' && editMalId ? parseInt(editMalId, 10) : null,
       );
@@ -223,6 +224,16 @@ export default function PendingList({ onClose, onUpdate, useLocal = false }: { o
                 }`}
               >
                 <Newspaper size={14} /> Magazine
+              </button>
+              <button
+                onClick={() => setEditType('book')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  editType === 'book'
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <Library size={14} /> Book
               </button>
             </div>
           </div>

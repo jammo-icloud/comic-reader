@@ -5,9 +5,11 @@ export interface SyncSource {
   mangaId: string;
 }
 
+export type SeriesType = 'comic' | 'magazine' | 'book';
+
 export interface Series {
   id: string;
-  type: 'comic' | 'magazine';
+  type: SeriesType;
   name: string;
   coverFile: string | null;
   score: number | null;
