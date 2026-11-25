@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { loadAllSeries, loadComics, writeComics, removeSeries, saveSeries, getSeries, loadCollection, loadUserProgress, userDir, typeDir, moveSeriesType, type SeriesRecord, type SeriesType } from '../data.js';
+import { loadAllSeries, loadComics, writeComics, removeSeries, saveSeries, getSeries, loadCollection, loadUserProgress, userDir, typeDir, moveSeriesType, isSeriesType, type SeriesRecord, type SeriesType } from '../data.js';
 import { getQueue, removeFromQueue, cancelDownload, cleanupDownloads, queueDownload } from '../downloader.js';
 import { listPartialsForSeries, clearPartial } from '../partial.js';
 import { cleanupConversions } from '../converter.js';
@@ -200,7 +200,7 @@ router.patch('/admin/catalog/:id', (req, res) => {
   // A type change moves the series folder, so it goes through moveSeriesType
   // rather than the plain field loop below.
   if (req.body.type !== undefined && req.body.type !== series.type) {
-    if (!SERIES_TYPES.includes(req.body.type)) {
+    if (!isSeriesType(req.body.type)) {
       res.status(400).json({ error: `type must be one of: ${SERIES_TYPES.join(', ')}` });
       return;
     }

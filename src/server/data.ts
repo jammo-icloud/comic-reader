@@ -32,21 +32,38 @@ const clone = <T>(v: T): T => structuredClone(v);
 
 export type { SeriesType };
 
+export function isSeriesType(value: unknown): value is SeriesType {
+  return value === 'comic' || value === 'magazine' || value === 'book';
+}
+
+const warnedTypes = new Set<string>();
+
+/** Runtime guard: hand-edited or legacy records may carry a type outside SeriesType. Falls back to magazine (pre-books behaviour). */
+function normalizeType(type: unknown): SeriesType {
+  if (isSeriesType(type)) return type;
+  const key = String(type);
+  if (!warnedTypes.has(key)) {
+    warnedTypes.add(key);
+    console.warn(`Series type "${key}" is not comic/magazine/book; treating as magazine`);
+  }
+  return 'magazine';
+}
+
 /** Library folder (under LIBRARY_DIR) that holds series of the given type. */
 export function typeDir(type: SeriesType): 'comics' | 'magazines' | 'books' {
-  switch (type) {
+  switch (normalizeType(type)) {
     case 'comic': return 'comics';
-    case 'magazine': return 'magazines';
     case 'book': return 'books';
+    default: return 'magazines';
   }
 }
 
 /** Default placeholder image (in public/placeholders) for series of the given type. */
 export function placeholderFor(type: SeriesType): 'manga.png' | 'magazine.png' | 'book.png' {
-  switch (type) {
+  switch (normalizeType(type)) {
     case 'comic': return 'manga.png';
-    case 'magazine': return 'magazine.png';
     case 'book': return 'book.png';
+    default: return 'magazine.png';
   }
 }
 

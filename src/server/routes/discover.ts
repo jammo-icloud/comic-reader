@@ -129,7 +129,12 @@ router.get('/discover/proxy-image', async (req, res) => {
     };
     if (req.headers.range) headers['Range'] = req.headers.range;
     const response = await fetch(url, { headers });
-    if (!response.ok || !response.body) { res.status(response.status).end(); return; }
+    if (!response.ok || !response.body) {
+      // Release the upstream socket; 416 and other error statuses are expected from Range requests.
+      response.body?.cancel().catch(() => {});
+      res.status(response.status).end();
+      return;
+    }
     res.status(response.status);
     res.setHeader('Content-Type', response.headers.get('content-type') || 'image/jpeg');
     // fetch() decodes gzip/br bodies, so an encoded upstream length would be wrong.

@@ -13,3 +13,8 @@ test('placeholderFor maps each series type to its placeholder image', () => {
   assert.equal(placeholderFor('magazine'), 'magazine.png');
   assert.equal(placeholderFor('book'), 'book.png');
 });
+
+test("typeDir/placeholderFor fall back to magazine for an unknown runtime type", () => {
+  assert.equal(typeDir("novel" as any), "magazines");
+  assert.equal(placeholderFor("novel" as any), "magazine.png");
+});

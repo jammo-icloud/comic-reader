@@ -4,6 +4,7 @@ import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { getPageUrlsFromSource, getCdnReferer, getSourceHome, getSourceTags, getSourceType } from './sources/index.js';
 import { loadAllSeries, saveSeries, addToCollection, typeDir, placeholderFor, type SeriesRecord } from './data.js';
+import { isFileUrl } from '@bindery/addon-api';
 import { resolveTargetSeries } from './series-resolve.js';
 import { rescanLibrary } from './scanner.js';
 import { readPartial, writePartial, clearPartial, hasPartial } from './partial.js';
@@ -182,9 +183,11 @@ async function assembleChapterFromSource(
   // File-based source short-circuit (Archive.org, etc.):
   // If pageUrls is a single URL pointing to a complete file (PDF/CBR/CBZ/EPUB),
   // download the file directly instead of stitching per-page images.
-  if (pageUrls.length === 1 && /\.(pdf|cbr|cbz|epub)(\?|$)/i.test(pageUrls[0])) {
+  if (pageUrls.length === 1 && isFileUrl(pageUrls[0])) {
     const fileUrl = pageUrls[0];
-    const ext = fileUrl.match(/\.(pdf|cbr|cbz|epub)(?:\?|$)/i)![1].toLowerCase();
+    const rawExt = new URL(fileUrl).pathname.split('.').pop()!.toLowerCase();
+    // .zip is accepted by isFileUrl; treat it as a CBZ (a zip of page images)
+    const ext = rawExt === 'zip' ? 'cbz' : rawExt;
     console.log(`  File download: ${path.basename(fileUrl)} (${ext.toUpperCase()})`);
 
     const res = await fetch(fileUrl, {

@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { importSeries, scanSourceFolder, getPendingImports, skipImport as skipPending, clearPending } from '../importer.js';
 import { enrichSingle, searchMalForName } from '../enrich.js';
-import { addToCollection } from '../data.js';
+import { addToCollection, isSeriesType } from '../data.js';
 
 const OCR_SERVICE_URL = process.env.OCR_SERVICE_URL || 'http://localhost:3001';
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
@@ -56,6 +56,10 @@ router.post('/import/confirm', async (req, res) => {
   const { sourceFolder, type, name, malId } = req.body;
   if (!sourceFolder || !type || !name) {
     res.status(400).json({ error: 'sourceFolder, type, and name required' });
+    return;
+  }
+  if (!isSeriesType(type)) {
+    res.status(400).json({ error: "type must be 'comic', 'magazine' or 'book'" });
     return;
   }
 

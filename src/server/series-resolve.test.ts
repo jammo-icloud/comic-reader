@@ -85,3 +85,10 @@ test('no mangaId skips the syncSource rule', () => {
   const nullId = resolveTargetSeries([subscribed, titled], { title: 'Title Match', sourceId: 's', mangaId: null, type: 'book' });
   assert.equal(nullId.existing?.id, 'title-match');
 });
+
+test("empty-string mangaId does not match a syncSource with an empty mangaId", () => {
+  const subscribed = mk("sub", "comic", { name: "Sub", syncSource: { sourceId: "s", mangaId: "" } });
+  const titled = mk("title-match", "comic", { name: "Title Match" });
+  const r = resolveTargetSeries([subscribed, titled], { title: "Title Match", sourceId: "s", mangaId: "", type: "comic" });
+  assert.equal(r.existing?.id, "title-match");
+});

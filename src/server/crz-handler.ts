@@ -32,6 +32,7 @@ import {
   type ComicRecord,
   typeDir,
   placeholderFor,
+  isSeriesType,
 } from './data.js';
 import { resolveTargetSeries } from './series-resolve.js';
 import { shortHash } from './hash.js';
@@ -43,10 +44,6 @@ import {
   type CrzManifestV2,
 } from './crz-format.js';
 import { getSourceTags, getSourceType } from './sources/index.js';
-
-function isSeriesType(value: unknown): value is SeriesType {
-  return value === 'comic' || value === 'magazine' || value === 'book';
-}
 
 const LIBRARY_DIR = process.env.LIBRARY_DIR || '/library';
 const DATA_DIR = process.env.DATA_DIR || './data';
